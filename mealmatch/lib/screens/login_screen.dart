@@ -12,6 +12,7 @@ class _LoginScreenState extends State<LoginScreen> {
   final TextEditingController passwordController = TextEditingController();
   final GlobalKey<FormState> _formKey = GlobalKey<FormState>();
   bool isRememberMe = false;
+  bool _isPasswordVisible = false;
 
   void handleBack() {
     Navigator.pop(context); // Navigate back to greet/welcome screen
@@ -209,7 +210,7 @@ class _LoginScreenState extends State<LoginScreen> {
                                     SizedBox(height: 6),
                                     TextFormField(
                                       controller: passwordController,
-                                      obscureText: true,
+                                      obscureText: !_isPasswordVisible,
                                       validator: _validatePassword,
                                       decoration: InputDecoration(
                                         hintText: 'Password',
@@ -235,6 +236,17 @@ class _LoginScreenState extends State<LoginScreen> {
                                             color: Color(0xFF5EA140),
                                             width: 2,
                                           ),
+                                        ),
+                                        suffixIcon: IconButton(
+                                          icon: Icon(
+                                            _isPasswordVisible ? Icons.visibility : Icons.visibility_off,
+                                            color: Colors.grey.shade600,
+                                          ),
+                                          onPressed: () {
+                                            setState(() {
+                                              _isPasswordVisible = !_isPasswordVisible;
+                                            });
+                                          },
                                         ),
                                       ),
                                     ),

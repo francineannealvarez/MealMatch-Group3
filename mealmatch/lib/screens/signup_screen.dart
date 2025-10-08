@@ -14,6 +14,9 @@ class _SignUpScreenState extends State<SignUpScreen> {
   final TextEditingController confirmPasswordController =
       TextEditingController();
 
+  bool _isPasswordVisible = false;
+  bool _isConfirmPasswordVisible = false;
+
   // Navigate back to the previous screen
   void handleBack(BuildContext context) {
     Navigator.pop(context);
@@ -47,7 +50,7 @@ class _SignUpScreenState extends State<SignUpScreen> {
   Widget _buildAppBar(BuildContext context) {
     return Container(
       width: double.infinity,
-      padding: EdgeInsets.only(top: 21, right: 38, bottom: 4, left: 38),
+      padding: EdgeInsets.only(top: 38, right: 38, bottom: 4, left: 38),
       child: Row(
         children: [
           GestureDetector(
@@ -175,7 +178,7 @@ class _SignUpScreenState extends State<SignUpScreen> {
             SizedBox(height: 4),
             TextFormField(
               controller: passwordController,
-              obscureText: true,
+              obscureText: !_isPasswordVisible,
               validator: _validatePassword,
               decoration: InputDecoration(
                 hintText: "Password",
@@ -193,6 +196,19 @@ class _SignUpScreenState extends State<SignUpScreen> {
                   borderRadius: BorderRadius.circular(50),
                   borderSide: BorderSide(color: Color(0xFF5EA140), width: 2),
                 ),
+                suffixIcon: IconButton(
+                  icon: Icon(
+                    _isPasswordVisible
+                        ? Icons.visibility
+                        : Icons.visibility_off,
+                    color: Colors.grey.shade600,
+                  ),
+                  onPressed: () {
+                    setState(() {
+                      _isPasswordVisible = !_isPasswordVisible;
+                    });
+                  },
+                ),
               ),
             ),
             SizedBox(height: 10),
@@ -207,7 +223,7 @@ class _SignUpScreenState extends State<SignUpScreen> {
             SizedBox(height: 4),
             TextFormField(
               controller: confirmPasswordController,
-              obscureText: true,
+              obscureText: !_isConfirmPasswordVisible,
               validator: _validateConfirmPassword,
               decoration: InputDecoration(
                 hintText: "Password",
@@ -224,6 +240,19 @@ class _SignUpScreenState extends State<SignUpScreen> {
                 focusedBorder: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(50),
                   borderSide: BorderSide(color: Color(0xFF5EA140), width: 2),
+                ),
+                suffixIcon: IconButton(
+                  icon: Icon(
+                    _isConfirmPasswordVisible
+                        ? Icons.visibility
+                        : Icons.visibility_off,
+                    color: Colors.grey.shade600,
+                  ),
+                  onPressed: () {
+                    setState(() {
+                      _isConfirmPasswordVisible = !_isConfirmPasswordVisible;
+                    });
+                  },
                 ),
               ),
             ),
