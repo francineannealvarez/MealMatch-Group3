@@ -28,8 +28,14 @@ class WelcomeScreen extends StatelessWidget {
                         fontFamily: 'System',
                       ),
                       children: [
-                        TextSpan(text: 'Meal', style: TextStyle(color: Color(0xFFF39321))),
-                        TextSpan(text: 'Match', style: TextStyle(color: Color(0xFF9DB88A))),
+                        TextSpan(
+                          text: 'Meal',
+                          style: TextStyle(color: Color(0xFFF39321)),
+                        ),
+                        TextSpan(
+                          text: 'Match',
+                          style: TextStyle(color: Color(0xFF9DB88A)),
+                        ),
                       ],
                     ),
                   ),
@@ -77,7 +83,10 @@ class WelcomeScreen extends StatelessWidget {
                             borderRadius: BorderRadius.circular(50),
                           ),
                         ),
-                        child: Text('Get Started', style: TextStyle(fontSize: 18, color: Colors.white)),
+                        child: Text(
+                          'Sign up',
+                          style: TextStyle(fontSize: 18, color: Colors.white),
+                        ),
                       ),
                     ),
                     SizedBox(height: 16),
@@ -98,7 +107,10 @@ class WelcomeScreen extends StatelessWidget {
                           ),
                           backgroundColor: Colors.transparent,
                         ),
-                        child: Text('Log In', style: TextStyle(fontSize: 18, color: Colors.white)),
+                        child: Text(
+                          'Log In',
+                          style: TextStyle(fontSize: 18, color: Colors.white),
+                        ),
                       ),
                     ),
                   ],
@@ -129,10 +141,7 @@ class WelcomeScreen extends StatelessWidget {
           child: Icon(icon, color: fgColor, size: 32),
         ),
         SizedBox(width: 16),
-        Text(
-          label,
-          style: TextStyle(color: Colors.white, fontSize: 20),
-        ),
+        Text(label, style: TextStyle(color: Colors.white, fontSize: 20)),
       ],
     );
   }

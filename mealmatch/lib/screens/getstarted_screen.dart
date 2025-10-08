@@ -1,6 +1,36 @@
 import 'package:flutter/material.dart';
 import '../services/firebase_service.dart';
-import 'package:shared_preferences/shared_preferences.dart';
+// Preferences flow UI
+
+String _stepTitle(int step) {
+  switch (step) {
+    case 1:
+      return 'Preferred Name';
+    case 2:
+      return 'Select your Main Goal';
+    case 3:
+      return 'Select your Activity Level';
+    case 4:
+      return 'Tell us about yourself';
+    default:
+      return '';
+  }
+}
+
+String _stepSubtitle(int step) {
+  switch (step) {
+    case 1:
+      return 'What should we call you?';
+    case 2:
+      return 'Choose at least one goal:';
+    case 3:
+      return 'Choose what describes you best:';
+    case 4:
+      return 'Please select which sex we should use to calculate your calorie needs:';
+    default:
+      return '';
+  }
+}
 
 class GetStartedScreen extends StatefulWidget {
   const GetStartedScreen({super.key});
@@ -13,7 +43,7 @@ class _GetStartedScreenState extends State<GetStartedScreen> {
   final FirebaseService _firebaseService = FirebaseService();
 
   int currentStep = 1;
-  final int totalSteps = 5;
+  final int totalSteps = 4;
 
   // User data
   String name = '';
@@ -24,9 +54,7 @@ class _GetStartedScreenState extends State<GetStartedScreen> {
   String height = '';
   String weight = '';
   String goalWeight = '';
-  String email = '';
-  String password = '';
-  bool agreedToTerms = false;
+  // Account is created earlier; only preferences collected here
 
   bool isLoading = false; // to show a loading indicator
 
@@ -45,8 +73,12 @@ class _GetStartedScreenState extends State<GetStartedScreen> {
     if (currentStep == 1) return name.isEmpty;
     if (currentStep == 2) return goals.isEmpty;
     if (currentStep == 3) return activityLevel.isEmpty;
-    if (currentStep == 4) return gender.isEmpty || age.isEmpty || height.isEmpty || weight.isEmpty || goalWeight.isEmpty;
-    if (currentStep == 5) return email.isEmpty || password.length < 10 || !agreedToTerms;
+    if (currentStep == 4)
+      return gender.isEmpty ||
+          age.isEmpty ||
+          height.isEmpty ||
+          weight.isEmpty ||
+          goalWeight.isEmpty;
     return false;
   }
 
@@ -57,36 +89,8 @@ class _GetStartedScreenState extends State<GetStartedScreen> {
         currentStep++;
       });
     } else {
-      // Final step: sign up
-      setState(() => isLoading = true);
-
-      final userId = await _firebaseService.signUpUser(
-        name: name,
-        goals: goals,
-        activityLevel: activityLevel,
-        gender: gender,
-        age: int.tryParse(age) ?? 0,
-        height: double.tryParse(height) ?? 0,
-        weight: double.tryParse(weight) ?? 0,
-        goalWeight: double.tryParse(goalWeight) ?? 0,
-        email: email,
-        password: password,
-      );
-
-      setState(() => isLoading = false);
-
-      if (userId != null) {
-        // Save user ID locally for auto-login
-        final prefs = await SharedPreferences.getInstance();
-        await prefs.setString('userId', userId);
-
-        // Navigate to Home Screen (replace with your route)
-        Navigator.pushReplacementNamed(context, '/home');
-      } else {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Signup failed! Check your email or password.')),
-        );
-      }
+      // Preferences complete → navigate to Home
+      Navigator.pushReplacementNamed(context, '/home');
     }
   }
 
@@ -97,104 +101,206 @@ class _GetStartedScreenState extends State<GetStartedScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: const Color(0xFFF5EFD8),
-      body: Column(
-        children: [
-          // Header
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 20),
-            child: Stack(
-              alignment: Alignment.center,
-              children: [
-                Align(
-                  alignment: Alignment.centerLeft,
-                  child: IconButton(
-                    icon: const Icon(Icons.arrow_back),
-                    onPressed: previousStep,
-                  ),
-                ),
-                const Center(
-                  child: Text(
-                    'Sign Up',
-                    style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
-                  ),
-                ),
-              ],
-            ),
-          ),
+    final List<Color> bgTop = [
+      const Color(0xFFD5E3CC),
+      const Color(0xFFD5E3CC),
+      const Color(0xFFFFE1C7),
+      const Color(0xFFFFE1C7),
+    ];
+    final List<Color> bgBottom = [
+      const Color(0xFFC8DBB8),
+      const Color(0xFFC8DBB8),
+      const Color(0xFFFFD3AD),
+      const Color(0xFFFFD3AD),
+    ];
 
-          // Progress Bar
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-            child: Row(
-              children: List.generate(totalSteps, (index) {
-                return Expanded(
-                  child: Container(
-                    margin: const EdgeInsets.symmetric(horizontal: 4),
-                    height: 6,
-                    decoration: BoxDecoration(
-                      color: index < currentStep ? Colors.green : Colors.grey[300],
-                      borderRadius: BorderRadius.circular(3),
+    return Scaffold(
+      body: Container(
+        width: double.infinity,
+        height: double.infinity,
+        decoration: BoxDecoration(
+          gradient: LinearGradient(
+            begin: Alignment.topCenter,
+            end: Alignment.bottomCenter,
+            colors: [bgTop[currentStep - 1], bgBottom[currentStep - 1]],
+          ),
+        ),
+        child: Column(
+          children: [
+            const SizedBox(height: 16),
+
+            // Progress Bar
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+              child: Row(
+                children: List.generate(totalSteps, (index) {
+                  return Expanded(
+                    child: Container(
+                      margin: const EdgeInsets.symmetric(horizontal: 4),
+                      height: 6,
+                      decoration: BoxDecoration(
+                        color: index < currentStep
+                            ? (index % 2 == 0
+                                  ? const Color(0xFF67B14D)
+                                  : const Color(0xFFF39321))
+                            : const Color(0x99FFFFFF),
+                        borderRadius: BorderRadius.circular(3),
+                      ),
+                    ),
+                  );
+                }),
+              ),
+            ),
+
+            // Titles
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
+              child: Column(
+                children: [
+                  Text(
+                    _stepTitle(currentStep),
+                    textAlign: TextAlign.center,
+                    style: const TextStyle(
+                      fontSize: 28,
+                      fontWeight: FontWeight.w700,
+                      color: Color(0xFF7A6F5D),
                     ),
                   ),
-                );
-              }),
-            ),
-          ),
-
-          // Step Content
-          Expanded(
-            child: isLoading
-                ? const Center(child: CircularProgressIndicator())
-                : StepContent(
-                    step: currentStep,
-                    name: name,
-                    setName: (val) => setState(() => name = val),
-                    goals: goals,
-                    toggleGoal: (goal) => setState(() {
-                      goals.contains(goal) ? goals.remove(goal) : goals.add(goal);
-                    }),
-                    activityLevel: activityLevel,
-                    setActivityLevel: (val) => setState(() => activityLevel = val),
-                    gender: gender,
-                    setGender: (val) => setState(() => gender = val),
-                    age: age,
-                    setAge: (val) => setState(() => age = val),
-                    height: height,
-                    setHeight: (val) => setState(() => height = val),
-                    weight: weight,
-                    setWeight: (val) => setState(() => weight = val),
-                    goalWeight: goalWeight,
-                    setGoalWeight: (val) => setState(() => goalWeight = val),
-                    email: email,
-                    setEmail: (val) => setState(() => email = val),
-                    password: password,
-                    setPassword: (val) => setState(() => password = val),
-                    agreedToTerms: agreedToTerms,
-                    setAgreedToTerms: (val) => setState(() => agreedToTerms = val),
+                  const SizedBox(height: 8),
+                  Text(
+                    _stepSubtitle(currentStep),
+                    textAlign: TextAlign.center,
+                    style: const TextStyle(
+                      fontSize: 16,
+                      color: Color(0xFF7A6F5D),
+                    ),
                   ),
-          ),
-
-          // Next/Finish Button
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
-            child: Row(
-              children: [
-                IconButton(
-                  icon: const Icon(Icons.arrow_back),
-                  onPressed: previousStep,
-                ),
-                Expanded(
-                  child: ElevatedButton(
-                    onPressed: isNextDisabled() || isLoading ? null : handleNext,
-                    child: Text(currentStep == totalSteps ? 'Finish' : 'Next'),
-                  ),
-                ),
-              ],
+                ],
+              ),
             ),
-          ),
-        ],
+
+            // Step Content
+            Expanded(
+              child: isLoading
+                  ? const Center(child: CircularProgressIndicator())
+                  : StepContent(
+                      step: currentStep,
+                      name: name,
+                      setName: (val) => setState(() => name = val),
+                      goals: goals,
+                      toggleGoal: (goal) => setState(() {
+                        goals.contains(goal)
+                            ? goals.remove(goal)
+                            : goals.add(goal);
+                      }),
+                      activityLevel: activityLevel,
+                      setActivityLevel: (val) =>
+                          setState(() => activityLevel = val),
+                      gender: gender,
+                      setGender: (val) => setState(() => gender = val),
+                      age: age,
+                      setAge: (val) => setState(() => age = val),
+                      height: height,
+                      setHeight: (val) => setState(() => height = val),
+                      weight: weight,
+                      setWeight: (val) => setState(() => weight = val),
+                      goalWeight: goalWeight,
+                      setGoalWeight: (val) => setState(() => goalWeight = val),
+                    ),
+            ),
+
+            // Bottom Buttons
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 20),
+              child: Column(
+                children: [
+                  SizedBox(
+                    width: double.infinity,
+                    child: currentStep == totalSteps
+                        ? Container(
+                            decoration: BoxDecoration(
+                              borderRadius: BorderRadius.circular(999),
+                              gradient: const LinearGradient(
+                                colors: [Color(0xFFF59E42), Color(0xFF6BAD4E)],
+                              ),
+                            ),
+                            padding: const EdgeInsets.all(2),
+                            child: Material(
+                              color: Colors.transparent,
+                              borderRadius: BorderRadius.circular(999),
+                              child: InkWell(
+                                borderRadius: BorderRadius.circular(999),
+                                onTap: isNextDisabled() || isLoading
+                                    ? null
+                                    : handleNext,
+                                child: Container(
+                                  alignment: Alignment.center,
+                                  padding: const EdgeInsets.symmetric(
+                                    vertical: 14,
+                                  ),
+                                  decoration: BoxDecoration(
+                                    color: const Color(0xFFF5DCC8),
+                                    borderRadius: BorderRadius.circular(999),
+                                  ),
+                                  child: ShaderMask(
+                                    shaderCallback: (bounds) => const LinearGradient(
+                                      colors: [Color(0xFFF59E42), Color(0xFF6BAD4E)],
+                                    ).createShader(bounds),
+                                    child: const Text(
+                                      'Create Account',
+                                      style: TextStyle(
+                                        fontWeight: FontWeight.w700,
+                                        color: Colors.white,
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                              ),
+                            ),
+                          )
+                        : ElevatedButton(
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: const Color(0xFFF59E42),
+                              foregroundColor: Colors.white,
+                              padding: const EdgeInsets.symmetric(vertical: 16),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(28),
+                              ),
+                            ),
+                            onPressed: isNextDisabled() || isLoading
+                                ? null
+                                : handleNext,
+                            child: const Text(
+                              'Next',
+                              style: TextStyle(fontWeight: FontWeight.w700),
+                            ),
+                          ),
+                  ),
+                  const SizedBox(height: 12),
+                  SizedBox(
+                    width: double.infinity,
+                    child: OutlinedButton(
+                      style: OutlinedButton.styleFrom(
+                        backgroundColor: Colors.white,
+                        foregroundColor: const Color(0xFF6B5F3B),
+                        side: const BorderSide(color: Colors.transparent),
+                        padding: const EdgeInsets.symmetric(vertical: 16),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(28),
+                        ),
+                      ),
+                      onPressed: previousStep,
+                      child: const Text(
+                        'Go Back',
+                        style: TextStyle(fontWeight: FontWeight.w700),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -219,12 +325,6 @@ class StepContent extends StatelessWidget {
   final void Function(String) setWeight;
   final String goalWeight;
   final void Function(String) setGoalWeight;
-  final String email;
-  final void Function(String) setEmail;
-  final String password;
-  final void Function(String) setPassword;
-  final bool agreedToTerms;
-  final void Function(bool) setAgreedToTerms;
 
   const StepContent({
     super.key,
@@ -245,26 +345,35 @@ class StepContent extends StatelessWidget {
     required this.setWeight,
     required this.goalWeight,
     required this.setGoalWeight,
-    required this.email,
-    required this.setEmail,
-    required this.password,
-    required this.setPassword,
-    required this.agreedToTerms,
-    required this.setAgreedToTerms,
   });
 
   @override
   Widget build(BuildContext context) {
     switch (step) {
       case 1:
-        return Center(
-          child: Padding(
-            padding: const EdgeInsets.all(16.0),
-            child: TextField(
-              onChanged: setName,
-              decoration: const InputDecoration(
-                  labelText: 'Preferred Name', border: OutlineInputBorder()),
-            ),
+        return Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 20),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const SizedBox(height: 8),
+              TextField(
+                onChanged: setName,
+                decoration: InputDecoration(
+                  hintText: 'Name',
+                  filled: true,
+                  fillColor: Colors.white,
+                  contentPadding: const EdgeInsets.symmetric(
+                    horizontal: 24,
+                    vertical: 14,
+                  ),
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(20),
+                    borderSide: BorderSide.none,
+                  ),
+                ),
+              ),
+            ],
           ),
         );
       case 2:
@@ -274,116 +383,258 @@ class StepContent extends StatelessWidget {
           "Maintain weight",
           "Learn to cook",
           "Discover recipes",
-          "Eat healthy"
+          "Eat healthy",
         ];
-        return ListView(
-          padding: const EdgeInsets.all(16),
-          children: goalOptions.map((goal) {
-            final selected = goals.contains(goal);
-            return ListTile(
-              title: Text(goal),
-              trailing: selected ? const Icon(Icons.check, color: Colors.green) : null,
-              onTap: () => toggleGoal(goal),
-            );
-          }).toList(),
+        return Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 20),
+          child: Column(
+            children: goalOptions.map((goal) {
+              final selected = goals.contains(goal);
+              return Container(
+                margin: const EdgeInsets.symmetric(vertical: 8),
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(14),
+                  boxShadow: const [
+                    BoxShadow(color: Color(0x0D000000), blurRadius: 4, offset: Offset(0, 2)),
+                  ],
+                ),
+                child: InkWell(
+                  borderRadius: BorderRadius.circular(14),
+                  onTap: () => toggleGoal(goal),
+                  child: Container(
+                    constraints: const BoxConstraints(minHeight: 56),
+                    padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 12),
+                    decoration: BoxDecoration(
+                      borderRadius: BorderRadius.circular(14),
+                      border: Border.all(
+                        color: selected ? const Color(0xFF1E88E5) : Colors.transparent,
+                        width: 2,
+                      ),
+                    ),
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Expanded(
+                          child: Text(
+                            goal,
+                            textAlign: TextAlign.center,
+                            style: const TextStyle(fontWeight: FontWeight.w600),
+                          ),
+                        ),
+                        if (selected)
+                          const Icon(Icons.check_circle, color: Color(0xFF67B14D)),
+                      ],
+                    ),
+                  ),
+                ),
+              );
+            }).toList(),
+          ),
         );
       case 3:
-        final options = ["Sedentary", "Lightly active", "Active", "Very active"];
-        return ListView(
-          padding: const EdgeInsets.all(16),
-          children: options
-              .map((option) => RadioListTile(
-                    title: Text(option),
-                    value: option,
-                    groupValue: activityLevel,
-                    onChanged: (val) => setActivityLevel(val ?? ''),
-                  ))
-              .toList(),
+        final options = [
+          "Sedentary",
+          "Lightly active",
+          "Active",
+          "Very active",
+        ];
+        return Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 20),
+          child: Column(
+            children: options.map((option) {
+              final selected = activityLevel == option;
+              return Container(
+                margin: const EdgeInsets.symmetric(vertical: 8),
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(14),
+                  boxShadow: const [
+                    BoxShadow(color: Color(0x0D000000), blurRadius: 4, offset: Offset(0, 2)),
+                  ],
+                ),
+                child: InkWell(
+                  borderRadius: BorderRadius.circular(14),
+                  onTap: () => setActivityLevel(option),
+                  child: Container(
+                    constraints: const BoxConstraints(minHeight: 80),
+                    padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 12),
+                    decoration: BoxDecoration(
+                      borderRadius: BorderRadius.circular(14),
+                      border: Border.all(
+                        color: selected ? const Color(0xFF1E88E5) : Colors.transparent,
+                        width: 2,
+                      ),
+                    ),
+                    child: Row(
+                      children: [
+                        Expanded(
+                          child: Column(
+                            mainAxisSize: MainAxisSize.min,
+                            crossAxisAlignment: CrossAxisAlignment.center,
+                            children: [
+                              Text(option, style: const TextStyle(fontWeight: FontWeight.w700)),
+                              const SizedBox(height: 4),
+                              Text(
+                                _activityDescription(option),
+                                textAlign: TextAlign.center,
+                                style: const TextStyle(color: Colors.black54, fontSize: 12),
+                              ),
+                            ],
+                          ),
+                        ),
+                        if (selected)
+                          const Icon(Icons.check_circle, color: Color(0xFF67B14D)),
+                      ],
+                    ),
+                  ),
+                ),
+              );
+            }).toList(),
+          ),
         );
       case 4:
         return Padding(
-          padding: const EdgeInsets.all(16.0),
-          child: ListView(
+          padding: const EdgeInsets.symmetric(horizontal: 20),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              const Text('Gender'),
+              const SizedBox(height: 8),
               Row(
                 children: [
                   Expanded(
                     child: ElevatedButton(
                       style: ElevatedButton.styleFrom(
-                          backgroundColor: gender == 'Male' ? Colors.blue : Colors.grey[300]),
+                        backgroundColor: gender == 'Male'
+                            ? const Color(0xFF90CAF9)
+                            : Colors.white,
+                        foregroundColor: Colors.black,
+                        side: BorderSide(color: Colors.grey.shade300),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                      ),
                       onPressed: () => setGender('Male'),
                       child: const Text('Male'),
                     ),
                   ),
-                  const SizedBox(width: 16),
+                  const SizedBox(width: 12),
                   Expanded(
                     child: ElevatedButton(
                       style: ElevatedButton.styleFrom(
-                          backgroundColor: gender == 'Female' ? Colors.pink : Colors.grey[300]),
+                        backgroundColor: gender == 'Female'
+                            ? const Color(0xFFF48FB1)
+                            : Colors.white,
+                        foregroundColor: Colors.black,
+                        side: BorderSide(color: Colors.grey.shade300),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                      ),
                       onPressed: () => setGender('Female'),
                       child: const Text('Female'),
                     ),
                   ),
                 ],
               ),
-              const SizedBox(height: 16),
-              TextField(
-                keyboardType: TextInputType.number,
-                onChanged: setAge,
-                decoration: const InputDecoration(labelText: 'Age', border: OutlineInputBorder()),
+              const SizedBox(height: 12),
+              _numberField(hint: 'Age', onChanged: setAge),
+              const SizedBox(height: 12),
+              Row(
+                children: [
+                  Expanded(
+                    child: _numberField(hint: 'Height', onChanged: setHeight),
+                  ),
+                  const SizedBox(width: 12),
+                  _unitChip('cm'),
+                ],
               ),
-              const SizedBox(height: 16),
-              TextField(
-                keyboardType: TextInputType.number,
-                onChanged: setHeight,
-                decoration:
-                    const InputDecoration(labelText: 'Height (cm)', border: OutlineInputBorder()),
+              const SizedBox(height: 12),
+              Row(
+                children: [
+                  Expanded(
+                    child: _numberField(hint: 'Weight', onChanged: setWeight),
+                  ),
+                  const SizedBox(width: 12),
+                  _unitChip('kg'),
+                ],
               ),
-              const SizedBox(height: 16),
-              TextField(
-                keyboardType: TextInputType.number,
-                onChanged: setWeight,
-                decoration:
-                    const InputDecoration(labelText: 'Weight (kg)', border: OutlineInputBorder()),
-              ),
-              const SizedBox(height: 16),
-              TextField(
-                keyboardType: TextInputType.number,
-                onChanged: setGoalWeight,
-                decoration: const InputDecoration(
-                    labelText: 'Goal Weight (kg)', border: OutlineInputBorder()),
-              ),
-            ],
-          ),
-        );
-      case 5:
-        return Padding(
-          padding: const EdgeInsets.all(16.0),
-          child: ListView(
-            children: [
-              TextField(
-                onChanged: setEmail,
-                decoration: const InputDecoration(labelText: 'Email', border: OutlineInputBorder()),
-              ),
-              const SizedBox(height: 16),
-              TextField(
-                onChanged: setPassword,
-                obscureText: true,
-                decoration:
-                    const InputDecoration(labelText: 'Password', border: OutlineInputBorder()),
-              ),
-              const SizedBox(height: 16),
-              CheckboxListTile(
-                value: agreedToTerms,
-                onChanged: (val) => setAgreedToTerms(val ?? false),
-                title: const Text('I agree to the Terms and Conditions'),
+              const SizedBox(height: 12),
+              Row(
+                children: [
+                  Expanded(
+                    child: _numberField(
+                      hint: 'Goal Weight',
+                      onChanged: setGoalWeight,
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  _unitChip('kg'),
+                ],
               ),
             ],
           ),
         );
+
       default:
         return const SizedBox.shrink();
     }
+  }
+}
+
+// --- Helpers ---
+Widget _numberField({
+  required String hint,
+  required void Function(String) onChanged,
+}) {
+  return Stack(
+    children: [
+      TextField(
+        keyboardType: TextInputType.number,
+        onChanged: onChanged,
+        decoration: InputDecoration(
+          hintText: hint,
+          filled: true,
+          fillColor: Colors.white,
+          contentPadding: const EdgeInsets.symmetric(
+            horizontal: 24,
+            vertical: 14,
+          ),
+          border: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(20),
+            borderSide: BorderSide.none,
+          ),
+        ),
+      ),
+    ],
+  );
+}
+
+Widget _unitChip(String text) {
+  return Container(
+    padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 16),
+    decoration: BoxDecoration(
+      color: const Color(0xFFF39321),
+      borderRadius: BorderRadius.circular(12),
+    ),
+    child: Text(
+      text,
+      style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w700),
+    ),
+  );
+}
+
+String _activityDescription(String option) {
+  switch (option) {
+    case 'Sedentary':
+      return 'Spend most of the day sitting';
+    case 'Lightly active':
+      return 'Spend a good part of the day on your feet';
+    case 'Active':
+      return 'Spend a good part of the day doing physical activity';
+    case 'Very active':
+      return 'Spend a good part of the day doing heavy physical activity';
+    default:
+      return '';
   }
 }
