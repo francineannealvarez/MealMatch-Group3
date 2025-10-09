@@ -1,6 +1,9 @@
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
+import 'package:mealmatch/screens/homepage_screen.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+
+import '../services/auth_service.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -53,7 +56,6 @@ class _LoginScreenState extends State<LoginScreen> {
       await _auth.signOut();
     }
 
-    // Update local state
     _rememberMe = rememberedEmail != null;
 
     // If remembered → auto-login
@@ -63,7 +65,6 @@ class _LoginScreenState extends State<LoginScreen> {
       });
     }
   }
-
 
   // ✅ Login logic with Firebase
   Future<void> _handleLogin() async {
@@ -93,27 +94,36 @@ class _LoginScreenState extends State<LoginScreen> {
     Navigator.pop(context); // Navigate back to greet/welcome screen
   }
 
-
-  void handleGoogleLogin() async {
-    // TODO: Integrate google_sign_in and Firebase auth
-    Navigator.of(context).push(
-      MaterialPageRoute(
-        fullscreenDialog: true,
-        builder: (_) => Scaffold(
-          appBar: AppBar(
-            leading: IconButton(
-              icon: const Icon(Icons.arrow_back),
-              onPressed: () => Navigator.of(context).pop(),
-            ),
-            title: const Text('Choose Google account'),
-            backgroundColor: Colors.white,
-            foregroundColor: Colors.black,
-            elevation: 0,
-          ),
-          body: const Center(child: Text('Google Sign-In UI goes here')),
-        ),
-      ),
+  void handleGoogleLogin(BuildContext context) async {
+    // Show loading indicator while signing in
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) => const Center(child: CircularProgressIndicator()),
     );
+
+    // Call your AuthService
+    final UserCredential? userCredential = await AuthService.signInWithGoogle();
+
+    // Remove loading screen
+    Navigator.of(context).pop();
+
+    if (userCredential != null) {
+      final user = userCredential.user;
+      print("Signed in as ${user?.displayName}, ${user?.email}");
+
+      // ✅ Navigate to your home screen or main app
+      Navigator.of(context).pushReplacement(
+        MaterialPageRoute(
+          builder: (_) => const HomePage(), // <-- replace with your actual home screen widget
+        ),
+      );
+    } else {
+      // ❌ User canceled or sign-in failed
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text("Google sign-in canceled or failed")),
+      );
+    }
   }
 
   void handleForgotPassword() {
@@ -414,7 +424,7 @@ class _LoginScreenState extends State<LoginScreen> {
                                       child: SizedBox(
                                         width: double.infinity,
                                         child: OutlinedButton(
-                                          onPressed: handleGoogleLogin,
+                                          onPressed: () => handleGoogleLogin(context),
                                           style: OutlinedButton.styleFrom(
                                             backgroundColor: Colors.white,
                                             side: BorderSide(

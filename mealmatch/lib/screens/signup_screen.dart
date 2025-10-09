@@ -1,4 +1,7 @@
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
+import 'package:mealmatch/screens/homepage_screen.dart';
+import '../services/auth_service.dart';
 import 'getstarted_screen.dart';
 
 class SignUpScreen extends StatefulWidget {
@@ -22,10 +25,64 @@ class _SignUpScreenState extends State<SignUpScreen> {
   }
 
   // Placeholder for Google Sign-In
-  void handleGoogleSignIn() {
+  void handleGoogleSignIn(BuildContext context) async {
     print('Continue with Google clicked');
-    // TODO: Implement Google Sign-In backend
+
+    // Show a loading indicator
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) => const Center(child: CircularProgressIndicator()),
+    );
+
+    try {
+      final UserCredential? userCredential = await AuthService.signInWithGoogle();
+
+      // Close the loading indicator
+      Navigator.of(context).pop();
+
+      if (userCredential != null) {
+        final user = userCredential.user;
+        print("Signed in as ${user?.displayName}, ${user?.email}");
+
+        // ✅ Check if it's a new user
+        final isNewUser = userCredential.additionalUserInfo?.isNewUser ?? false;
+
+        if (isNewUser) {
+          // Save data in Firestore (optional)
+          // then navigate to GetStartedScreen
+          Navigator.of(context).pushReplacement(
+            MaterialPageRoute(
+              builder: (_) => GetStartedScreen(
+                email: user?.email ?? '',
+                isGoogleUser: true,
+              ),
+            ),
+          );
+        } else {
+          // Returning user → Home
+          Navigator.of(context).pushReplacement(
+            MaterialPageRoute(
+              builder: (_) => const HomePage(),
+            ),
+          );
+        }
+
+      } else {
+        // ❌ Sign-in failed or canceled
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text("Google sign-in canceled or failed")),
+        );
+      }
+    } catch (e) {
+      Navigator.of(context).pop();
+      print("Error during Google Sign-In: $e");
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text("Error: $e")),
+      );
+    }
   }
+
 
   @override
   Widget build(BuildContext context) {
@@ -283,7 +340,7 @@ class _SignUpScreenState extends State<SignUpScreen> {
               child: SizedBox(
                 width: double.infinity,
                 child: OutlinedButton(
-                  onPressed: () => _onGoogleLoginPressed(context),
+                  onPressed: () => handleGoogleSignIn(context),
                   style: OutlinedButton.styleFrom(
                     backgroundColor: Colors.white,
                     side: BorderSide(color: Colors.grey.shade400),
@@ -438,7 +495,7 @@ class _SignUpScreenState extends State<SignUpScreen> {
   }
 }
 
-  void _onGoogleLoginPressed(BuildContext context) {
+  /*void _onGoogleLoginPressed(BuildContext context) {
     Navigator.of(context).push(
       MaterialPageRoute(
         fullscreenDialog: true,
@@ -457,7 +514,7 @@ class _SignUpScreenState extends State<SignUpScreen> {
         ),
       ),
     );
-  }
+  }*/
 
   void _onLoginTapped(BuildContext context) {
     Navigator.of(context).pushNamed('/login');

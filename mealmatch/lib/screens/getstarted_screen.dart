@@ -1,4 +1,4 @@
-import 'package:firebase_auth/firebase_auth.dart';
+//import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../services/firebase_service.dart';
@@ -37,12 +37,15 @@ String _stepSubtitle(int step) {
 
 class GetStartedScreen extends StatefulWidget {
   final String email;
-  final String password;
+  final String? password;
+  final bool isGoogleUser;
 
+  
   const GetStartedScreen({
     super.key,
     required this.email,
-    required this.password,
+    this.password, // optional — null if Google user
+    this.isGoogleUser = false, // default: false
   });
 
   @override
@@ -83,56 +86,74 @@ class _GetStartedScreenState extends State<GetStartedScreen> {
     if (currentStep == 1) return name.isEmpty;
     if (currentStep == 2) return goals.isEmpty;
     if (currentStep == 3) return activityLevel.isEmpty;
-    if (currentStep == 4)
+    if (currentStep == 4) {
       return gender.isEmpty ||
           age.isEmpty ||
           height.isEmpty ||
           weight.isEmpty ||
           goalWeight.isEmpty;
+    }
     return false;
   }
 
   // --- Signup function ---
- // --- Handle next button ---
   void handleNext() async {
     if (currentStep < totalSteps) {
       setState(() => currentStep++);
       return;
     }
 
-    // When preferences complete → create Firebase user
     setState(() => isLoading = true);
+
     try {
-      final result = await firebase_service.signUpUser(
-        email: widget.email,
-        password: widget.password,
-        name: name,
-        goals: goals,
-        activityLevel: activityLevel,
-        gender: gender,
-        age: int.tryParse(age) ?? 0,
-        height: double.tryParse(height) ?? 0,
-        weight: double.tryParse(weight) ?? 0,
-        goalWeight: double.tryParse(goalWeight) ?? 0,
-      );
-
-      if (result != null) {
-        // Success → go to login
-        if (mounted) {
-          // ✅ Sign out the newly created Firebase user to prevent auto-login
-          await FirebaseAuth.instance.signOut();
-          final prefs = await SharedPreferences.getInstance();
-          await prefs.remove('remembered_email');
-
-          Navigator.pushReplacementNamed(context, '/');
-        }
-      } else {
-        // Firebase returned an error — clean it up for readability
-        final errorMessage = result.toString().replaceAll(RegExp(r'\[.*?\]\s*'), '');
-        print('Signup failed: $errorMessage');
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Signup failed: $errorMessage'), backgroundColor: Colors.red),
+      if (widget.isGoogleUser) {
+        // 🌐 Google user — no need to create an account, just save data
+        await firebase_service.saveUserData(
+          email: widget.email,
+          name: name,
+          goals: goals,
+          activityLevel: activityLevel,
+          gender: gender,
+          age: int.tryParse(age) ?? 0,
+          height: double.tryParse(height) ?? 0,
+          weight: double.tryParse(weight) ?? 0,
+          goalWeight: double.tryParse(goalWeight) ?? 0,
         );
+
+        // ✅ Navigate to Home (stay signed in)
+        Navigator.pushReplacementNamed(context, '/home');
+      } else {
+        // 🔒 Regular email/password sign-up
+        final result = await firebase_service.signUpUser(
+          email: widget.email,
+          password: widget.password ?? '',
+          name: name,
+          goals: goals,
+          activityLevel: activityLevel,
+          gender: gender,
+          age: int.tryParse(age) ?? 0,
+          height: double.tryParse(height) ?? 0,
+          weight: double.tryParse(weight) ?? 0,
+          goalWeight: double.tryParse(goalWeight) ?? 0,
+        );
+
+        if (result != null) {
+          // ✅ Account created successfully → go to Home (keep signed in)
+          if (mounted) {
+            final prefs = await SharedPreferences.getInstance();
+            await prefs.setString('remembered_email', widget.email);
+            //await prefs.remove('remembered_email');
+            Navigator.pushReplacementNamed(context, '/home');
+          }
+        } else {
+          // ❌ Failed signup
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Signup failed'),
+              backgroundColor: Colors.red,
+            ),
+          );
+        }
       }
     } catch (e, stack) {
       print('🔥 SIGNUP ERROR: $e');
@@ -143,11 +164,6 @@ class _GetStartedScreenState extends State<GetStartedScreen> {
     } finally {
       setState(() => isLoading = false);
     }
-  }
-
-  void handleGoogleSignIn() {
-    // TODO: Implement Google Sign-In
-    print('Continue with Google clicked');
   }
 
   @override
