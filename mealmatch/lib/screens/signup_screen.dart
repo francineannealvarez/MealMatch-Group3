@@ -16,6 +16,9 @@ class _SignUpScreenState extends State<SignUpScreen> {
   bool _isPasswordVisible = false;
   bool _isConfirmPasswordVisible = false;
 
+  bool _isPasswordVisible = false;
+  bool _isConfirmPasswordVisible = false;
+
   // Navigate back to the previous screen
   void handleBack(BuildContext context) {
     Navigator.pop(context);

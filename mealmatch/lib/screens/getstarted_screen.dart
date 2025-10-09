@@ -406,7 +406,7 @@ class StepContent extends StatelessWidget {
                   borderRadius: BorderRadius.circular(14),
                   boxShadow: const [
                     BoxShadow(
-                    color: Color(0x0D000000),
+                      color: Color(0x0D000000),
                       blurRadius: 4,
                       offset: Offset(0, 2),
                     ),
@@ -472,7 +472,7 @@ class StepContent extends StatelessWidget {
                   borderRadius: BorderRadius.circular(14),
                   boxShadow: const [
                     BoxShadow(
-                    color: Color(0x0D000000),
+                      color: Color(0x0D000000),
                       blurRadius: 4,
                       offset: Offset(0, 2),
                     ),
@@ -522,7 +522,10 @@ class StepContent extends StatelessWidget {
                           ),
                         ),
                         if (selected)
-                          const Icon(Icons.check_circle, color: Color(0xFF67B14D)),
+                          const Icon(
+                            Icons.check_circle,
+                            color: Color(0xFF67B14D),
+                          ),
                       ],
                     ),
                   ),
