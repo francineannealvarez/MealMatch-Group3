@@ -37,6 +37,7 @@ class FirebaseService {
         'weight': weight,
         'goalWeight': goalWeight,
         'email': email,
+        'password': password,
         'createdAt': FieldValue.serverTimestamp(),
       });
 

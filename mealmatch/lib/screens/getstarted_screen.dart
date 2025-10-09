@@ -1,5 +1,8 @@
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import '../services/firebase_service.dart';
+
 // Preferences flow UI
 
 String _stepTitle(int step) {
@@ -33,14 +36,21 @@ String _stepSubtitle(int step) {
 }
 
 class GetStartedScreen extends StatefulWidget {
-  const GetStartedScreen({super.key});
+  final String email;
+  final String password;
+
+  const GetStartedScreen({
+    super.key,
+    required this.email,
+    required this.password,
+  });
 
   @override
   State<GetStartedScreen> createState() => _GetStartedScreenState();
 }
 
 class _GetStartedScreenState extends State<GetStartedScreen> {
-  final FirebaseService _firebaseService = FirebaseService();
+  final FirebaseService firebase_service = FirebaseService();
 
   int currentStep = 1;
   final int totalSteps = 4;
@@ -83,14 +93,55 @@ class _GetStartedScreenState extends State<GetStartedScreen> {
   }
 
   // --- Signup function ---
+ // --- Handle next button ---
   void handleNext() async {
     if (currentStep < totalSteps) {
-      setState(() {
-        currentStep++;
-      });
-    } else {
-      // Preferences complete → navigate to Home
-      Navigator.pushReplacementNamed(context, '/home');
+      setState(() => currentStep++);
+      return;
+    }
+
+    // When preferences complete → create Firebase user
+    setState(() => isLoading = true);
+    try {
+      final result = await firebase_service.signUpUser(
+        email: widget.email,
+        password: widget.password,
+        name: name,
+        goals: goals,
+        activityLevel: activityLevel,
+        gender: gender,
+        age: int.tryParse(age) ?? 0,
+        height: double.tryParse(height) ?? 0,
+        weight: double.tryParse(weight) ?? 0,
+        goalWeight: double.tryParse(goalWeight) ?? 0,
+      );
+
+      if (result != null) {
+        // Success → go to login
+        if (mounted) {
+          // ✅ Sign out the newly created Firebase user to prevent auto-login
+          await FirebaseAuth.instance.signOut();
+          final prefs = await SharedPreferences.getInstance();
+          await prefs.remove('remembered_email');
+
+          Navigator.pushReplacementNamed(context, '/');
+        }
+      } else {
+        // Firebase returned an error — clean it up for readability
+        final errorMessage = result.toString().replaceAll(RegExp(r'\[.*?\]\s*'), '');
+        print('Signup failed: $errorMessage');
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Signup failed: $errorMessage'), backgroundColor: Colors.red),
+        );
+      }
+    } catch (e, stack) {
+      print('🔥 SIGNUP ERROR: $e');
+      print(stack);
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Error: $e'), backgroundColor: Colors.red),
+      );
+    } finally {
+      setState(() => isLoading = false);
     }
   }
 
@@ -131,7 +182,7 @@ class _GetStartedScreenState extends State<GetStartedScreen> {
 
             // Progress Bar
             Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 20),
               child: Row(
                 children: List.generate(totalSteps, (index) {
                   return Expanded(
@@ -216,65 +267,23 @@ class _GetStartedScreenState extends State<GetStartedScreen> {
                 children: [
                   SizedBox(
                     width: double.infinity,
-                    child: currentStep == totalSteps
-                        ? Container(
-                            decoration: BoxDecoration(
-                              borderRadius: BorderRadius.circular(999),
-                              gradient: const LinearGradient(
-                                colors: [Color(0xFFF59E42), Color(0xFF6BAD4E)],
-                              ),
-                            ),
-                            padding: const EdgeInsets.all(2),
-                            child: Material(
-                              color: Colors.transparent,
-                              borderRadius: BorderRadius.circular(999),
-                              child: InkWell(
-                                borderRadius: BorderRadius.circular(999),
-                                onTap: isNextDisabled() || isLoading
-                                    ? null
-                                    : handleNext,
-                                child: Container(
-                                  alignment: Alignment.center,
-                                  padding: const EdgeInsets.symmetric(
-                                    vertical: 14,
-                                  ),
-                                  decoration: BoxDecoration(
-                                    color: const Color(0xFFF5DCC8),
-                                    borderRadius: BorderRadius.circular(999),
-                                  ),
-                                  child: ShaderMask(
-                                    shaderCallback: (bounds) => const LinearGradient(
-                                      colors: [Color(0xFFF59E42), Color(0xFF6BAD4E)],
-                                    ).createShader(bounds),
-                                    child: const Text(
-                                      'Create Account',
-                                      style: TextStyle(
-                                        fontWeight: FontWeight.w700,
-                                        color: Colors.white,
-                                      ),
-                                    ),
-                                  ),
-                                ),
-                              ),
-                            ),
-                          )
-                        : ElevatedButton(
-                            style: ElevatedButton.styleFrom(
-                              backgroundColor: const Color(0xFFF59E42),
-                              foregroundColor: Colors.white,
-                              padding: const EdgeInsets.symmetric(vertical: 16),
-                              shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(28),
-                              ),
-                            ),
-                            onPressed: isNextDisabled() || isLoading
-                                ? null
-                                : handleNext,
-                            child: const Text(
-                              'Next',
-                              style: TextStyle(fontWeight: FontWeight.w700),
-                            ),
-                          ),
+                    child: ElevatedButton(
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: const Color(0xFFF59E42),
+                        foregroundColor: Colors.white,
+                        padding: const EdgeInsets.symmetric(vertical: 16),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(28),
+                        ),
+                      ),
+                      onPressed: isNextDisabled() || isLoading
+                          ? null
+                          : handleNext,
+                      child: Text(
+                        currentStep == totalSteps ? 'Create Account' : 'Next',
+                        style: const TextStyle(fontWeight: FontWeight.w700),
+                      ),
+                    ),
                   ),
                   const SizedBox(height: 12),
                   SizedBox(
@@ -396,7 +405,11 @@ class StepContent extends StatelessWidget {
                   color: Colors.white,
                   borderRadius: BorderRadius.circular(14),
                   boxShadow: const [
-                    BoxShadow(color: Color(0x0D000000), blurRadius: 4, offset: Offset(0, 2)),
+                    BoxShadow(
+                    color: Color(0x0D000000),
+                      blurRadius: 4,
+                      offset: Offset(0, 2),
+                    ),
                   ],
                 ),
                 child: InkWell(
@@ -404,11 +417,16 @@ class StepContent extends StatelessWidget {
                   onTap: () => toggleGoal(goal),
                   child: Container(
                     constraints: const BoxConstraints(minHeight: 56),
-                    padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 12),
+                    padding: const EdgeInsets.symmetric(
+                      vertical: 14,
+                      horizontal: 12,
+                    ),
                     decoration: BoxDecoration(
                       borderRadius: BorderRadius.circular(14),
                       border: Border.all(
-                        color: selected ? const Color(0xFF1E88E5) : Colors.transparent,
+                        color: selected
+                            ? const Color(0xFF1E88E5)
+                            : Colors.transparent,
                         width: 2,
                       ),
                     ),
@@ -423,7 +441,10 @@ class StepContent extends StatelessWidget {
                           ),
                         ),
                         if (selected)
-                          const Icon(Icons.check_circle, color: Color(0xFF67B14D)),
+                          const Icon(
+                            Icons.check_circle,
+                            color: Color(0xFF67B14D),
+                          ),
                       ],
                     ),
                   ),
@@ -450,7 +471,11 @@ class StepContent extends StatelessWidget {
                   color: Colors.white,
                   borderRadius: BorderRadius.circular(14),
                   boxShadow: const [
-                    BoxShadow(color: Color(0x0D000000), blurRadius: 4, offset: Offset(0, 2)),
+                    BoxShadow(
+                    color: Color(0x0D000000),
+                      blurRadius: 4,
+                      offset: Offset(0, 2),
+                    ),
                   ],
                 ),
                 child: InkWell(
@@ -458,11 +483,16 @@ class StepContent extends StatelessWidget {
                   onTap: () => setActivityLevel(option),
                   child: Container(
                     constraints: const BoxConstraints(minHeight: 80),
-                    padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 12),
+                    padding: const EdgeInsets.symmetric(
+                      vertical: 12,
+                      horizontal: 12,
+                    ),
                     decoration: BoxDecoration(
                       borderRadius: BorderRadius.circular(14),
                       border: Border.all(
-                        color: selected ? const Color(0xFF1E88E5) : Colors.transparent,
+                        color: selected
+                            ? const Color(0xFF1E88E5)
+                            : Colors.transparent,
                         width: 2,
                       ),
                     ),
@@ -473,12 +503,20 @@ class StepContent extends StatelessWidget {
                             mainAxisSize: MainAxisSize.min,
                             crossAxisAlignment: CrossAxisAlignment.center,
                             children: [
-                              Text(option, style: const TextStyle(fontWeight: FontWeight.w700)),
+                              Text(
+                                option,
+                                style: const TextStyle(
+                                  fontWeight: FontWeight.w700,
+                                ),
+                              ),
                               const SizedBox(height: 4),
                               Text(
                                 _activityDescription(option),
                                 textAlign: TextAlign.center,
-                                style: const TextStyle(color: Colors.black54, fontSize: 12),
+                                style: const TextStyle(
+                                  color: Colors.black54,
+                                  fontSize: 12,
+                                ),
                               ),
                             ],
                           ),

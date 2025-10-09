@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'getstarted_screen.dart';
 
 class SignUpScreen extends StatefulWidget {
   const SignUpScreen({super.key});
@@ -11,8 +12,9 @@ class _SignUpScreenState extends State<SignUpScreen> {
   final GlobalKey<FormState> _formKey = GlobalKey<FormState>();
   final TextEditingController emailController = TextEditingController();
   final TextEditingController passwordController = TextEditingController();
-  final TextEditingController confirmPasswordController =
-      TextEditingController();
+  final TextEditingController confirmPasswordController = TextEditingController();
+  bool _isPasswordVisible = false;
+  bool _isConfirmPasswordVisible = false;
 
   // Navigate back to the previous screen
   void handleBack(BuildContext context) {
@@ -47,7 +49,7 @@ class _SignUpScreenState extends State<SignUpScreen> {
   Widget _buildAppBar(BuildContext context) {
     return Container(
       width: double.infinity,
-      padding: EdgeInsets.only(top: 21, right: 38, bottom: 4, left: 38),
+      padding: EdgeInsets.only(top: 38, right: 38, bottom: 4, left: 38),
       child: Row(
         children: [
           GestureDetector(
@@ -175,7 +177,7 @@ class _SignUpScreenState extends State<SignUpScreen> {
             SizedBox(height: 4),
             TextFormField(
               controller: passwordController,
-              obscureText: true,
+              obscureText: !_isPasswordVisible,
               validator: _validatePassword,
               decoration: InputDecoration(
                 hintText: "Password",
@@ -193,6 +195,19 @@ class _SignUpScreenState extends State<SignUpScreen> {
                   borderRadius: BorderRadius.circular(50),
                   borderSide: BorderSide(color: Color(0xFF5EA140), width: 2),
                 ),
+                suffixIcon: IconButton(
+                  icon: Icon(
+                    _isPasswordVisible
+                        ? Icons.visibility
+                        : Icons.visibility_off,
+                    color: Colors.grey.shade600,
+                  ),
+                  onPressed: () {
+                    setState(() {
+                      _isPasswordVisible = !_isPasswordVisible;
+                    });
+                  },
+                ),
               ),
             ),
             SizedBox(height: 10),
@@ -207,7 +222,7 @@ class _SignUpScreenState extends State<SignUpScreen> {
             SizedBox(height: 4),
             TextFormField(
               controller: confirmPasswordController,
-              obscureText: true,
+              obscureText: !_isConfirmPasswordVisible,
               validator: _validateConfirmPassword,
               decoration: InputDecoration(
                 hintText: "Password",
@@ -224,6 +239,19 @@ class _SignUpScreenState extends State<SignUpScreen> {
                 focusedBorder: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(50),
                   borderSide: BorderSide(color: Color(0xFF5EA140), width: 2),
+                ),
+                suffixIcon: IconButton(
+                  icon: Icon(
+                    _isConfirmPasswordVisible
+                        ? Icons.visibility
+                        : Icons.visibility_off,
+                    color: Colors.grey.shade600,
+                  ),
+                  onPressed: () {
+                    setState(() {
+                      _isConfirmPasswordVisible = !_isConfirmPasswordVisible;
+                    });
+                  },
                 ),
               ),
             ),
@@ -382,23 +410,33 @@ class _SignUpScreenState extends State<SignUpScreen> {
   }
 
   void _onCreateAccountPressed(BuildContext context) {
-    if (_formKey.currentState?.validate() == true) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Please Enter your Informations!'),
-          backgroundColor: Color(0xFF5EA140),
+  if (_formKey.currentState?.validate() == true) {
+    final String email = emailController.text.trim();
+    final String password = passwordController.text.trim();
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Text('Please enter your information!'),
+        backgroundColor: Color(0xFF5EA140),
+      ),
+    );
+
+    // 👉 Navigate to GetStartedScreen FIRST, before clearing
+    Navigator.of(context).pushReplacement(
+      MaterialPageRoute(
+        builder: (_) => GetStartedScreen(
+          email: email,
+          password: password,
         ),
-      );
+      ),
+    );
 
-      // Clear form fields
-      emailController.clear();
-      passwordController.clear();
-      confirmPasswordController.clear();
-
-      // Navigate to preferences/onboarding flow
-      Navigator.of(context).pushReplacementNamed('/preferences');
-    }
+    // ✅ Now you can clear them safely after navigating
+    emailController.clear();
+    passwordController.clear();
+    confirmPasswordController.clear();
   }
+}
 
   void _onGoogleLoginPressed(BuildContext context) {
     Navigator.of(context).push(

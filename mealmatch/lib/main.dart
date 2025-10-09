@@ -4,6 +4,7 @@ import 'screens/signup_screen.dart';
 import 'screens/getstarted_screen.dart';
 import 'screens/greet_screen.dart'; // WelcomeScreen
 import 'screens/login_screen.dart';
+import 'screens/homepage_screen.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized(); // ensures binding before async
@@ -27,7 +28,9 @@ class MyApp extends StatelessWidget {
         '/': (context) => WelcomeScreen(), // your first screen
         '/signup': (context) => SignUpScreen(), // sign-up screen
         '/login': (context) => const LoginScreen(),
-        '/preferences': (context) => GetStartedScreen(), // onboarding/preferences
+        '/preferences': (context) => GetStartedScreen(email: '', password: ''),
+        '/home': (context) => const HomePage(),
+
         // Add other screens here later (e.g., login)
       },
     );

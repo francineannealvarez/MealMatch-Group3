@@ -1,4 +1,6 @@
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -8,19 +10,89 @@ class LoginScreen extends StatefulWidget {
 }
 
 class _LoginScreenState extends State<LoginScreen> {
-  final TextEditingController emailController = TextEditingController();
-  final TextEditingController passwordController = TextEditingController();
-  final GlobalKey<FormState> _formKey = GlobalKey<FormState>();
-  bool isRememberMe = false;
+  final _formKey = GlobalKey<FormState>();
+  final TextEditingController _emailController = TextEditingController();
+  final TextEditingController _passwordController = TextEditingController();
+  // ignore: unused_field
+  bool _isLoading = false;
+  bool _rememberMe = false;
+  bool _isPasswordVisible = false;
 
+  final FirebaseAuth _auth = FirebaseAuth.instance;
+
+  @override
+  void initState() {
+    super.initState();
+    _checkRememberedUser();
+    _initializeLogin();
+  }
+
+  // ✅ If the user previously checked "Remember Me"
+  Future<void> _checkRememberedUser() async {
+    final prefs = await SharedPreferences.getInstance();
+    final isRemembered = prefs.getBool('remember_me') ?? false;
+
+    // 🔥 Only auto-login if user checked "remember me"
+    if (isRemembered && _auth.currentUser != null) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        Navigator.pushReplacementNamed(context, '/home');
+      });
+    } else {
+      // If not remembered, sign them out to clear auto-session
+      await _auth.signOut();
+    }
+  }
+
+  Future<void> _initializeLogin() async {
+    final prefs = await SharedPreferences.getInstance();
+    final rememberedEmail = prefs.getString('remembered_email');
+
+    // If Firebase has a user but it's NOT the remembered email → sign out
+    if (_auth.currentUser != null &&
+        _auth.currentUser!.email != rememberedEmail) {
+      await _auth.signOut();
+    }
+
+    // Update local state
+    _rememberMe = rememberedEmail != null;
+
+    // If remembered → auto-login
+    if (_rememberMe) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        Navigator.pushReplacementNamed(context, '/home');
+      });
+    }
+  }
+
+
+  // ✅ Login logic with Firebase
+  Future<void> _handleLogin() async {
+    if (!_formKey.currentState!.validate()) return;
+
+    setState(() => _isLoading = true);
+
+    try {
+      await _auth.signInWithEmailAndPassword(
+        email: _emailController.text.trim(),
+        password: _passwordController.text.trim(),
+      );
+
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setBool('remember_me', _rememberMe);
+
+      Navigator.pushReplacementNamed(context, '/home');
+    } on FirebaseAuthException catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(e.message ?? 'Login failed')),
+      );
+    } finally {
+      setState(() => _isLoading = false);
+    }
+  }
   void handleBack() {
     Navigator.pop(context); // Navigate back to greet/welcome screen
   }
 
-  void handleLogin() {
-    print('Login with: ${emailController.text}, ${passwordController.text}');
-    // TODO: Connect to backend
-  }
 
   void handleGoogleLogin() async {
     // TODO: Integrate google_sign_in and Firebase auth
@@ -166,7 +238,7 @@ class _LoginScreenState extends State<LoginScreen> {
                                     ),
                                     SizedBox(height: 6),
                                     TextFormField(
-                                      controller: emailController,
+                                      controller: _emailController,
                                       keyboardType: TextInputType.emailAddress,
                                       validator: _validateEmail,
                                       decoration: InputDecoration(
@@ -208,8 +280,8 @@ class _LoginScreenState extends State<LoginScreen> {
                                     ),
                                     SizedBox(height: 6),
                                     TextFormField(
-                                      controller: passwordController,
-                                      obscureText: true,
+                                      controller: _passwordController,
+                                      obscureText: !_isPasswordVisible,
                                       validator: _validatePassword,
                                       decoration: InputDecoration(
                                         hintText: 'Password',
@@ -236,6 +308,17 @@ class _LoginScreenState extends State<LoginScreen> {
                                             width: 2,
                                           ),
                                         ),
+                                        suffixIcon: IconButton(
+                                          icon: Icon(
+                                            _isPasswordVisible ? Icons.visibility : Icons.visibility_off,
+                                            color: Colors.grey.shade600,
+                                          ),
+                                          onPressed: () {
+                                            setState(() {
+                                              _isPasswordVisible = !_isPasswordVisible;
+                                            });
+                                          },
+                                        ),
                                       ),
                                     ),
 
@@ -248,9 +331,9 @@ class _LoginScreenState extends State<LoginScreen> {
                                         Row(
                                           children: [
                                             Checkbox(
-                                              value: isRememberMe,
+                                              value: _rememberMe,
                                               onChanged: (v) => setState(
-                                                () => isRememberMe = v ?? false,
+                                                () => _rememberMe = v ?? false,
                                               ),
                                             ),
                                             Text('Remember me'),
@@ -274,7 +357,7 @@ class _LoginScreenState extends State<LoginScreen> {
                                       child: SizedBox(
                                         width: double.infinity,
                                         child: ElevatedButton(
-                                          onPressed: _onLoginPressed,
+                                          onPressed: _handleLogin,
                                           style: ElevatedButton.styleFrom(
                                             backgroundColor: Color(0xFF5EA140),
                                             padding: EdgeInsets.symmetric(
@@ -442,8 +525,8 @@ class _LoginScreenState extends State<LoginScreen> {
     return null;
   }
 
-  void _onLoginPressed() {
+  /*void _onLoginPressed() {
     if (_formKey.currentState?.validate() != true) return;
-    handleLogin();
-  }
+    _handleLogin();
+  }*/
 }
