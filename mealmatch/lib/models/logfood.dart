@@ -1,4 +1,4 @@
-// 📁 lib/models/addfood.dart
+// 📁 lib/models/logfood.dart
 
 import 'package:cloud_firestore/cloud_firestore.dart';
 
