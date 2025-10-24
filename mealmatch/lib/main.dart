@@ -1,14 +1,18 @@
 import 'package:flutter/material.dart';
-import 'package:firebase_core/firebase_core.dart'; // import Firebase
+import 'package:firebase_core/firebase_core.dart';
 import 'screens/signup_screen.dart';
 import 'screens/getstarted_screen.dart';
-import 'screens/greet_screen.dart'; // WelcomeScreen
+import 'screens/greet_screen.dart';
 import 'screens/login_screen.dart';
 import 'screens/homepage_screen.dart';
+import 'screens/logfood_screen.dart';
+// import 'screens/log_history_screen.dart';
+// import 'screens/profile_screen.dart';
+// import 'screens/recipes_screen.dart';
 
 void main() async {
-  WidgetsFlutterBinding.ensureInitialized(); // ensures binding before async
-  await Firebase.initializeApp(); // initialize Firebase
+  WidgetsFlutterBinding.ensureInitialized();
+  await Firebase.initializeApp();
   runApp(const MyApp());
 }
 
@@ -20,18 +24,18 @@ class MyApp extends StatelessWidget {
     return MaterialApp(
       debugShowCheckedModeBanner: false,
       title: 'MealMatch App',
-      theme: ThemeData(
-        primarySwatch: Colors.orange,
-      ),
-      initialRoute: '/', // first screen
+      theme: ThemeData(primarySwatch: Colors.orange),
+      initialRoute: '/',
       routes: {
-        '/': (context) => WelcomeScreen(), // your first screen
-        '/signup': (context) => SignUpScreen(), // sign-up screen
+        '/': (context) => WelcomeScreen(),
+        '/signup': (context) => SignUpScreen(),
         '/login': (context) => const LoginScreen(),
         '/preferences': (context) => GetStartedScreen(email: '', password: ''),
         '/home': (context) => const HomePage(),
-
-        // Add other screens here later (e.g., login)
+        '/logfood': (context) => const SelectMealScreen(),
+        // '/log-history': (context) => LogFoodHistory(),
+        // '/profile': (context) => ProfileScreen(),
+        // '/recipes': (context) => RecipesScreen(),
       },
     );
   }
