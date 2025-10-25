@@ -551,6 +551,24 @@ class _HomePageState extends State<HomePage> {
           setState(() {
             _selectedIndex = index;
           });
+
+          switch (index) {
+            case 0: // Home
+              Navigator.pushReplacementNamed(context, '/home');
+              break;
+            case 1: // Recipes
+              Navigator.pushReplacementNamed(context, '/recipes');
+              break;
+            case 2: // Add (e.g., Add Food)
+              Navigator.pushReplacementNamed(context, '/add');
+              break;
+            case 3: // Log History
+              Navigator.pushReplacementNamed(context, '/history');
+              break;
+            case 4: // Profile
+              Navigator.pushReplacementNamed(context, '/profile');
+              break;
+          }
         },
         type: BottomNavigationBarType.fixed,
         backgroundColor: Colors.white,

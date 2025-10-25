@@ -403,32 +403,101 @@ class _SelectMealScreenState extends State<SelectMealScreen> {
           ),
         ],
       ),
-      bottomNavigationBar: BottomNavigationBar(
-        currentIndex: _selectedBottomNav,
-        onTap: (index) {
-          setState(() {
-            _selectedBottomNav = index;
-          });
-        },
-        type: BottomNavigationBarType.fixed,
-        selectedItemColor: Colors.green,
-        unselectedItemColor: Colors.grey,
-        items: const [
-          BottomNavigationBarItem(icon: Icon(Icons.home), label: 'Home'),
-          BottomNavigationBarItem(
-            icon: Icon(Icons.restaurant_menu),
-            label: 'Recipes',
-          ),
-          BottomNavigationBarItem(
-            icon: Icon(Icons.add_circle, size: 40),
-            label: '',
-          ),
-          BottomNavigationBarItem(
-            icon: Icon(Icons.history),
-            label: 'Log History',
-          ),
-          BottomNavigationBarItem(icon: Icon(Icons.person), label: 'Profile'),
-        ],
+      bottomNavigationBar: Container(
+        decoration: BoxDecoration(
+          color: Colors.white,
+          boxShadow: [
+            BoxShadow(
+              color: Colors.grey.withOpacity(0.2),
+              spreadRadius: 1,
+              blurRadius: 8,
+              offset: const Offset(0, -2),
+            ),
+          ],
+        ),
+        child: BottomNavigationBar(
+          currentIndex: _selectedBottomNav,
+          onTap: (index) {
+            setState(() {
+              _selectedBottomNav = index;
+            });
+
+            switch (index) {
+              case 0:
+                Navigator.pushReplacementNamed(context, '/home');
+                break;
+              case 1:
+                Navigator.pushReplacementNamed(context, '/recipes');
+                break;
+              case 2:
+                Navigator.pushReplacementNamed(context, '/add');
+                break;
+              case 3:
+                Navigator.pushReplacementNamed(context, '/history');
+                break;
+              case 4:
+                Navigator.pushReplacementNamed(context, '/profile');
+                break;
+            }
+          },
+          type: BottomNavigationBarType.fixed,
+          backgroundColor: Colors.white,
+          selectedItemColor: const Color(0xFF4CAF50),
+          unselectedItemColor: Colors.grey,
+          selectedFontSize: 12,
+          unselectedFontSize: 12,
+          elevation: 0,
+          items: [
+            BottomNavigationBarItem(
+              icon: Icon(
+                _selectedBottomNav == 0 ? Icons.home : Icons.home_outlined,
+                color: _selectedBottomNav == 0
+                    ? const Color(0xFF4CAF50)
+                    : Colors.grey,
+              ),
+              label: 'Home',
+            ),
+            BottomNavigationBarItem(
+              icon: Icon(
+                Icons.restaurant_menu,
+                color: _selectedBottomNav == 1
+                    ? const Color(0xFF4CAF50)
+                    : Colors.grey,
+              ),
+              label: 'Recipes',
+            ),
+            BottomNavigationBarItem(
+              icon: Container(
+                width: 50,
+                height: 50,
+                decoration: const BoxDecoration(
+                  color: Color(0xFF4CAF50),
+                  shape: BoxShape.circle,
+                ),
+                child: const Icon(Icons.add, color: Colors.white, size: 28),
+              ),
+              label: '',
+            ),
+            BottomNavigationBarItem(
+              icon: Icon(
+                Icons.history,
+                color: _selectedBottomNav == 3
+                    ? const Color(0xFF4CAF50)
+                    : Colors.grey,
+              ),
+              label: 'Log History',
+            ),
+            BottomNavigationBarItem(
+              icon: Icon(
+                Icons.person,
+                color: _selectedBottomNav == 4
+                    ? const Color(0xFF4CAF50)
+                    : Colors.grey,
+              ),
+              label: 'Profile',
+            ),
+          ],
+        ),
       ),
     );
   }

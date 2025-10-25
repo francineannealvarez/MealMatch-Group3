@@ -40,7 +40,6 @@ class GetStartedScreen extends StatefulWidget {
   final String? password;
   final bool isGoogleUser;
 
-  
   const GetStartedScreen({
     super.key,
     required this.email,
@@ -69,6 +68,7 @@ class _GetStartedScreenState extends State<GetStartedScreen> {
   String goalWeight = '';
   // Account is created earlier; only preferences collected here
 
+  bool _agreedToTerms = false; // ✅ checkbox state
   bool isLoading = false; // to show a loading indicator
 
   // --- Navigation ---
@@ -91,7 +91,8 @@ class _GetStartedScreenState extends State<GetStartedScreen> {
           age.isEmpty ||
           height.isEmpty ||
           weight.isEmpty ||
-          goalWeight.isEmpty;
+          goalWeight.isEmpty ||
+          !_agreedToTerms; // ✅ must agree before proceeding
     }
     return false;
   }
@@ -281,6 +282,57 @@ class _GetStartedScreenState extends State<GetStartedScreen> {
               padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 20),
               child: Column(
                 children: [
+                  Row(
+                    crossAxisAlignment: CrossAxisAlignment.center,
+                    children: [
+                      Checkbox(
+                        value: _agreedToTerms,
+                        onChanged: (value) {
+                          setState(() {
+                            _agreedToTerms = value ?? false;
+                          });
+                        },
+                        activeColor: const Color(0xFFF59E42),
+                      ),
+                      Expanded(
+                        child: Wrap(
+                          children: [
+                            const Text(
+                              "I agree to the ",
+                              style: TextStyle(fontSize: 14),
+                            ),
+                            GestureDetector(
+                              onTap: () =>
+                                  Navigator.pushNamed(context, '/terms'),
+                              child: const Text(
+                                "Terms and Conditions",
+                                style: TextStyle(
+                                  color: Color(0xFF4CAF50),
+                                  fontWeight: FontWeight.bold,
+                                  decoration: TextDecoration.underline,
+                                ),
+                              ),
+                            ),
+                            const Text(" and "),
+                            GestureDetector(
+                              onTap: () =>
+                                  Navigator.pushNamed(context, '/privacy'),
+                              child: const Text(
+                                "Privacy Policy",
+                                style: TextStyle(
+                                  color: Color(0xFF4CAF50),
+                                  fontWeight: FontWeight.bold,
+                                  decoration: TextDecoration.underline,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 16),
+
                   SizedBox(
                     width: double.infinity,
                     child: ElevatedButton(
@@ -292,7 +344,8 @@ class _GetStartedScreenState extends State<GetStartedScreen> {
                           borderRadius: BorderRadius.circular(28),
                         ),
                       ),
-                      onPressed: isNextDisabled() || isLoading
+                      onPressed:
+                          (isNextDisabled() || isLoading || !_agreedToTerms)
                           ? null
                           : handleNext,
                       child: Text(
@@ -302,6 +355,8 @@ class _GetStartedScreenState extends State<GetStartedScreen> {
                     ),
                   ),
                   const SizedBox(height: 12),
+
+                  // ✅ Go Back button
                   SizedBox(
                     width: double.infinity,
                     child: OutlinedButton(

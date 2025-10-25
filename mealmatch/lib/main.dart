@@ -6,6 +6,8 @@ import 'screens/greet_screen.dart';
 import 'screens/login_screen.dart';
 import 'screens/homepage_screen.dart';
 import 'screens/logfood_screen.dart';
+import 'screens/termsandcondition_screen.dart';
+import 'screens/privacypolicy_screen.dart';
 // import 'screens/log_history_screen.dart';
 // import 'screens/profile_screen.dart';
 // import 'screens/recipes_screen.dart';
@@ -33,6 +35,8 @@ class MyApp extends StatelessWidget {
         '/preferences': (context) => GetStartedScreen(email: '', password: ''),
         '/home': (context) => const HomePage(),
         '/logfood': (context) => const SelectMealScreen(),
+        '/terms': (context) => const TermsConditionScreen(),
+        '/privacy': (context) => const PrivacyPolicyScreen(),
         // '/log-history': (context) => LogFoodHistory(),
         // '/profile': (context) => ProfileScreen(),
         // '/recipes': (context) => RecipesScreen(),
