@@ -26,30 +26,104 @@ class LogService {
     return snapshot.docs.map((doc) => MealLog.fromDoc(doc)).toList();
   }
 
-  /// 🔹 Get logs within a date range (used for week/month/custom)
-  Future<List<MealLog>> getLogsInRange(DateTime start, DateTime end) async {
+  /// 🔹 Get logs for a specific date
+  Future<List<MealLog>> getLogsByDate(DateTime date) async {
     final user = _auth.currentUser;
     if (user == null) return [];
+
+    final String dateStr = _formatDate(date);
 
     final snapshot = await _firestore
         .collection('users')
         .doc(user.uid)
         .collection('meal_logs')
-        .where('timestamp', isGreaterThanOrEqualTo: start)
-        .where('timestamp', isLessThanOrEqualTo: end)
+        .where('date', isEqualTo: dateStr)
         .orderBy('timestamp', descending: true)
         .get();
 
     return snapshot.docs.map((doc) => MealLog.fromDoc(doc)).toList();
   }
 
+  /// 🔹 Get logs by date and category
+  Future<List<MealLog>> getLogsByDateAndCategory(
+      DateTime date, String category) async {
+    final user = _auth.currentUser;
+    if (user == null) return [];
+
+    final String dateStr = _formatDate(date);
+
+    final snapshot = await _firestore
+        .collection('users')
+        .doc(user.uid)
+        .collection('meal_logs')
+        .where('date', isEqualTo: dateStr)
+        .where('category', isEqualTo: category)
+        .orderBy('timestamp', descending: true)
+        .get();
+
+    return snapshot.docs.map((doc) => MealLog.fromDoc(doc)).toList();
+  }
+
+  /// 🔹 Get logs within a date range (used for week/month/custom)
+  Future<List<MealLog>> getLogsInRange(DateTime start, DateTime end) async {
+    final user = _auth.currentUser;
+    if (user == null) return [];
+
+    // Set start to beginning of day and end to end of day
+    final startOfDay = DateTime(start.year, start.month, start.day);
+    final endOfDay = DateTime(end.year, end.month, end.day, 23, 59, 59);
+
+    final snapshot = await _firestore
+        .collection('users')
+        .doc(user.uid)
+        .collection('meal_logs')
+        .where('timestamp', isGreaterThanOrEqualTo: startOfDay)
+        .where('timestamp', isLessThanOrEqualTo: endOfDay)
+        .orderBy('timestamp', descending: true)
+        .get();
+
+    return snapshot.docs.map((doc) => MealLog.fromDoc(doc)).toList();
+  }
+
+  /// 🔹 Delete a meal log
+  Future<void> deleteMealLog(String logId) async {
+    final user = _auth.currentUser;
+    if (user == null) return;
+
+    await _firestore
+        .collection('users')
+        .doc(user.uid)
+        .collection('meal_logs')
+        .doc(logId)
+        .delete();
+  }
+
   /// 🔹 Calculate total calories for a list of MealLogs
-  int calculateTotalCalories(List<MealLog> logs) {
-    int total = 0;
+  double calculateTotalCalories(List<MealLog> logs) {
+    double total = 0;
     for (var log in logs) {
       total += log.calories;
     }
     return total;
+  }
+
+  /// 🔹 Calculate total macros for a list of MealLogs
+  Map<String, double> calculateTotalMacros(List<MealLog> logs) {
+    double totalCarbs = 0;
+    double totalProteins = 0;
+    double totalFats = 0;
+
+    for (var log in logs) {
+      totalCarbs += log.carbs;
+      totalProteins += log.proteins;
+      totalFats += log.fats;
+    }
+
+    return {
+      'carbs': totalCarbs,
+      'proteins': totalProteins,
+      'fats': totalFats,
+    };
   }
 
   /// 🔹 Get user's calorie goal (from `users` collection)
@@ -61,7 +135,6 @@ class LogService {
     if (!doc.exists) return null;
 
     final data = doc.data();
-    // Ensure that you have a field like 'goalCalories' in user document
     return data?['goalCalories'] != null
         ? (data!['goalCalories'] as num).toInt()
         : null;
@@ -71,6 +144,7 @@ class LogService {
   Future<Map<String, dynamic>> getTodaySummary() async {
     final logs = await getTodayLogs();
     final totalCalories = calculateTotalCalories(logs);
+    final macros = calculateTotalMacros(logs);
 
     final goal = await getUserCalorieGoal();
     final remaining = (goal != null) ? (goal - totalCalories) : null;
@@ -79,7 +153,31 @@ class LogService {
       'totalCalories': totalCalories,
       'goalCalories': goal,
       'remainingCalories': remaining,
+      'totalCarbs': macros['carbs'],
+      'totalProteins': macros['proteins'],
+      'totalFats': macros['fats'],
     };
+  }
+
+  /// 🔹 Group logs by category for a specific date
+  Future<Map<String, List<MealLog>>> getLogsGroupedByCategory(
+      DateTime date) async {
+    final logs = await getLogsByDate(date);
+
+    Map<String, List<MealLog>> grouped = {
+      'Breakfast': [],
+      'Lunch': [],
+      'Dinner': [],
+      'Snack': [],
+    };
+
+    for (var log in logs) {
+      if (grouped.containsKey(log.category)) {
+        grouped[log.category]!.add(log);
+      }
+    }
+
+    return grouped;
   }
 
   /// 🔹 Format date (YYYY-MM-DD)

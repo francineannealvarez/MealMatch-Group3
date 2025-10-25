@@ -1,7 +1,6 @@
 // 📁 lib/models/food_item.dart
 
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'models/fooditem.dart';
 
 class FoodItem {
   final String id; // Document ID from Firestore
