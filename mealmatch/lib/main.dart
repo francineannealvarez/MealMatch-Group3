@@ -8,9 +8,9 @@ import 'screens/homepage_screen.dart';
 import 'screens/logfood_screen.dart';
 import 'screens/termsandcondition_screen.dart';
 import 'screens/privacypolicy_screen.dart';
+import 'screens/recipes_screen.dart';
 // import 'screens/log_history_screen.dart';
 // import 'screens/profile_screen.dart';
-// import 'screens/recipes_screen.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -37,6 +37,7 @@ class MyApp extends StatelessWidget {
         '/logfood': (context) => const SelectMealScreen(),
         '/terms': (context) => const TermsConditionScreen(),
         '/privacy': (context) => const PrivacyPolicyScreen(),
+        '/recipes': (context) => const RecipesPage(),
         // '/log-history': (context) => LogFoodHistory(),
         // '/profile': (context) => ProfileScreen(),
         // '/recipes': (context) => RecipesScreen(),
