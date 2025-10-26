@@ -2,6 +2,7 @@
 
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import '../services/food_api_service.dart';
 
 void main() {
   runApp(const LogFood());
@@ -32,8 +33,7 @@ class FoodItem {
   final double carbs;
   final double protein;
   final double fat;
-  final double servingsamount;
-  final String servingsize;
+  final String serving; // Combined: "1 piece", "100 g", "1.5 cup"
 
   FoodItem({
     required this.id,
@@ -43,23 +43,37 @@ class FoodItem {
     required this.carbs,
     required this.protein,
     required this.fat,
-    required this.servingsamount,
-    required this.servingsize,
+    required this.serving,
   });
 
-  factory FoodItem.fromDoc(DocumentSnapshot doc) {
-    final data = doc.data() as Map<String, dynamic>;
+  factory FoodItem.fromApiData(Map<String, dynamic> data) {
+    // Combine servingsamount and servingsize into one string
+    final amount = data['servingsamount'] ?? 100;
+    final size = data['servingsize'] ?? 'g';
+    final serving = '$amount $size';
+
     return FoodItem(
-      id: doc.id,
+      id: 'api_${data['name']}_${DateTime.now().millisecondsSinceEpoch}',
       name: data['name'] ?? '',
       brand: data['brand'] ?? '',
       calories: (data['calories'] ?? 0).toDouble(),
       carbs: (data['carbs'] ?? 0).toDouble(),
       protein: (data['protein'] ?? 0).toDouble(),
       fat: (data['fat'] ?? 0).toDouble(),
-      servingsamount: (data['servingsamount'] ?? 0).toDouble(),
-      servingsize: data['servingsize'] ?? '',
+      serving: serving,
     );
+  }
+
+  Map<String, dynamic> toMap() {
+    return {
+      'name': name,
+      'brand': brand,
+      'calories': calories,
+      'carbs': carbs,
+      'protein': protein,
+      'fat': fat,
+      'serving': serving,
+    };
   }
 }
 
@@ -75,41 +89,30 @@ class _SelectMealScreenState extends State<SelectMealScreen> {
   int _selectedBottomNav = 0;
   final TextEditingController _searchController = TextEditingController();
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
+  final FoodApiService _apiService = FoodApiService();
 
   // Selected meal category
   String? _selectedMeal;
   final List<String> _mealOptions = ['Breakfast', 'Lunch', 'Dinner', 'Snacks'];
 
-  // Recent foods cache
+  // API search results
+  List<FoodItem> _searchResults = [];
+  bool _isSearching = false;
+  String _searchMessage = 'Search for foods to get started';
+
+  // Recent logged foods (from meal_logs, not foods collection)
   List<FoodItem> _recentFoods = [];
   bool _isLoadingRecent = true;
 
   @override
   void initState() {
     super.initState();
-    _loadRecentFoods();
+    _loadRecentFoodsFromLogs();
   }
 
-  // Load recent foods on init
-  Future<void> _loadRecentFoods() async {
-    final recent = await _getRecentFoodsFromLogs();
-    setState(() {
-      _recentFoods = recent;
-      _isLoadingRecent = false;
-    });
-  }
-
-  // Stream to get all foods from Firestore
-  Stream<List<FoodItem>> _getAllFoods() {
-    return _firestore.collection('foods').snapshots().map((snapshot) {
-      return snapshot.docs.map((doc) => FoodItem.fromDoc(doc)).toList();
-    });
-  }
-
-  // Get recent foods from meal logs
-  Future<List<FoodItem>> _getRecentFoodsFromLogs() async {
+  // Load recent foods from meal logs only
+  Future<void> _loadRecentFoodsFromLogs() async {
     try {
-      // Get recent meal logs
       final mealLogsQuery = await _firestore
           .collection('meal_logs')
           .orderBy('timestamp', descending: true)
@@ -117,63 +120,88 @@ class _SelectMealScreenState extends State<SelectMealScreen> {
           .get();
 
       if (mealLogsQuery.docs.isEmpty) {
-        print('No meal logs found');
-        return [];
+        setState(() {
+          _isLoadingRecent = false;
+        });
+        return;
       }
 
-      print('Found ${mealLogsQuery.docs.length} meal logs');
-
-      // Get unique food names
-      final uniqueFoodNames = <String>{};
-      final recentFoodNames = <String>[];
+      // Get unique foods from logs
+      final seenFoods = <String>{};
+      final recentFoods = <FoodItem>[];
 
       for (var doc in mealLogsQuery.docs) {
         final data = doc.data();
         final foodName = data['foodName'] as String?;
-        print('Meal log: $foodName');
 
-        if (foodName != null && !uniqueFoodNames.contains(foodName)) {
-          uniqueFoodNames.add(foodName);
-          recentFoodNames.add(foodName);
-          if (recentFoodNames.length >= 7) break;
+        if (foodName != null && !seenFoods.contains(foodName)) {
+          seenFoods.add(foodName);
+
+          // Create FoodItem from meal log data
+          recentFoods.add(
+            FoodItem(
+              id: doc.id,
+              name: data['foodName'] ?? '',
+              brand: data['brand'] ?? '',
+              calories: (data['calories'] ?? 0).toDouble(),
+              carbs: (data['carbs'] ?? 0).toDouble(),
+              protein: (data['proteins'] ?? 0).toDouble(),
+              fat: (data['fats'] ?? 0).toDouble(),
+              serving: data['serving'] ?? '100 g', // Single field
+            ),
+          );
+
+          if (recentFoods.length >= 7) break;
         }
       }
 
-      print('Unique food names: $recentFoodNames');
-
-      // Fetch full food details
-      final recentFoods = <FoodItem>[];
-      for (var foodName in recentFoodNames) {
-        final foodQuery = await _firestore
-            .collection('foods')
-            .where('name', isEqualTo: foodName)
-            .limit(1)
-            .get();
-
-        if (foodQuery.docs.isNotEmpty) {
-          recentFoods.add(FoodItem.fromDoc(foodQuery.docs.first));
-          print('Added to recent: $foodName');
-        }
-      }
-
-      print('Total recent foods: ${recentFoods.length}');
-      return recentFoods;
+      setState(() {
+        _recentFoods = recentFoods;
+        _isLoadingRecent = false;
+      });
     } catch (e) {
-      print('Error getting recent foods: $e');
-      return [];
+      print('Error loading recent foods: $e');
+      setState(() {
+        _isLoadingRecent = false;
+      });
     }
   }
 
-  // Search foods
-  List<FoodItem> _filterFoods(List<FoodItem> foods, String query) {
-    if (query.isEmpty) return foods;
-    return foods
-        .where(
-          (food) =>
-              food.name.toLowerCase().contains(query.toLowerCase()) ||
-              food.brand.toLowerCase().contains(query.toLowerCase()),
-        )
-        .toList();
+  // Search API foods
+  Future<void> _searchApiFood(String query) async {
+    if (query.trim().isEmpty) {
+      setState(() {
+        _searchResults = [];
+        _searchMessage = 'Search for foods to get started';
+        _isSearching = false;
+      });
+      return;
+    }
+
+    setState(() {
+      _isSearching = true;
+      _searchMessage = 'Searching...';
+    });
+
+    try {
+      final results = await _apiService.searchAllSources(query);
+
+      setState(() {
+        _searchResults = results
+            .map((data) => FoodItem.fromApiData(data))
+            .toList();
+        _isSearching = false;
+        _searchMessage = results.isEmpty
+            ? 'No results found. Try different keywords.'
+            : '';
+      });
+    } catch (e) {
+      print('API search error: $e');
+      setState(() {
+        _isSearching = false;
+        _searchMessage = 'Error searching. Check your internet connection.';
+      });
+    }
   }
 
   // Show meal selection dialog
@@ -198,13 +226,14 @@ class _SelectMealScreenState extends State<SelectMealScreen> {
     );
   }
 
-  // Add food to meal log
+  // Add food to meal log (no Firestore foods collection)
   Future<void> _addFoodToMeal(FoodItem food, String mealCategory) async {
     try {
       final now = DateTime.now();
       final dateStr =
           '${now.year}-${now.month.toString().padLeft(2, '0')}-${now.day.toString().padLeft(2, '0')}';
 
+      // Save directly to meal_logs only
       await _firestore.collection('meal_logs').add({
         'category': mealCategory,
         'foodName': food.name,
@@ -212,15 +241,14 @@ class _SelectMealScreenState extends State<SelectMealScreen> {
         'carbs': food.carbs,
         'fats': food.fat,
         'proteins': food.protein,
-        'servings': food.servingsamount,
-        'servingSize': food.servingsize,
+        'serving': food.serving, // Single field: "100 g", "1 piece", etc.
         'timestamp': FieldValue.serverTimestamp(),
         'date': dateStr,
         'brand': food.brand,
       });
 
-      // Reload recent foods after adding
-      await _loadRecentFoods();
+      // Reload recent foods
+      await _loadRecentFoodsFromLogs();
 
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
@@ -242,10 +270,8 @@ class _SelectMealScreenState extends State<SelectMealScreen> {
   // Handle add button click
   void _handleAddFood(FoodItem food) {
     if (_selectedMeal == null) {
-      // Show meal selection dialog if no meal is selected
       _showMealSelectionDialog(food);
     } else {
-      // Add directly to selected meal
       _addFoodToMeal(food, _selectedMeal!);
     }
   }
@@ -309,7 +335,7 @@ class _SelectMealScreenState extends State<SelectMealScreen> {
             ),
           ),
 
-          // Search Bar
+          // Search Bar (no button, just press Enter)
           Padding(
             padding: const EdgeInsets.all(16.0),
             child: Container(
@@ -320,189 +346,131 @@ class _SelectMealScreenState extends State<SelectMealScreen> {
               ),
               child: TextField(
                 controller: _searchController,
-                onChanged: (value) {
-                  setState(() {});
-                },
                 decoration: InputDecoration(
-                  hintText: 'Search for a food',
+                  hintText: 'Search 380,000+ foods (press Enter)',
                   hintStyle: TextStyle(color: Colors.grey[400]),
                   prefixIcon: const Icon(Icons.search, color: Colors.orange),
+                  suffixIcon: _isSearching
+                      ? const Padding(
+                          padding: EdgeInsets.all(12),
+                          child: SizedBox(
+                            width: 20,
+                            height: 20,
+                            child: CircularProgressIndicator(
+                              strokeWidth: 2,
+                              color: Colors.orange,
+                            ),
+                          ),
+                        )
+                      : _searchController.text.isNotEmpty
+                      ? IconButton(
+                          icon: const Icon(Icons.clear, color: Colors.grey),
+                          onPressed: () {
+                            _searchController.clear();
+                            setState(() {
+                              _searchResults = [];
+                              _searchMessage =
+                                  'Search for foods to get started';
+                            });
+                          },
+                        )
+                      : null,
                   border: InputBorder.none,
                   contentPadding: const EdgeInsets.symmetric(
                     horizontal: 20,
                     vertical: 15,
                   ),
                 ),
+                onSubmitted: (value) => _searchApiFood(value),
+                textInputAction: TextInputAction.search,
               ),
             ),
           ),
 
-          // Food Lists with StreamBuilder
+          // Food Lists
           Expanded(
-            child: StreamBuilder<List<FoodItem>>(
-              stream: _getAllFoods(),
-              builder: (context, snapshot) {
-                if (snapshot.connectionState == ConnectionState.waiting) {
-                  return const Center(child: CircularProgressIndicator());
-                }
+            child: ListView(
+              children: [
+                // Search Results Section
+                if (_searchResults.isNotEmpty) ...[
+                  _buildSectionHeader('Search Results'),
+                  ..._searchResults.map((food) => _buildFoodItem(food)),
+                  const Divider(height: 32, thickness: 2),
+                ],
 
-                if (snapshot.hasError) {
-                  return Center(child: Text('Error: ${snapshot.error}'));
-                }
+                // Recent Section
+                if (!_isLoadingRecent && _recentFoods.isNotEmpty) ...[
+                  _buildSectionHeader('Recently Logged'),
+                  ..._recentFoods.map((food) => _buildFoodItem(food)),
+                ],
 
-                if (!snapshot.hasData || snapshot.data!.isEmpty) {
-                  return const Center(
-                    child: Text(
-                      'No foods found. Add foods to Firestore!',
-                      style: TextStyle(fontSize: 16),
+                // Empty state
+                if (_searchResults.isEmpty &&
+                    _recentFoods.isEmpty &&
+                    !_isSearching)
+                  Padding(
+                    padding: const EdgeInsets.all(32.0),
+                    child: Column(
+                      children: [
+                        Icon(Icons.search, size: 64, color: Colors.grey[400]),
+                        const SizedBox(height: 16),
+                        Text(
+                          _searchMessage,
+                          style: TextStyle(
+                            color: Colors.grey[600],
+                            fontSize: 16,
+                          ),
+                          textAlign: TextAlign.center,
+                        ),
+                        const SizedBox(height: 24),
+                        Text(
+                          'Try searching:\n"chicken", "rice", "banana", "nissin"',
+                          style: TextStyle(
+                            color: Colors.grey[500],
+                            fontSize: 14,
+                          ),
+                          textAlign: TextAlign.center,
+                        ),
+                      ],
                     ),
-                  );
-                }
+                  ),
 
-                final allFoods = _filterFoods(
-                  snapshot.data!,
-                  _searchController.text,
-                );
-
-                // Filter recent foods based on search
-                final filteredRecentFoods = _filterFoods(
-                  _recentFoods,
-                  _searchController.text,
-                );
-
-                // Get suggestions (exclude recent foods)
-                final recentFoodIds = _recentFoods.map((f) => f.id).toSet();
-                final suggestions = allFoods
-                    .where((food) => !recentFoodIds.contains(food.id))
-                    .toList();
-
-                return ListView(
-                  children: [
-                    if (_isLoadingRecent)
-                      const Padding(
-                        padding: EdgeInsets.all(20.0),
-                        child: Center(child: CircularProgressIndicator()),
-                      )
-                    else if (filteredRecentFoods.isNotEmpty) ...[
-                      _buildSectionHeader('Recent'),
-                      ...filteredRecentFoods.map(
-                        (food) => _buildFoodItem(food),
-                      ),
-                    ],
-
-                    if (suggestions.isNotEmpty) ...[
-                      _buildSectionHeader('Suggestions'),
-                      ...suggestions.map((food) => _buildFoodItem(food)),
-                    ],
-
-                    const SizedBox(height: 20),
-                  ],
-                );
-              },
+                const SizedBox(height: 20),
+              ],
             ),
           ),
         ],
       ),
-      bottomNavigationBar: Container(
-        decoration: BoxDecoration(
-          color: Colors.white,
-          boxShadow: [
-            BoxShadow(
-              color: Colors.grey.withOpacity(0.2),
-              spreadRadius: 1,
-              blurRadius: 8,
-              offset: const Offset(0, -2),
-            ),
-          ],
-        ),
-        child: BottomNavigationBar(
-          currentIndex: _selectedBottomNav,
-          onTap: (index) {
-            setState(() {
-              _selectedBottomNav = index;
-            });
-
-            switch (index) {
-              case 0:
-                Navigator.pushReplacementNamed(context, '/home');
-                break;
-              case 1:
-                Navigator.pushReplacementNamed(context, '/recipes');
-                break;
-              case 2:
-                Navigator.pushReplacementNamed(context, '/add');
-                break;
-              case 3:
-                Navigator.pushReplacementNamed(context, '/history');
-                break;
-              case 4:
-                Navigator.pushReplacementNamed(context, '/profile');
-                break;
-            }
-          },
-          type: BottomNavigationBarType.fixed,
-          backgroundColor: Colors.white,
-          selectedItemColor: const Color(0xFF4CAF50),
-          unselectedItemColor: Colors.grey,
-          selectedFontSize: 12,
-          unselectedFontSize: 12,
-          elevation: 0,
-          items: [
-            BottomNavigationBarItem(
-              icon: Icon(
-                _selectedBottomNav == 0 ? Icons.home : Icons.home_outlined,
-                color: _selectedBottomNav == 0
-                    ? const Color(0xFF4CAF50)
-                    : Colors.grey,
-              ),
-              label: 'Home',
-            ),
-            BottomNavigationBarItem(
-              icon: Icon(
-                Icons.restaurant_menu,
-                color: _selectedBottomNav == 1
-                    ? const Color(0xFF4CAF50)
-                    : Colors.grey,
-              ),
-              label: 'Recipes',
-            ),
-            BottomNavigationBarItem(
-              icon: Container(
-                width: 50,
-                height: 50,
-                decoration: const BoxDecoration(
-                  color: Color(0xFF4CAF50),
-                  shape: BoxShape.circle,
-                ),
-                child: const Icon(Icons.add, color: Colors.white, size: 28),
-              ),
-              label: '',
-            ),
-            BottomNavigationBarItem(
-              icon: Icon(
-                Icons.history,
-                color: _selectedBottomNav == 3
-                    ? const Color(0xFF4CAF50)
-                    : Colors.grey,
-              ),
-              label: 'Log History',
-            ),
-            BottomNavigationBarItem(
-              icon: Icon(
-                Icons.person,
-                color: _selectedBottomNav == 4
-                    ? const Color(0xFF4CAF50)
-                    : Colors.grey,
-              ),
-              label: 'Profile',
-            ),
-          ],
-        ),
+      bottomNavigationBar: BottomNavigationBar(
+        currentIndex: _selectedBottomNav,
+        onTap: (index) {
+          setState(() {
+            _selectedBottomNav = index;
+          });
+        },
+        type: BottomNavigationBarType.fixed,
+        selectedItemColor: Colors.green,
+        unselectedItemColor: Colors.grey,
+        items: const [
+          BottomNavigationBarItem(icon: Icon(Icons.home), label: 'Home'),
+          BottomNavigationBarItem(
+            icon: Icon(Icons.restaurant_menu),
+            label: 'Recipes',
+          ),
+          BottomNavigationBarItem(
+            icon: Icon(Icons.add_circle, size: 40),
+            label: '',
+          ),
+          BottomNavigationBarItem(
+            icon: Icon(Icons.history),
+            label: 'Log History',
+          ),
+          BottomNavigationBarItem(icon: Icon(Icons.person), label: 'Profile'),
+        ],
       ),
     );
   }
 
-  // Show meal dropdown menu
   void _showMealDropdown() {
     showModalBottomSheet(
       context: context,
@@ -570,19 +538,45 @@ class _SelectMealScreenState extends State<SelectMealScreen> {
   Widget _buildSectionHeader(String title) {
     return Padding(
       padding: const EdgeInsets.fromLTRB(20, 10, 20, 10),
-      child: Text(
-        title,
-        style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+      child: Row(
+        children: [
+          Text(
+            title,
+            style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+          ),
+          const SizedBox(width: 8),
+          if (title == 'Search Results')
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+              decoration: BoxDecoration(
+                color: Colors.blue.shade100,
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: const Text(
+                'ONLINE',
+                style: TextStyle(
+                  fontSize: 10,
+                  color: Colors.blue,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+            ),
+        ],
       ),
     );
   }
 
   Widget _buildFoodItem(FoodItem food) {
+    final isFromApi = food.id.startsWith('api_');
+
     return Container(
       margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(12),
+        border: isFromApi
+            ? Border.all(color: Colors.blue.shade200, width: 1.5)
+            : null,
       ),
       child: ListTile(
         contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
@@ -591,7 +585,7 @@ class _SelectMealScreenState extends State<SelectMealScreen> {
           style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 16),
         ),
         subtitle: Text(
-          '${food.calories.toStringAsFixed(0)} cal, ${food.brand}, ${food.servingsamount} ${food.servingsize}',
+          '${food.calories.toStringAsFixed(0)} cal${food.brand.isNotEmpty ? ', ${food.brand}' : ''}, ${food.serving}',
           style: TextStyle(color: Colors.grey[600], fontSize: 14),
         ),
         trailing: GestureDetector(
