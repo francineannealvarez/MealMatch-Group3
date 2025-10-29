@@ -1,11 +1,13 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_core/firebase_core.dart';
+import 'package:mealmatch/models/fooditem.dart';
 import 'screens/signup_screen.dart';
 import 'screens/getstarted_screen.dart';
 import 'screens/greet_screen.dart';
 import 'screens/login_screen.dart';
 import 'screens/homepage_screen.dart';
 import 'screens/logfood_screen.dart';
+import 'screens/modifyfood_screen.dart';
 import 'screens/termsandcondition_screen.dart';
 import 'screens/privacypolicy_screen.dart';
 import 'screens/recipes_screen.dart';
@@ -27,20 +29,28 @@ class MyApp extends StatelessWidget {
       debugShowCheckedModeBanner: false,
       title: 'MealMatch App',
       theme: ThemeData(primarySwatch: Colors.orange),
-      initialRoute: '/',
+      initialRoute: '/home',
       routes: {
         '/': (context) => WelcomeScreen(),
         '/signup': (context) => SignUpScreen(),
-        '/login': (context) => const LoginScreen(),
         '/preferences': (context) => GetStartedScreen(email: '', password: ''),
+        '/login': (context) => const LoginScreen(),
         '/home': (context) => const HomePage(),
         '/logfood': (context) => const SelectMealScreen(),
+        '/modifyfood': (context) {
+          final args =
+              ModalRoute.of(context)!.settings.arguments
+                  as Map<String, dynamic>;
+          return ModifyFoodScreen(
+            food: args['food'] as FoodItem,
+            preselectedMeal: args['preselectedMeal'] as String?,
+          );
+        },
+        '/recipes': (context) => const RecipesPage(),
         '/terms': (context) => const TermsConditionScreen(),
         '/privacy': (context) => const PrivacyPolicyScreen(),
-        '/recipes': (context) => const RecipesPage(),
         // '/log-history': (context) => LogFoodHistory(),
         // '/profile': (context) => ProfileScreen(),
-        // '/recipes': (context) => RecipesScreen(),
       },
     );
   }
