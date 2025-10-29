@@ -11,7 +11,7 @@ import 'screens/modifyfood_screen.dart';
 import 'screens/termsandcondition_screen.dart';
 import 'screens/privacypolicy_screen.dart';
 import 'screens/recipes_screen.dart';
-// import 'screens/log_history_screen.dart';
+import 'screens/log_history_screen.dart';
 // import 'screens/profile_screen.dart';
 
 void main() async {
@@ -49,7 +49,7 @@ class MyApp extends StatelessWidget {
         '/recipes': (context) => const RecipesPage(),
         '/terms': (context) => const TermsConditionScreen(),
         '/privacy': (context) => const PrivacyPolicyScreen(),
-        // '/log-history': (context) => LogFoodHistory(),
+        '/history': (context) => const LogHistoryPage(),
         // '/profile': (context) => ProfileScreen(),
       },
     );
