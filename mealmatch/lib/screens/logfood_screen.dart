@@ -136,20 +136,18 @@ class _SelectMealScreenState extends State<SelectMealScreen> {
 
         if (foodName != null && !seenFoods.contains(foodName)) {
           seenFoods.add(foodName);
-
+          
           // Create FoodItem from meal log data
-          recentFoods.add(
-            FoodItem(
-              id: doc.id,
-              name: data['foodName'] ?? '',
-              brand: data['brand'] ?? '',
-              calories: (data['calories'] ?? 0).toDouble(),
-              carbs: (data['carbs'] ?? 0).toDouble(),
-              protein: (data['proteins'] ?? 0).toDouble(),
-              fat: (data['fats'] ?? 0).toDouble(),
-              serving: data['serving'] ?? '100 g', // Single field
-            ),
-          );
+          recentFoods.add(FoodItem(
+            id: doc.id,
+            name: data['foodName'] ?? '',
+            brand: data['brand'] ?? '',
+            calories: (data['calories'] ?? 0).toDouble(),
+            carbs: (data['carbs'] ?? 0).toDouble(),
+            protein: (data['proteins'] ?? 0).toDouble(),
+            fat: (data['fats'] ?? 0).toDouble(),
+            serving: data['serving'] ?? '100 g', // Single field
+          ));
 
           if (recentFoods.length >= 7) break;
         }
@@ -185,13 +183,11 @@ class _SelectMealScreenState extends State<SelectMealScreen> {
 
     try {
       final results = await _apiService.searchAllSources(query);
-
+      
       setState(() {
-        _searchResults = results
-            .map((data) => FoodItem.fromApiData(data))
-            .toList();
+        _searchResults = results.map((data) => FoodItem.fromApiData(data)).toList();
         _isSearching = false;
-        _searchMessage = results.isEmpty
+        _searchMessage = results.isEmpty 
             ? 'No results found. Try different keywords.'
             : '';
       });
@@ -363,18 +359,17 @@ class _SelectMealScreenState extends State<SelectMealScreen> {
                           ),
                         )
                       : _searchController.text.isNotEmpty
-                      ? IconButton(
-                          icon: const Icon(Icons.clear, color: Colors.grey),
-                          onPressed: () {
-                            _searchController.clear();
-                            setState(() {
-                              _searchResults = [];
-                              _searchMessage =
-                                  'Search for foods to get started';
-                            });
-                          },
-                        )
-                      : null,
+                          ? IconButton(
+                              icon: const Icon(Icons.clear, color: Colors.grey),
+                              onPressed: () {
+                                _searchController.clear();
+                                setState(() {
+                                  _searchResults = [];
+                                  _searchMessage = 'Search for foods to get started';
+                                });
+                              },
+                            )
+                          : null,
                   border: InputBorder.none,
                   contentPadding: const EdgeInsets.symmetric(
                     horizontal: 20,
@@ -405,9 +400,7 @@ class _SelectMealScreenState extends State<SelectMealScreen> {
                 ],
 
                 // Empty state
-                if (_searchResults.isEmpty &&
-                    _recentFoods.isEmpty &&
-                    !_isSearching)
+                if (_searchResults.isEmpty && _recentFoods.isEmpty && !_isSearching)
                   Padding(
                     padding: const EdgeInsets.all(32.0),
                     child: Column(
@@ -416,19 +409,13 @@ class _SelectMealScreenState extends State<SelectMealScreen> {
                         const SizedBox(height: 16),
                         Text(
                           _searchMessage,
-                          style: TextStyle(
-                            color: Colors.grey[600],
-                            fontSize: 16,
-                          ),
+                          style: TextStyle(color: Colors.grey[600], fontSize: 16),
                           textAlign: TextAlign.center,
                         ),
                         const SizedBox(height: 24),
                         Text(
                           'Try searching:\n"chicken", "rice", "banana", "nissin"',
-                          style: TextStyle(
-                            color: Colors.grey[500],
-                            fontSize: 14,
-                          ),
+                          style: TextStyle(color: Colors.grey[500], fontSize: 14),
                           textAlign: TextAlign.center,
                         ),
                       ],
@@ -441,32 +428,101 @@ class _SelectMealScreenState extends State<SelectMealScreen> {
           ),
         ],
       ),
-      bottomNavigationBar: BottomNavigationBar(
-        currentIndex: _selectedBottomNav,
-        onTap: (index) {
-          setState(() {
-            _selectedBottomNav = index;
-          });
-        },
-        type: BottomNavigationBarType.fixed,
-        selectedItemColor: Colors.green,
-        unselectedItemColor: Colors.grey,
-        items: const [
-          BottomNavigationBarItem(icon: Icon(Icons.home), label: 'Home'),
-          BottomNavigationBarItem(
-            icon: Icon(Icons.restaurant_menu),
-            label: 'Recipes',
-          ),
-          BottomNavigationBarItem(
-            icon: Icon(Icons.add_circle, size: 40),
-            label: '',
-          ),
-          BottomNavigationBarItem(
-            icon: Icon(Icons.history),
-            label: 'Log History',
-          ),
-          BottomNavigationBarItem(icon: Icon(Icons.person), label: 'Profile'),
-        ],
+      bottomNavigationBar: Container(
+        decoration: BoxDecoration(
+          color: Colors.white,
+          boxShadow: [
+            BoxShadow(
+              color: Colors.grey.withOpacity(0.2),
+              spreadRadius: 1,
+              blurRadius: 8,
+              offset: const Offset(0, -2),
+            ),
+          ],
+        ),
+        child: BottomNavigationBar(
+          currentIndex: _selectedBottomNav,
+          onTap: (index) {
+            setState(() {
+              _selectedBottomNav = index;
+            });
+
+            switch (index) {
+              case 0:
+                Navigator.pushReplacementNamed(context, '/home');
+                break;
+              case 1:
+                Navigator.pushReplacementNamed(context, '/recipes');
+                break;
+              case 2:
+                Navigator.pushReplacementNamed(context, '/add');
+                break;
+              case 3:
+                Navigator.pushReplacementNamed(context, '/history');
+                break;
+              case 4:
+                Navigator.pushReplacementNamed(context, '/profile');
+                break;
+            }
+          },
+          type: BottomNavigationBarType.fixed,
+          backgroundColor: Colors.white,
+          selectedItemColor: const Color(0xFF4CAF50),
+          unselectedItemColor: Colors.grey,
+          selectedFontSize: 12,
+          unselectedFontSize: 12,
+          elevation: 0,
+          items: [
+            BottomNavigationBarItem(
+              icon: Icon(
+                _selectedBottomNav == 0 ? Icons.home : Icons.home_outlined,
+                color: _selectedBottomNav == 0
+                    ? const Color(0xFF4CAF50)
+                    : Colors.grey,
+              ),
+              label: 'Home',
+            ),
+            BottomNavigationBarItem(
+              icon: Icon(
+                Icons.restaurant_menu,
+                color: _selectedBottomNav == 1
+                    ? const Color(0xFF4CAF50)
+                    : Colors.grey,
+              ),
+              label: 'Recipes',
+            ),
+            BottomNavigationBarItem(
+              icon: Container(
+                width: 50,
+                height: 50,
+                decoration: const BoxDecoration(
+                  color: Color(0xFF4CAF50),
+                  shape: BoxShape.circle,
+                ),
+                child: const Icon(Icons.add, color: Colors.white, size: 28),
+              ),
+              label: '',
+            ),
+            BottomNavigationBarItem(
+              icon: Icon(
+                Icons.history,
+                color: _selectedBottomNav == 3
+                    ? const Color(0xFF4CAF50)
+                    : Colors.grey,
+              ),
+              label: 'Log History',
+            ),
+            BottomNavigationBarItem(
+              icon: Icon(
+                Icons.person,
+                color: _selectedBottomNav == 4
+                    ? const Color(0xFF4CAF50)
+                    : Colors.grey,
+              ),
+              label: 'Profile',
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -554,11 +610,7 @@ class _SelectMealScreenState extends State<SelectMealScreen> {
               ),
               child: const Text(
                 'ONLINE',
-                style: TextStyle(
-                  fontSize: 10,
-                  color: Colors.blue,
-                  fontWeight: FontWeight.bold,
-                ),
+                style: TextStyle(fontSize: 10, color: Colors.blue, fontWeight: FontWeight.bold),
               ),
             ),
         ],
@@ -568,15 +620,13 @@ class _SelectMealScreenState extends State<SelectMealScreen> {
 
   Widget _buildFoodItem(FoodItem food) {
     final isFromApi = food.id.startsWith('api_');
-
+    
     return Container(
       margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(12),
-        border: isFromApi
-            ? Border.all(color: Colors.blue.shade200, width: 1.5)
-            : null,
+        border: isFromApi ? Border.all(color: Colors.blue.shade200, width: 1.5) : null,
       ),
       child: ListTile(
         contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
