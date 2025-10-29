@@ -1,4 +1,5 @@
 // 📁 lib/services/food_api_service.dart
+// ============================================
 
 import 'dart:convert';
 import 'package:http/http.dart' as http;
@@ -7,15 +8,9 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 class FoodApiService {
   static const String usdaApiKey = 'QGUrntEEaTNFFHkrLRk7h8Lr8Vh9Uf6O5DVGhDsV';
   static const String usdaBaseUrl = 'https://api.nal.usda.gov/fdc/v1';
-
-  // Open Food Facts API (no key needed!)
-  static const String offBaseUrl = 'https://world.openfoodfacts.org/api/v2';
+  static const String offBaseUrl = 'https://world.openfoodfacts.org/cgi';
 
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
-
-  // ============================================
-  // USDA FOOD DATA CENTRAL
-  // ============================================
 
   /// Search foods in USDA database
   Future<List<Map<String, dynamic>>> searchUsdaFoods(String query) async {
@@ -24,21 +19,25 @@ class FoodApiService {
         '$usdaBaseUrl/foods/search?query=$query&pageSize=10&api_key=$usdaApiKey',
       );
 
-      final response = await http.get(url);
+      print('🔍 Searching USDA: $query');
+
+      final response = await http.get(url).timeout(const Duration(seconds: 10));
 
       if (response.statusCode == 200) {
         final data = json.decode(response.body);
         final foods = data['foods'] as List;
 
+        print('✅ USDA found ${foods.length} items');
+
         return foods.map((food) {
           return _parseUsdaFood(food);
         }).toList();
       } else {
-        print('USDA API Error: ${response.statusCode}');
+        print('❌ USDA API Error: ${response.statusCode}');
         return [];
       }
     } catch (e) {
-      print('Error searching USDA foods: $e');
+      print('❌ Error searching USDA foods: $e');
       return [];
     }
   }
@@ -59,14 +58,11 @@ class FoodApiService {
       }
     }
 
-    // Get actual serving size from USDA data
     double servingAmount = 100.0;
     String servingUnit = 'g';
 
-    // Check for household serving first (more user-friendly)
     if (usdaFood['householdServingFullText'] != null) {
       final householdServing = usdaFood['householdServingFullText'].toString();
-      // Parse formats like "1 cup", "1 piece", "3 oz"
       final match = RegExp(
         r'(\d+\.?\d*)\s*([a-zA-Z]+)',
       ).firstMatch(householdServing);
@@ -75,7 +71,6 @@ class FoodApiService {
         servingUnit = match.group(2) ?? 'serving';
       }
     } else if (usdaFood['servingSize'] != null) {
-      // Fallback to servingSize in grams
       servingAmount = (usdaFood['servingSize'] is int)
           ? (usdaFood['servingSize'] as int).toDouble()
           : (usdaFood['servingSize'] as double? ?? 100.0);
@@ -85,10 +80,10 @@ class FoodApiService {
     return {
       'name': usdaFood['description'] ?? 'Unknown',
       'brand': usdaFood['brandOwner'] ?? '',
-      'calories': getUsdaNutrient(1008), // Energy (kcal)
-      'carbs': getUsdaNutrient(1005), // Carbohydrates
-      'protein': getUsdaNutrient(1003), // Protein
-      'fat': getUsdaNutrient(1004), // Total Fat
+      'calories': getUsdaNutrient(1008),
+      'carbs': getUsdaNutrient(1005),
+      'protein': getUsdaNutrient(1003),
+      'fat': getUsdaNutrient(1004),
       'servingsamount': servingAmount,
       'servingsize': servingUnit,
       'source': 'USDA',
@@ -96,32 +91,56 @@ class FoodApiService {
     };
   }
 
-  // ============================================
-  // OPEN FOOD FACTS
-  // ============================================
-
   /// Search foods in Open Food Facts
   Future<List<Map<String, dynamic>>> searchOpenFoodFacts(String query) async {
     try {
       final url = Uri.parse(
-        '$offBaseUrl/search?search_terms=$query&page_size=10&fields=product_name,brands,nutriments,serving_size,code',
+        '$offBaseUrl/search.pl?search_terms=$query&page_size=20&json=1',
       );
 
-      final response = await http.get(url);
+      print('🔍 Searching Open Food Facts: $query');
+
+      final response = await http.get(url).timeout(const Duration(seconds: 10));
 
       if (response.statusCode == 200) {
         final data = json.decode(response.body);
-        final products = data['products'] as List? ?? [];
+        final products = (data['products'] as List?) ?? [];
 
-        return products.map((product) {
-          return _parseOpenFoodFactsProduct(product);
-        }).toList();
+        print('📦 OFF returned ${products.length} products');
+
+        if (products.isEmpty) {
+          print('❌ No products found');
+          return [];
+        }
+
+        final parsedProducts = <Map<String, dynamic>>[];
+
+        for (var product in products) {
+          try {
+            final parsed = _parseOpenFoodFactsProduct(product);
+
+            if (parsed['name'] != 'Unknown Product' &&
+                (parsed['calories'] > 0 ||
+                    parsed['carbs'] > 0 ||
+                    parsed['protein'] > 0)) {
+              parsedProducts.add(parsed);
+              print('✅ Added: ${parsed['name']} - ${parsed['calories']} cal');
+            } else {
+              print('⚠️ Skipped incomplete: ${parsed['name']}');
+            }
+          } catch (e) {
+            print('❌ Error parsing product: $e');
+          }
+        }
+
+        print('📋 Final count: ${parsedProducts.length} valid products');
+        return parsedProducts;
       } else {
-        print('Open Food Facts API Error: ${response.statusCode}');
+        print('❌ OFF API Error: ${response.statusCode}');
         return [];
       }
     } catch (e) {
-      print('Error searching Open Food Facts: $e');
+      print('❌ Error searching Open Food Facts: $e');
       return [];
     }
   }
@@ -129,7 +148,9 @@ class FoodApiService {
   /// Get product by barcode from Open Food Facts
   Future<Map<String, dynamic>?> getProductByBarcode(String barcode) async {
     try {
-      final url = Uri.parse('$offBaseUrl/product/$barcode.json');
+      final url = Uri.parse(
+        'https://world.openfoodfacts.org/api/v2/product/$barcode.json',
+      );
       final response = await http.get(url);
 
       if (response.statusCode == 200) {
@@ -153,73 +174,95 @@ class FoodApiService {
 
     double getNutriment(String key) {
       try {
-        final value = nutriments['${key}_100g'];
+        dynamic value = nutriments['${key}_100g'];
+        if (value == null) value = nutriments['${key}-100g'];
+        if (value == null) value = nutriments[key];
+        if (value == null) value = nutriments['${key}_serving'];
+
         if (value == null) return 0.0;
-        return (value is int) ? value.toDouble() : (value as double);
+
+        if (value is num) return value.toDouble();
+        if (value is String) return double.tryParse(value) ?? 0.0;
+
+        return 0.0;
       } catch (e) {
         return 0.0;
       }
     }
 
-    // Parse serving size from Open Food Facts
+    String productName =
+        product['product_name'] as String? ??
+        product['product_name_en'] as String? ??
+        product['generic_name'] as String? ??
+        'Unknown Product';
+
+    String brand =
+        product['brands'] as String? ?? product['brand_owner'] as String? ?? '';
+
     String servingSize = 'g';
     double servingAmount = 100.0;
 
     if (product['serving_size'] != null) {
       final serving = product['serving_size'].toString();
-      // Try to parse formats like "100g", "1 piece", "250 ml"
       final match = RegExp(r'(\d+\.?\d*)\s*([a-zA-Z]+)').firstMatch(serving);
+      if (match != null) {
+        servingAmount = double.tryParse(match.group(1) ?? '100') ?? 100.0;
+        servingSize = match.group(2) ?? 'g';
+      }
+    } else if (product['quantity'] != null) {
+      final quantity = product['quantity'].toString();
+      final match = RegExp(r'(\d+\.?\d*)\s*([a-zA-Z]+)').firstMatch(quantity);
       if (match != null) {
         servingAmount = double.tryParse(match.group(1) ?? '100') ?? 100.0;
         servingSize = match.group(2) ?? 'g';
       }
     }
 
+    double calories = getNutriment('energy-kcal');
+    if (calories == 0) {
+      double energyKj = getNutriment('energy-kj');
+      if (energyKj > 0) {
+        calories = energyKj / 4.184;
+      } else {
+        calories = getNutriment('energy') / 4.184;
+      }
+    }
+
     return {
-      'name': product['product_name'] ?? 'Unknown',
-      'brand': product['brands'] ?? '',
-      'calories': getNutriment('energy-kcal'),
+      'name': productName,
+      'brand': brand,
+      'calories': calories,
       'carbs': getNutriment('carbohydrates'),
       'protein': getNutriment('proteins'),
       'fat': getNutriment('fat'),
       'servingsamount': servingAmount,
       'servingsize': servingSize,
       'source': 'OpenFoodFacts',
-      'barcode': product['code'],
+      'barcode': product['code']?.toString() ?? '',
     };
   }
-
-  // ============================================
-  // COMBINED SEARCH
-  // ============================================
 
   /// Search both USDA and Open Food Facts
   Future<List<Map<String, dynamic>>> searchAllSources(String query) async {
     final results = <Map<String, dynamic>>[];
 
-    // Search USDA
     final usdaResults = await searchUsdaFoods(query);
     results.addAll(usdaResults);
 
-    // Search Open Food Facts
     final offResults = await searchOpenFoodFacts(query);
     results.addAll(offResults);
+
+    print('🎯 Total results from all sources: ${results.length}');
 
     return results;
   }
 
-  // ============================================
-  // SAVE TO FIRESTORE
-  // ============================================
-
   /// Save food to Firestore
   Future<void> saveFoodToFirestore(Map<String, dynamic> foodData) async {
     try {
-      // Remove source-specific IDs before saving
       final cleanData = Map<String, dynamic>.from(foodData);
       cleanData.remove('usdaFdcId');
       cleanData.remove('barcode');
-      cleanData.remove('source');
 
       await _firestore.collection('foods').add(cleanData);
       print('Food saved: ${foodData['name']}');
@@ -238,13 +281,11 @@ class FoodApiService {
       final cleanData = Map<String, dynamic>.from(food);
       cleanData.remove('usdaFdcId');
       cleanData.remove('barcode');
-      cleanData.remove('source');
 
       final docRef = _firestore.collection('foods').doc();
       batch.set(docRef, cleanData);
       count++;
 
-      // Firestore batch limit is 500
       if (count >= 500) {
         await batch.commit();
         print('Batch committed: $count foods');
