@@ -29,7 +29,7 @@ class MyApp extends StatelessWidget {
       debugShowCheckedModeBanner: false,
       title: 'MealMatch App',
       theme: ThemeData(primarySwatch: Colors.orange),
-      initialRoute: '/home',
+      initialRoute: '/',
       routes: {
         '/': (context) => WelcomeScreen(),
         '/signup': (context) => SignUpScreen(),
