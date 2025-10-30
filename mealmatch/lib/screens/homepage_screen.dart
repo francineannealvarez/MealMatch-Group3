@@ -1,4 +1,7 @@
 import 'package:flutter/material.dart';
+import '../services/calorielog_history_service.dart';
+import '../models/meal_log.dart';
+import 'package:intl/intl.dart';
 
 class HomePage extends StatefulWidget {
   const HomePage({super.key});
@@ -8,27 +11,66 @@ class HomePage extends StatefulWidget {
 }
 
 class _HomePageState extends State<HomePage> {
+  final LogService _logService = LogService();
   int _selectedIndex = 0;
+
+  int userGoalCalories = 2000;
+  int consumedCalories = 0;
+  bool isLoading = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadTodayData();
+  }
+
+  Future<void> _loadTodayData() async {
+    setState(() => isLoading = true);
+
+    try {
+      final goal = await _logService.getUserCalorieGoal();
+      if (goal != null) {
+        userGoalCalories = goal;
+      }
+
+      final logs = await _logService.getLogsGroupedByCategory(DateTime.now());
+
+      List<MealLog> allLogs = [];
+      logs.forEach((category, categoryLogs) {
+        allLogs.addAll(categoryLogs);
+      });
+
+      consumedCalories = _logService.calculateTotalCalories(allLogs).toInt();
+    } catch (e) {
+      print('Error loading today\'s data: $e');
+    }
+
+    setState(() => isLoading = false);
+  }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: const Color(0xFFFFF5CF),
       body: SafeArea(
-        child: SingleChildScrollView(
-          child: Column(
-            children: [
-              _buildHeader(),
-              _buildSearchBar(),
-              _buildTodayDate(),
-              _buildDailyCaloriesWidget(),
-              _buildActionButtons(),
-              _buildCookAgainSection(),
-              _buildDiscoverRecipesSection(),
-              const SizedBox(height: 100),
-            ],
-          ),
-        ),
+        child: isLoading
+            ? const Center(
+                child: CircularProgressIndicator(color: Color(0xFF4CAF50)),
+              )
+            : SingleChildScrollView(
+                child: Column(
+                  children: [
+                    _buildHeader(),
+                    _buildSearchBar(),
+                    _buildTodayDate(),
+                    _buildDailyCaloriesWidget(),
+                    _buildActionButtons(),
+                    _buildCookAgainSection(),
+                    _buildDiscoverRecipesSection(),
+                    const SizedBox(height: 100),
+                  ],
+                ),
+              ),
       ),
       bottomNavigationBar: _buildBottomNavigationBar(),
     );
@@ -115,12 +157,13 @@ class _HomePageState extends State<HomePage> {
   }
 
   Widget _buildTodayDate() {
+    String formattedDate = DateFormat('EEEE, MMMM d').format(DateTime.now());
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.symmetric(horizontal: 16),
-      child: const Text(
-        'Today, Month Day',
-        style: TextStyle(
+      child: Text(
+        formattedDate,
+        style: const TextStyle(
           fontSize: 16,
           fontWeight: FontWeight.bold,
           color: Color(0xFF424242),
@@ -130,6 +173,10 @@ class _HomePageState extends State<HomePage> {
   }
 
   Widget _buildDailyCaloriesWidget() {
+    int remaining = userGoalCalories - consumedCalories;
+    double progress = consumedCalories / userGoalCalories;
+    bool isOverGoal = consumedCalories > userGoalCalories;
+
     return Container(
       margin: const EdgeInsets.all(16),
       padding: const EdgeInsets.all(16),
@@ -172,14 +219,14 @@ class _HomePageState extends State<HomePage> {
                     icon: Icons.local_fire_department,
                     iconColor: const Color(0xFFFF9800),
                     label: 'Calorie Goal',
-                    value: '2000',
+                    value: '$userGoalCalories',
                   ),
                   const SizedBox(height: 12),
                   _buildCalorieRow(
                     icon: Icons.apple,
                     iconColor: Colors.red,
                     label: 'Calorie Intake',
-                    value: '1435',
+                    value: '$consumedCalories',
                   ),
                 ],
               ),
@@ -195,28 +242,58 @@ class _HomePageState extends State<HomePage> {
                     width: 100,
                     height: 100,
                     child: CircularProgressIndicator(
-                      value: 0.7,
+                      value: 1.0,
                       strokeWidth: 10,
-                      backgroundColor: Colors.grey[200],
+                      backgroundColor: Colors.transparent,
+                      valueColor: AlwaysStoppedAnimation<Color>(
+                        Colors.grey[200]!,
+                      ),
+                    ),
+                  ),
+                  SizedBox(
+                    width: 100,
+                    height: 100,
+                    child: CircularProgressIndicator(
+                      value: progress > 1.0 ? 1.0 : progress,
+                      strokeWidth: 10,
+                      backgroundColor: Colors.transparent,
                       valueColor: const AlwaysStoppedAnimation<Color>(
                         Color(0xFFFF9800),
                       ),
                     ),
                   ),
-                  const Column(
+                  if (isOverGoal)
+                    SizedBox(
+                      width: 100,
+                      height: 100,
+                      child: CircularProgressIndicator(
+                        value: (progress - 1.0) > 1.0 ? 1.0 : (progress - 1.0),
+                        strokeWidth: 10,
+                        backgroundColor: Colors.transparent,
+                        valueColor: const AlwaysStoppedAnimation<Color>(
+                          Colors.red,
+                        ),
+                      ),
+                    ),
+                  Column(
                     mainAxisSize: MainAxisSize.min,
                     children: [
                       Text(
-                        '565',
+                        '${remaining.abs()}',
                         style: TextStyle(
                           fontSize: 20,
                           fontWeight: FontWeight.bold,
-                          color: Color(0xFF424242),
+                          color: isOverGoal
+                              ? Colors.red
+                              : const Color(0xFF424242),
                         ),
                       ),
                       Text(
-                        'Remaining',
-                        style: TextStyle(fontSize: 11, color: Colors.grey),
+                        isOverGoal ? 'Over' : 'Remaining',
+                        style: TextStyle(
+                          fontSize: 11,
+                          color: isOverGoal ? Colors.red : Colors.grey,
+                        ),
                       ),
                     ],
                   ),
@@ -290,7 +367,9 @@ class _HomePageState extends State<HomePage> {
               icon: Icons.restaurant_menu,
               color: const Color(0xFFFF9800),
               onTap: () {
-                Navigator.pushNamed(context, '/logfood');
+                Navigator.pushNamed(context, '/logfood').then((_) {
+                  _loadTodayData();
+                });
               },
             ),
           ),
@@ -554,12 +633,12 @@ class _HomePageState extends State<HomePage> {
 
           switch (index) {
             case 0: // Home
-              Navigator.pushReplacementNamed(context, '/home');
+              _loadTodayData();
               break;
             case 1: // Recipes
               Navigator.pushReplacementNamed(context, '/recipes');
               break;
-            case 2: // Add (e.g., Add Food)
+            case 2: // Add
               Navigator.pushReplacementNamed(context, '/add');
               break;
             case 3: // Log History
