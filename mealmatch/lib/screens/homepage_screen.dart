@@ -28,13 +28,16 @@ class _HomePageState extends State<HomePage> {
     setState(() => isLoading = true);
 
     try {
+      // Load user's calorie goal
       final goal = await _logService.getUserCalorieGoal();
       if (goal != null) {
         userGoalCalories = goal;
       }
 
+      // Load today's logs
       final logs = await _logService.getLogsGroupedByCategory(DateTime.now());
 
+      // Calculate total calories consumed today
       List<MealLog> allLogs = [];
       logs.forEach((category, categoryLogs) {
         allLogs.addAll(categoryLogs);
@@ -238,6 +241,7 @@ class _HomePageState extends State<HomePage> {
               child: Stack(
                 alignment: Alignment.center,
                 children: [
+                  // Background circle
                   SizedBox(
                     width: 100,
                     height: 100,
@@ -250,6 +254,7 @@ class _HomePageState extends State<HomePage> {
                       ),
                     ),
                   ),
+                  // Primary progress (orange)
                   SizedBox(
                     width: 100,
                     height: 100,
@@ -262,6 +267,7 @@ class _HomePageState extends State<HomePage> {
                       ),
                     ),
                   ),
+                  // Over-goal indicator (red) - only shows if over goal
                   if (isOverGoal)
                     SizedBox(
                       width: 100,
@@ -275,6 +281,7 @@ class _HomePageState extends State<HomePage> {
                         ),
                       ),
                     ),
+                  // Center text
                   Column(
                     mainAxisSize: MainAxisSize.min,
                     children: [
@@ -355,7 +362,7 @@ class _HomePageState extends State<HomePage> {
               icon: Icons.restaurant,
               color: const Color(0xFF4CAF50),
               onTap: () {
-                // Add navigation for What to Cook
+                Navigator.pushNamed(context, '/whatcanicook');
               },
             ),
           ),
@@ -368,6 +375,7 @@ class _HomePageState extends State<HomePage> {
               color: const Color(0xFFFF9800),
               onTap: () {
                 Navigator.pushNamed(context, '/logfood').then((_) {
+                  // Reload data when returning from log food page
                   _loadTodayData();
                 });
               },
@@ -633,12 +641,13 @@ class _HomePageState extends State<HomePage> {
 
           switch (index) {
             case 0: // Home
+              // Already on home, just reload data
               _loadTodayData();
               break;
             case 1: // Recipes
               Navigator.pushReplacementNamed(context, '/recipes');
               break;
-            case 2: // Add
+            case 2: // Add (e.g., Add Food)
               Navigator.pushReplacementNamed(context, '/add');
               break;
             case 3: // Log History
