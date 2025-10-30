@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import '../services/calorielog_history_service.dart'; // ✅ ADDED: Import backend service
+import '../models/meal_log.dart'; // ✅ ADDED: Import model
 
 class LogHistoryPage extends StatefulWidget {
   const LogHistoryPage({super.key});
@@ -8,21 +10,132 @@ class LogHistoryPage extends StatefulWidget {
 }
 
 class _LogHistoryPageState extends State<LogHistoryPage> {
+  final LogService _logService = LogService();
+
   String selectedFilter = 'Today';
   DateTime? customStartDate;
   DateTime? customEndDate;
   DateTime? expandedDate;
   final DateTime accountCreationDate = DateTime(2025, 8, 4);
 
-  Map<String, Map<String, List<Map<String, dynamic>>>> foodLogs = {};
+  Map<String, Map<String, List<MealLog>>> foodLogsCache = {};
+  bool isLoading = true; // ✅ ADDED: Loading state
+  int userGoalCalories = 2000; // ✅ ADDED: User's calorie goal
 
   @override
   void initState() {
     super.initState();
-    _initializeFoodLogs();
+    _loadData(); // ✅ CHANGED: Call backend instead of _initializeFoodLogs()
   }
 
-  void _initializeFoodLogs() {
+  // ✅ ADDED: Load real data from backend
+  Future<void> _loadData() async {
+    setState(() => isLoading = true);
+    
+    // Load user's calorie goal from Firebase using LogService
+    final goal = await _logService.getUserCalorieGoal();
+    if (goal != null) {
+      userGoalCalories = goal;
+    }
+
+    // Load today's data by default
+    await _loadLogsForDate(DateTime.now());
+    
+    setState(() => isLoading = false);
+  }
+
+    // ✅ ADDED: Load logs for specific date from backend
+  Future<void> _loadLogsForDate(DateTime date) async {
+    String dateKey = _getDateKey(date);
+    
+    // Check cache first to avoid unnecessary API calls
+    if (foodLogsCache.containsKey(dateKey)) return;
+
+    try {
+      // ✅ CHANGED: Direct call to LogService
+      final grouped = await _logService.getLogsGroupedByCategory(date);
+      
+      setState(() {
+        foodLogsCache[dateKey] = grouped;
+      });
+    } catch (e) {
+      print('Error loading logs for $dateKey: $e');
+      // Initialize empty if error
+      setState(() {
+        foodLogsCache[dateKey] = {
+          'Breakfast': [],
+          'Lunch': [],
+          'Dinner': [],
+          'Snacks': [],
+        };
+      });
+    }
+  }
+
+  /* ✅ ADDED: Load logs for date range (for week/custom views)
+  Future<void> _loadLogsForDateRange(DateTime start, DateTime end) async {
+    setState(() => isLoading = true);
+    
+    try {
+      DateTime current = start;
+      while (current.isBefore(end.add(const Duration(days: 1)))) {
+        await _loadLogsForDate(current);
+        current = current.add(const Duration(days: 1));
+      }
+    } catch (e) {
+      print('Error loading date range: $e');
+    }
+    
+    setState(() => isLoading = false);
+  }*/
+
+    Future<void> _loadLogsForDateRange(DateTime start, DateTime end) async {
+    setState(() => isLoading = true);
+    
+    try {
+      // ✅ CHANGED: Use LogService.getLogsInRange() instead of loading each date individually
+      final logs = await _logService.getLogsInRange(start, end);
+      
+      // Group logs by date
+      Map<String, List<MealLog>> logsByDate = {};
+      for (var log in logs) {
+        String dateKey = _getDateKey(log.timestamp);
+        if (!logsByDate.containsKey(dateKey)) {
+          logsByDate[dateKey] = [];
+        }
+        logsByDate[dateKey]!.add(log);
+      }
+      
+      // Now group each date's logs by category
+      for (var entry in logsByDate.entries) {
+        String dateKey = entry.key;
+        List<MealLog> dateLogs = entry.value;
+        
+        Map<String, List<MealLog>> grouped = {
+          'Breakfast': [],
+          'Lunch': [],
+          'Dinner': [],
+          'Snacks': [], 
+        };
+        
+        for (var log in dateLogs) {
+          if (grouped.containsKey(log.category)) {
+            grouped[log.category]!.add(log);
+          }
+        }
+        
+        setState(() {
+          foodLogsCache[dateKey] = grouped;
+        });
+      }
+    } catch (e) {
+      print('Error loading date range: $e');
+    }
+    
+    setState(() => isLoading = false);
+  }
+
+  /*void _initializeFoodLogs() {
     String todayKey = _getDateKey(DateTime.now());
     foodLogs[todayKey] = {
       'Breakfast': [],
@@ -30,6 +143,7 @@ class _LogHistoryPageState extends State<LogHistoryPage> {
       'Dinner': [],
       'Snacks': [],
     };
+
 
     DateTime now = DateTime.now();
     for (int i = 1; i <= 30; i++) {
@@ -61,23 +175,39 @@ class _LogHistoryPageState extends State<LogHistoryPage> {
         };
       }
     }
-  }
+  }*/
 
   String _getDateKey(DateTime date) {
     return '${date.year}-${date.month.toString().padLeft(2, '0')}-${date.day.toString().padLeft(2, '0')}';
   }
 
+  /* ✅ CHANGED: Now uses MealLog objects instead of Map
   int _getTotalCalories(DateTime date) {
     String dateKey = _getDateKey(date);
     int total = 0;
-    if (foodLogs.containsKey(dateKey)) {
-      foodLogs[dateKey]!.forEach((mealType, items) {
-        for (var item in items) {
-          total += (item['calories'] as int);
+    
+    if (foodLogsCache.containsKey(dateKey)) {
+      foodLogsCache[dateKey]!.forEach((mealType, logs) {
+        for (var log in logs) {
+          total += log.calories.toInt();
         }
       });
     }
     return total;
+  }*/
+
+  int _getTotalCalories(DateTime date) {
+    String dateKey = _getDateKey(date);
+    
+    if (!foodLogsCache.containsKey(dateKey)) return 0;
+    
+    // ✅ CHANGED: Use LogService.calculateTotalCalories()
+    List<MealLog> allLogs = [];
+    foodLogsCache[dateKey]!.forEach((mealType, logs) {
+      allLogs.addAll(logs);
+    });
+    
+    return _logService.calculateTotalCalories(allLogs).toInt();
   }
 
   String formatDateShort(DateTime d) {
@@ -315,6 +445,7 @@ class _LogHistoryPageState extends State<LogHistoryPage> {
                                   expandedDate = null;
                                 });
                                 Navigator.pop(context);
+                                _loadLogsForDateRange(customStartDate!, customEndDate!);
                               }
                             : null,
                         style: ElevatedButton.styleFrom(
@@ -454,7 +585,12 @@ class _LogHistoryPageState extends State<LogHistoryPage> {
     );
   }
 
-  void _showAddFoodDialog(String mealType, DateTime date) {
+    // ✅ ADDED: Helper to check if two dates are same
+  bool _isSameDate(DateTime a, DateTime b) {
+    return a.year == b.year && a.month == b.month && a.day == b.day;
+  }
+
+/*  void _showAddFoodDialog(String mealType, DateTime date) {
     final TextEditingController nameController = TextEditingController();
     final TextEditingController servingsController = TextEditingController();
     final TextEditingController caloriesController = TextEditingController();
@@ -628,15 +764,41 @@ class _LogHistoryPageState extends State<LogHistoryPage> {
         );
       },
     );
-  }
+  }*/
 
-  void _removeFoodItem(DateTime date, String mealType, int index) {
-    setState(() {
-      String dateKey = _getDateKey(date);
-      if (foodLogs.containsKey(dateKey)) {
-        foodLogs[dateKey]![mealType]!.removeAt(index);
+  // ✅ CHANGED: Now uses LogService.deleteMealLog()
+  Future<void> _removeFoodItem(MealLog log) async {
+    try {
+      // ✅ CHANGED: Use LogService method
+      await _logService.deleteMealLog(log.id);
+      
+      // Remove from cache
+      String dateKey = _getDateKey(log.timestamp);
+      if (foodLogsCache.containsKey(dateKey)) {
+        foodLogsCache[dateKey]![log.category]!.remove(log);
       }
-    });
+      
+      setState(() {});
+      
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Food item deleted'),
+            backgroundColor: Colors.green,
+            duration: Duration(seconds: 2),
+          ),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Error deleting: $e'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    }
   }
 
   Widget _buildDateSummaryCard(DateTime date) {
@@ -645,7 +807,7 @@ class _LogHistoryPageState extends State<LogHistoryPage> {
         date.month == DateTime.now().month &&
         date.day == DateTime.now().day;
     int consumed = _getTotalCalories(date);
-    int goal = 2000;
+     int goal = userGoalCalories; // ✅ CHANGED: Use user's actual goal
     int remaining = goal - consumed;
     bool isExpanded =
         expandedDate != null &&
@@ -663,7 +825,11 @@ class _LogHistoryPageState extends State<LogHistoryPage> {
       child: Column(
         children: [
           InkWell(
-            onTap: () {
+            onTap: () async {
+              if (!isExpanded) {
+                // ✅ ADDED: Load data for this date before expanding
+                await _loadLogsForDate(date);
+              }
               setState(() {
                 if (isExpanded) {
                   expandedDate = null;
@@ -719,44 +885,19 @@ class _LogHistoryPageState extends State<LogHistoryPage> {
 
   Widget _buildExpandedMealsList(DateTime date, bool isToday) {
     String dateKey = _getDateKey(date);
-    Map<String, List<Map<String, dynamic>>> meals =
-        foodLogs[dateKey] ??
-        {'Breakfast': [], 'Lunch': [], 'Dinner': [], 'Snacks': []};
+    Map<String, List<MealLog>> meals = foodLogsCache[dateKey] ?? {
+      'Breakfast': [],
+      'Lunch': [],
+      'Dinner': [],
+      'Snacks': [],
+    };
 
-    return Column(
+      return Column(
       children: [
-        _buildMealCard(
-          'Breakfast',
-          '🍞',
-          const Color(0xFFFFA726),
-          meals['Breakfast']!,
-          date,
-          isToday,
-        ),
-        _buildMealCard(
-          'Lunch',
-          '☀️',
-          const Color(0xFFFFB74D),
-          meals['Lunch']!,
-          date,
-          isToday,
-        ),
-        _buildMealCard(
-          'Dinner',
-          '🍽️',
-          const Color(0xFF8D6E63),
-          meals['Dinner']!,
-          date,
-          isToday,
-        ),
-        _buildMealCard(
-          'Snacks',
-          '🍎',
-          const Color(0xFFE57373),
-          meals['Snacks']!,
-          date,
-          isToday,
-        ),
+        _buildMealCard('Breakfast', '🍞', const Color(0xFFFFA726), meals['Breakfast']!, date, isToday),
+        _buildMealCard('Lunch', '☀️', const Color(0xFFFFB74D), meals['Lunch']!, date, isToday),
+        _buildMealCard('Dinner', '🍽️', const Color(0xFF8D6E63), meals['Dinner']!, date, isToday),
+        _buildMealCard('Snacks', '🍎', const Color(0xFFE57373), meals['Snacks']!, date, isToday),
       ],
     );
   }
@@ -765,10 +906,12 @@ class _LogHistoryPageState extends State<LogHistoryPage> {
     String title,
     String emoji,
     Color color,
-    List<Map<String, dynamic>> items,
+    List<MealLog> logs,
     DateTime date,
     bool isToday,
   ) {
+    int totalCals = _logService.calculateTotalCalories(logs).toInt();
+
     return Container(
       margin: const EdgeInsets.symmetric(vertical: 6, horizontal: 16),
       decoration: BoxDecoration(
@@ -808,7 +951,7 @@ class _LogHistoryPageState extends State<LogHistoryPage> {
                     borderRadius: BorderRadius.circular(12),
                   ),
                   child: Text(
-                    '${items.fold(0, (sum, item) => sum + (item['calories'] as int))}',
+                    '$totalCals',
                     style: const TextStyle(
                       fontWeight: FontWeight.bold,
                       fontSize: 12,
@@ -823,13 +966,13 @@ class _LogHistoryPageState extends State<LogHistoryPage> {
             child: Row(
               children: [
                 Text(
-                  '${items.length} Items',
+                  '${logs.length} Items',
                   style: TextStyle(fontSize: 12, color: Colors.grey[600]),
                 ),
               ],
             ),
           ),
-          if (items.isEmpty)
+          if (logs.isEmpty)
             const Padding(
               padding: EdgeInsets.symmetric(horizontal: 16, vertical: 8),
               child: Align(
@@ -841,9 +984,7 @@ class _LogHistoryPageState extends State<LogHistoryPage> {
               ),
             )
           else
-            ...items.asMap().entries.map((entry) {
-              int index = entry.key;
-              var item = entry.value;
+            ...logs.map((log)  {
               return Padding(
                 padding: const EdgeInsets.symmetric(
                   horizontal: 16,
@@ -855,24 +996,59 @@ class _LogHistoryPageState extends State<LogHistoryPage> {
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          Text(
-                            item['name'],
-                            style: const TextStyle(
-                              fontWeight: FontWeight.w600,
-                              fontSize: 14,
-                            ),
+                          Row(
+                            children: [
+                              Expanded(
+                                child: Text(
+                                  log.foodName,
+                                  style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 14),
+                                  ),
+                              ),
+                              // ✅ ADDED: Show verified badge if food is verified
+                              if (log.isVerified)
+                                Container(
+                                  margin: const EdgeInsets.only(left: 4),
+                                  padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
+                                  decoration: BoxDecoration(
+                                    color: Colors.blue.shade50,
+                                    borderRadius: BorderRadius.circular(6),
+                                    border: Border.all(color: Colors.blue.shade300, width: 1),
+                                  ),
+                                  child: Row(
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      Icon(Icons.verified, size: 10, color: Colors.blue.shade700),
+                                      const SizedBox(width: 2),
+                                      Text(
+                                        log.source == 'USDA' ? 'USDA' : 'OFF',
+                                        style: TextStyle(
+                                          fontSize: 8,
+                                          fontWeight: FontWeight.bold,
+                                          color: Colors.blue.shade700,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+
+                            ],
                           ),
                           Row(
                             children: [
                               Text(
-                                '${item['servings']} servings',
+                                log.serving,
                                 style: TextStyle(
                                   fontSize: 11,
                                   color: Colors.grey[500],
                                 ),
                               ),
+                              if (log.brand.isNotEmpty)
+                                Text(
+                                  ', ${log.brand}',
+                                  style: TextStyle(fontSize: 11, color: Colors.grey[500]),
+                                ),
                               Text(
-                                ' • ${item['calories']} cal',
+                                ' • ${log.calories.toInt()} cal',
                                 style: TextStyle(
                                   fontSize: 11,
                                   color: Colors.grey[500],
@@ -885,7 +1061,7 @@ class _LogHistoryPageState extends State<LogHistoryPage> {
                     ),
                     if (isToday)
                       GestureDetector(
-                        onTap: () => _removeFoodItem(date, title, index),
+                        onTap: () => _removeFoodItem(log),
                         child: Container(
                           width: 24,
                           height: 24,
@@ -913,7 +1089,11 @@ class _LogHistoryPageState extends State<LogHistoryPage> {
             Padding(
               padding: const EdgeInsets.only(bottom: 16),
               child: ElevatedButton(
-                onPressed: () => _showAddFoodDialog(title, date),
+                onPressed: () {
+                  Navigator.pushNamed(context, '/logfood').then((_) {
+                    _loadLogsForDate(date);
+                  });
+                },
                 style: ElevatedButton.styleFrom(
                   backgroundColor: const Color(0xFFF5D08C),
                   foregroundColor: Colors.black,
@@ -948,14 +1128,30 @@ class _LogHistoryPageState extends State<LogHistoryPage> {
     DateTime currentDate = expandedDate ?? DateTime.now();
 
     String dateKey = _getDateKey(currentDate);
-    Map<String, List<Map<String, dynamic>>> meals =
-        foodLogs[dateKey] ??
-        {'Breakfast': [], 'Lunch': [], 'Dinner': [], 'Snacks': []};
+    Map<String, List<MealLog>> meals = foodLogsCache[dateKey] ?? {
+      'Breakfast': [],
+      'Lunch': [],
+      'Dinner': [],
+      'Snacks': [],
+    };
 
-    bool isToday =
-        currentDate.year == DateTime.now().year &&
-        currentDate.month == DateTime.now().month &&
-        currentDate.day == DateTime.now().day;
+    bool isToday = _isSameDate(currentDate, DateTime.now());
+    // ✅ ADDED: Show loading indicator while fetching data
+    if (isLoading) {
+      return Scaffold(
+        backgroundColor: const Color(0xFFFFE9B1),
+        appBar: AppBar(
+          backgroundColor: const Color(0xFFFFA726),
+          elevation: 0,
+          centerTitle: true,
+          title: const Text(
+            'Daily Calorie',
+            style: TextStyle(fontWeight: FontWeight.bold, color: Colors.black, fontSize: 18),
+          ),
+        ),
+        body: const Center(child: CircularProgressIndicator(color: Color(0xFF4CAF50))),
+      );
+    }
 
     return Scaffold(
       backgroundColor: const Color(0xFFFFE9B1),
@@ -982,7 +1178,7 @@ class _LogHistoryPageState extends State<LogHistoryPage> {
               child: Row(
                 mainAxisAlignment: MainAxisAlignment.spaceEvenly,
                 children: [
-                  _buildCalorieBox('Goal', '2000'),
+                  _buildCalorieBox('Goal', '$userGoalCalories'),
                   const Text(
                     '-',
                     style: TextStyle(fontWeight: FontWeight.bold, fontSize: 20),
@@ -997,7 +1193,7 @@ class _LogHistoryPageState extends State<LogHistoryPage> {
                   ),
                   _buildCalorieBox(
                     'Remaining',
-                    '${2000 - _getTotalCalories(currentDate)}',
+                    '${userGoalCalories - _getTotalCalories(currentDate)}',
                   ),
                 ],
               ),

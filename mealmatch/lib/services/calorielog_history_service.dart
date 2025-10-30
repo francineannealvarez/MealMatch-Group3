@@ -13,17 +13,21 @@ class LogService {
     final user = _auth.currentUser;
     if (user == null) return [];
 
-    final String today = _formatDate(DateTime.now());
+    final now = DateTime.now();
+    final dateStr = _formatDate(now);
 
     final snapshot = await _firestore
         .collection('users')
         .doc(user.uid)
         .collection('meal_logs')
-        .where('date', isEqualTo: today)
-        .orderBy('timestamp', descending: true)
+        .where('date', isEqualTo: dateStr)
         .get();
 
-    return snapshot.docs.map((doc) => MealLog.fromDoc(doc)).toList();
+    // Sort in-memory to avoid composite index requirement
+    final logs = snapshot.docs.map((doc) => MealLog.fromDoc(doc)).toList();
+    logs.sort((a, b) => b.timestamp.compareTo(a.timestamp));
+    
+    return logs;
   }
 
   /// 🔹 Get logs for a specific date
@@ -38,10 +42,13 @@ class LogService {
         .doc(user.uid)
         .collection('meal_logs')
         .where('date', isEqualTo: dateStr)
-        .orderBy('timestamp', descending: true)
         .get();
 
-    return snapshot.docs.map((doc) => MealLog.fromDoc(doc)).toList();
+    // Sort in-memory
+    final logs = snapshot.docs.map((doc) => MealLog.fromDoc(doc)).toList();
+    logs.sort((a, b) => b.timestamp.compareTo(a.timestamp));
+    
+    return logs;
   }
 
   /// 🔹 Get logs by date and category
@@ -58,10 +65,13 @@ class LogService {
         .collection('meal_logs')
         .where('date', isEqualTo: dateStr)
         .where('category', isEqualTo: category)
-        .orderBy('timestamp', descending: true)
         .get();
 
-    return snapshot.docs.map((doc) => MealLog.fromDoc(doc)).toList();
+    // Sort in-memory
+    final logs = snapshot.docs.map((doc) => MealLog.fromDoc(doc)).toList();
+    logs.sort((a, b) => b.timestamp.compareTo(a.timestamp));
+    
+    return logs;
   }
 
   /// 🔹 Get logs within a date range (used for week/month/custom)
@@ -69,20 +79,44 @@ class LogService {
     final user = _auth.currentUser;
     if (user == null) return [];
 
-    // Set start to beginning of day and end to end of day
-    final startOfDay = DateTime(start.year, start.month, start.day);
-    final endOfDay = DateTime(end.year, end.month, end.day, 23, 59, 59);
+    // Generate all date strings in the range
+    List<String> dateStrings = [];
+    DateTime current = DateTime(start.year, start.month, start.day);
+    final endDate = DateTime(end.year, end.month, end.day);
 
+    while (current.isBefore(endDate) || current.isAtSameMomentAs(endDate)) {
+      dateStrings.add(_formatDate(current));
+      current = current.add(const Duration(days: 1));
+    }
+
+    // Fetch all logs that match any date in range
     final snapshot = await _firestore
         .collection('users')
         .doc(user.uid)
         .collection('meal_logs')
-        .where('timestamp', isGreaterThanOrEqualTo: startOfDay)
-        .where('timestamp', isLessThanOrEqualTo: endOfDay)
-        .orderBy('timestamp', descending: true)
+        .where('date', whereIn: dateStrings.take(10).toList()) // Firestore limit: max 10
         .get();
 
-    return snapshot.docs.map((doc) => MealLog.fromDoc(doc)).toList();
+    // If range > 10 days, fetch in batches
+    List<MealLog> allLogs = [];
+    if (dateStrings.length <= 10) {
+      allLogs = snapshot.docs.map((doc) => MealLog.fromDoc(doc)).toList();
+    } else {
+      // For longer ranges, query each date separately (less efficient but works)
+      for (String dateStr in dateStrings) {
+        final batch = await _firestore
+            .collection('users')
+            .doc(user.uid)
+            .collection('meal_logs')
+            .where('date', isEqualTo: dateStr)
+            .get();
+        allLogs.addAll(batch.docs.map((doc) => MealLog.fromDoc(doc)));
+      }
+    }
+
+    // Sort in-memory
+    allLogs.sort((a, b) => b.timestamp.compareTo(a.timestamp));
+    return allLogs;
   }
 
   /// 🔹 Delete a meal log
@@ -168,7 +202,7 @@ class LogService {
       'Breakfast': [],
       'Lunch': [],
       'Dinner': [],
-      'Snack': [],
+      'Snacks': [],
     };
 
     for (var log in logs) {
@@ -180,10 +214,8 @@ class LogService {
     return grouped;
   }
 
-  /// 🔹 Format date (YYYY-MM-DD)
+  /// 🔹 Format date (YYYY-MM-DD) - MATCHES YOUR SAVE FORMAT
   String _formatDate(DateTime date) {
-    return "${date.year.toString().padLeft(4, '0')}-"
-        "${date.month.toString().padLeft(2, '0')}-"
-        "${date.day.toString().padLeft(2, '0')}";
+    return '${date.year}-${date.month.toString().padLeft(2, '0')}-${date.day.toString().padLeft(2, '0')}';
   }
 }

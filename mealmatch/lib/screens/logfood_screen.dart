@@ -1,5 +1,6 @@
 // 📁 lib/screens/logfood_screen.dart
 
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import '../services/food_api_service.dart';
@@ -40,6 +41,7 @@ class _SelectMealScreenState extends State<SelectMealScreen> {
   final TextEditingController _searchController = TextEditingController();
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
   final FoodApiService _apiService = FoodApiService();
+  final FirebaseAuth _auth = FirebaseAuth.instance;
 
   String? _selectedMeal;
   final List<String> _mealOptions = ['Breakfast', 'Lunch', 'Dinner', 'Snacks'];
@@ -162,11 +164,17 @@ class _SelectMealScreenState extends State<SelectMealScreen> {
 
   Future<void> _addFoodToMeal(FoodItem food, String mealCategory) async {
     try {
+      final user = _auth.currentUser;
+        if (user == null) return;
       final now = DateTime.now();
       final dateStr =
           '${now.year}-${now.month.toString().padLeft(2, '0')}-${now.day.toString().padLeft(2, '0')}';
 
-      await _firestore.collection('meal_logs').add({
+      await _firestore
+        .collection('users')
+        .doc(user.uid)
+        .collection('meal_logs')
+        .add({
         'category': mealCategory,
         'foodName': food.name,
         'calories': food.calories,

@@ -10,28 +10,32 @@ class MealLog {
   final double carbs;
   final double fats;
   final double proteins;
-  final double servings;
-  final String servingSize;
+  final String serving;
   final DateTime timestamp;
   final String date;
+  final bool isVerified;
+  final String source;
 
   MealLog({
     required this.id,
     required this.category,
     required this.foodName,
-    required this.brand,
+    this.brand = '',
     required this.calories,
     required this.carbs,
     required this.fats,
     required this.proteins,
-    required this.servings,
-    required this.servingSize,
+    required this.serving,
     required this.timestamp,
     required this.date,
+    this.isVerified = false,
+    this.source = 'Local',
   });
 
+// Create MealLog from Firestore document
   factory MealLog.fromDoc(DocumentSnapshot doc) {
     final data = doc.data() as Map<String, dynamic>;
+    
     return MealLog(
       id: doc.id,
       category: data['category'] ?? '',
@@ -41,10 +45,29 @@ class MealLog {
       carbs: (data['carbs'] ?? 0).toDouble(),
       fats: (data['fats'] ?? 0).toDouble(),
       proteins: (data['proteins'] ?? 0).toDouble(),
-      servings: (data['servings'] ?? 0).toDouble(),
-      servingSize: data['servingSize'] ?? '',
+      serving: data['serving'] ?? '1 serving', // Match field name from logfood
       timestamp: (data['timestamp'] as Timestamp?)?.toDate() ?? DateTime.now(),
       date: data['date'] ?? '',
+      isVerified: data['isVerified'] ?? false,
+      source: data['source'] ?? 'Local',
     );
+  }
+
+  // Convert to Map for saving to Firestore
+  Map<String, dynamic> toMap() {
+    return {
+      'category': category,
+      'foodName': foodName,
+      'brand': brand,
+      'calories': calories,
+      'carbs': carbs,
+      'fats': fats,
+      'proteins': proteins,
+      'serving': serving,
+      'timestamp': Timestamp.fromDate(timestamp),
+      'date': date,
+      'isVerified': isVerified,
+      'source': source,
+    };
   }
 }
