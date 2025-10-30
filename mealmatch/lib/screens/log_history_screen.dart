@@ -19,16 +19,16 @@ class _LogHistoryPageState extends State<LogHistoryPage> {
   final DateTime accountCreationDate = DateTime(2025, 8, 4);
 
   Map<String, Map<String, List<MealLog>>> foodLogsCache = {};
-  bool isLoading = true; // ✅ ADDED: Loading state
-  int userGoalCalories = 2000; // ✅ ADDED: User's calorie goal
+  bool isLoading = true; 
+  int userGoalCalories = 2000; 
 
   @override
   void initState() {
     super.initState();
-    _loadData(); // ✅ CHANGED: Call backend instead of _initializeFoodLogs()
+    _loadData(); 
   }
 
-  // ✅ ADDED: Load real data from backend
+  // Load real data from backend
   Future<void> _loadData() async {
     setState(() => isLoading = true);
     
@@ -44,7 +44,7 @@ class _LogHistoryPageState extends State<LogHistoryPage> {
     setState(() => isLoading = false);
   }
 
-    // ✅ ADDED: Load logs for specific date from backend
+    // Load logs for specific date from backend
   Future<void> _loadLogsForDate(DateTime date) async {
     String dateKey = _getDateKey(date);
     
@@ -52,7 +52,7 @@ class _LogHistoryPageState extends State<LogHistoryPage> {
     if (foodLogsCache.containsKey(dateKey)) return;
 
     try {
-      // ✅ CHANGED: Direct call to LogService
+      // Direct call to LogService
       final grouped = await _logService.getLogsGroupedByCategory(date);
       
       setState(() {
@@ -72,28 +72,11 @@ class _LogHistoryPageState extends State<LogHistoryPage> {
     }
   }
 
-  /* ✅ ADDED: Load logs for date range (for week/custom views)
-  Future<void> _loadLogsForDateRange(DateTime start, DateTime end) async {
-    setState(() => isLoading = true);
-    
-    try {
-      DateTime current = start;
-      while (current.isBefore(end.add(const Duration(days: 1)))) {
-        await _loadLogsForDate(current);
-        current = current.add(const Duration(days: 1));
-      }
-    } catch (e) {
-      print('Error loading date range: $e');
-    }
-    
-    setState(() => isLoading = false);
-  }*/
-
     Future<void> _loadLogsForDateRange(DateTime start, DateTime end) async {
     setState(() => isLoading = true);
     
     try {
-      // ✅ CHANGED: Use LogService.getLogsInRange() instead of loading each date individually
+      // Use LogService.getLogsInRange() instead of loading each date individually
       final logs = await _logService.getLogsInRange(start, end);
       
       // Group logs by date
@@ -135,73 +118,16 @@ class _LogHistoryPageState extends State<LogHistoryPage> {
     setState(() => isLoading = false);
   }
 
-  /*void _initializeFoodLogs() {
-    String todayKey = _getDateKey(DateTime.now());
-    foodLogs[todayKey] = {
-      'Breakfast': [],
-      'Lunch': [],
-      'Dinner': [],
-      'Snacks': [],
-    };
-
-
-    DateTime now = DateTime.now();
-    for (int i = 1; i <= 30; i++) {
-      DateTime pastDate = now.subtract(Duration(days: i));
-      if (pastDate.isAfter(
-        accountCreationDate.subtract(const Duration(days: 1)),
-      )) {
-        String dateKey = _getDateKey(pastDate);
-
-        //Just for demo
-        foodLogs[dateKey] = {
-          'Breakfast': [
-            {'name': 'Scrambled Eggs', 'servings': '2', 'calories': 180},
-            {'name': 'Toast with Butter', 'servings': '1', 'calories': 120},
-          ],
-          'Lunch': [
-            {'name': 'Grilled Chicken Salad', 'servings': '1', 'calories': 350},
-            {'name': 'Apple', 'servings': '1', 'calories': 95},
-          ],
-          'Dinner': [
-            {'name': 'Baked Salmon', 'servings': '1', 'calories': 280},
-            {'name': 'Steamed Broccoli', 'servings': '1', 'calories': 55},
-            {'name': 'Brown Rice', 'servings': '1 cup', 'calories': 215},
-          ],
-          'Snacks': [
-            {'name': 'Greek Yogurt', 'servings': '1 cup', 'calories': 130},
-            {'name': 'Almonds', 'servings': '1 oz', 'calories': 160},
-          ],
-        };
-      }
-    }
-  }*/
-
   String _getDateKey(DateTime date) {
     return '${date.year}-${date.month.toString().padLeft(2, '0')}-${date.day.toString().padLeft(2, '0')}';
   }
-
-  /* ✅ CHANGED: Now uses MealLog objects instead of Map
-  int _getTotalCalories(DateTime date) {
-    String dateKey = _getDateKey(date);
-    int total = 0;
-    
-    if (foodLogsCache.containsKey(dateKey)) {
-      foodLogsCache[dateKey]!.forEach((mealType, logs) {
-        for (var log in logs) {
-          total += log.calories.toInt();
-        }
-      });
-    }
-    return total;
-  }*/
 
   int _getTotalCalories(DateTime date) {
     String dateKey = _getDateKey(date);
     
     if (!foodLogsCache.containsKey(dateKey)) return 0;
     
-    // ✅ CHANGED: Use LogService.calculateTotalCalories()
+    // Use LogService.calculateTotalCalories()
     List<MealLog> allLogs = [];
     foodLogsCache[dateKey]!.forEach((mealType, logs) {
       allLogs.addAll(logs);
@@ -585,7 +511,7 @@ class _LogHistoryPageState extends State<LogHistoryPage> {
     );
   }
 
-    // ✅ ADDED: Helper to check if two dates are same
+    // Helper to check if two dates are same
   bool _isSameDate(DateTime a, DateTime b) {
     return a.year == b.year && a.month == b.month && a.day == b.day;
   }
@@ -766,10 +692,10 @@ class _LogHistoryPageState extends State<LogHistoryPage> {
     );
   }*/
 
-  // ✅ CHANGED: Now uses LogService.deleteMealLog()
+  // uses LogService.deleteMealLog()
   Future<void> _removeFoodItem(MealLog log) async {
     try {
-      // ✅ CHANGED: Use LogService method
+      // Use LogService method
       await _logService.deleteMealLog(log.id);
       
       // Remove from cache
@@ -807,7 +733,7 @@ class _LogHistoryPageState extends State<LogHistoryPage> {
         date.month == DateTime.now().month &&
         date.day == DateTime.now().day;
     int consumed = _getTotalCalories(date);
-     int goal = userGoalCalories; // ✅ CHANGED: Use user's actual goal
+    int goal = userGoalCalories; 
     int remaining = goal - consumed;
     bool isExpanded =
         expandedDate != null &&
@@ -827,7 +753,6 @@ class _LogHistoryPageState extends State<LogHistoryPage> {
           InkWell(
             onTap: () async {
               if (!isExpanded) {
-                // ✅ ADDED: Load data for this date before expanding
                 await _loadLogsForDate(date);
               }
               setState(() {
@@ -1004,7 +929,7 @@ class _LogHistoryPageState extends State<LogHistoryPage> {
                                   style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 14),
                                   ),
                               ),
-                              // ✅ ADDED: Show verified badge if food is verified
+                              // Show verified badge if food is verified
                               if (log.isVerified)
                                 Container(
                                   margin: const EdgeInsets.only(left: 4),
@@ -1136,7 +1061,7 @@ class _LogHistoryPageState extends State<LogHistoryPage> {
     };
 
     bool isToday = _isSameDate(currentDate, DateTime.now());
-    // ✅ ADDED: Show loading indicator while fetching data
+    // Show loading indicator while fetching data
     if (isLoading) {
       return Scaffold(
         backgroundColor: const Color(0xFFFFE9B1),
