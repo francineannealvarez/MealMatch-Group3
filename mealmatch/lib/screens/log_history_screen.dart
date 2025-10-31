@@ -554,6 +554,86 @@ class _LogHistoryPageState extends State<LogHistoryPage> {
     }
   }
 
+  // NEW: Build progress bar widget
+  Widget _buildCalorieProgressBar(int consumed, int goal) {
+    double baseProgress = (consumed / goal).clamp(0.0, 1.0);
+    double overProgress = consumed > goal
+        ? ((consumed - goal) / goal).clamp(0.0, 1.0)
+        : 0.0;
+
+    return Container(
+      margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+      child: Column(
+        children: [
+          Stack(
+            children: [
+              // Background bar
+              Container(
+                height: 24,
+                decoration: BoxDecoration(
+                  color: Colors.white.withOpacity(0.3),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+              ),
+              // Orange progress (up to goal)
+              FractionallySizedBox(
+                widthFactor: baseProgress,
+                child: Container(
+                  height: 24,
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFFF9800),
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                ),
+              ),
+              // Red progress (over goal)
+              if (overProgress > 0)
+                FractionallySizedBox(
+                  widthFactor: (baseProgress + overProgress).clamp(0.0, 1.0),
+                  child: Container(
+                    height: 24,
+                    decoration: BoxDecoration(
+                      gradient: LinearGradient(
+                        colors: [
+                          const Color(0xFFFF9800),
+                          const Color(0xFFFF5252),
+                        ],
+                        stops: [
+                          baseProgress / (baseProgress + overProgress),
+                          1.0,
+                        ],
+                      ),
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                  ),
+                ),
+              // Center text showing calories
+              Container(
+                height: 24,
+                alignment: Alignment.center,
+                child: Text(
+                  '$consumed / $goal cal',
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontWeight: FontWeight.bold,
+                    fontSize: 12,
+                    shadows: [
+                      Shadow(
+                        offset: Offset(1, 1),
+                        blurRadius: 2,
+                        color: Colors.black26,
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
   Widget _buildDateSummaryCard(DateTime date) {
     bool isToday =
         date.year == DateTime.now().year &&
@@ -973,6 +1053,12 @@ class _LogHistoryPageState extends State<LogHistoryPage> {
               padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 16),
               child: Column(
                 children: [
+                  // Progress bar - NEW
+                  _buildCalorieProgressBar(
+                    _getTotalCalories(currentDate),
+                    userGoalCalories,
+                  ),
+                  const SizedBox(height: 12),
                   Row(
                     mainAxisAlignment: MainAxisAlignment.spaceEvenly,
                     children: [
@@ -1162,7 +1248,7 @@ class _LogHistoryPageState extends State<LogHistoryPage> {
       children: [
         Container(
           width: 70,
-          padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 12),
+          padding: const EdgeInsets.symmetric(vertical: 6, horizontal: 12),
           decoration: BoxDecoration(
             color: Colors.white,
             borderRadius: BorderRadius.circular(8),
@@ -1172,18 +1258,18 @@ class _LogHistoryPageState extends State<LogHistoryPage> {
               value,
               style: TextStyle(
                 fontWeight: FontWeight.bold,
-                fontSize: 16,
+                fontSize: 15,
                 color: isNegative ? Colors.red : Colors.black,
               ),
             ),
           ),
         ),
-        const SizedBox(height: 4),
+        const SizedBox(height: 3),
         Text(
           label,
           style: const TextStyle(
             fontWeight: FontWeight.w600,
-            fontSize: 11,
+            fontSize: 10,
             color: Colors.black87,
           ),
         ),
