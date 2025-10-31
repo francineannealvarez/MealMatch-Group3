@@ -8,10 +8,59 @@ class WhatCanICookScreen extends StatefulWidget {
 }
 
 class _WhatCanICookScreenState extends State<WhatCanICookScreen> {
-  List<String> availableIngredients = [];
-  final TextEditingController _ingredientController = TextEditingController();
+  final TextEditingController _searchController = TextEditingController();
   bool isFiltered = false;
   bool isLoading = false;
+  String searchQuery = '';
+
+  Map<String, List<String>> selectedIngredients = {
+    'Protein / Meat': [],
+    'Vegetables': [],
+    'Grains & Carbs': [],
+    'Sauces & Condiments': [],
+    'Dairy & Eggs': [],
+    'Spices & Herbs': [],
+  };
+
+  Map<String, bool> expandedCategories = {
+    'Protein / Meat': false,
+    'Vegetables': false,
+    'Grains & Carbs': false,
+    'Sauces & Condiments': false,
+    'Dairy & Eggs': false,
+    'Spices & Herbs': false,
+  };
+
+  final Map<String, List<String>> ingredientOptions = {
+    'Protein / Meat': ['Chicken', 'Pork', 'Beef', 'Fish', 'Eggs', 'Tofu'],
+    'Vegetables': [
+      'Tomato',
+      'Onion',
+      'Garlic',
+      'Carrot',
+      'Cabbage',
+      'Potato',
+      'Bell Pepper',
+    ],
+    'Grains & Carbs': ['Rice', 'Noodles', 'Pasta', 'Bread'],
+    'Sauces & Condiments': [
+      'Soy Sauce',
+      'Vinegar',
+      'Tomato Sauce',
+      'Oyster Sauce',
+    ],
+    'Dairy & Eggs': ['Milk', 'Cheese', 'Butter', 'Eggs'],
+    'Spices & Herbs': ['Salt', 'Pepper', 'Bay Leaf', 'Ginger'],
+  };
+
+  final Map<String, IconData> categoryIcons = {
+    'Protein / Meat': Icons.set_meal,
+    'Vegetables': Icons.local_florist,
+    'Grains & Carbs': Icons.grain,
+    'Sauces & Condiments': Icons.liquor,
+    'Dairy & Eggs': Icons.water_drop,
+    'Spices & Herbs': Icons.eco,
+  };
 
   // sample data demo
   final List<Map<String, dynamic>> completeMatches = [
@@ -58,129 +107,84 @@ class _WhatCanICookScreenState extends State<WhatCanICookScreen> {
     },
   ];
 
-  void _showAddIngredientDialog() {
-    showDialog(
-      context: context,
-      builder: (BuildContext context) {
-        return Dialog(
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(20),
-          ),
-          backgroundColor: const Color(0xFFFFF9E6),
-          child: Container(
-            padding: const EdgeInsets.all(24),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                const Text(
-                  'Add Ingredient',
-                  style: TextStyle(
-                    fontWeight: FontWeight.bold,
-                    fontSize: 20,
-                    color: Color(0xFF4CAF50),
-                  ),
-                ),
-                const SizedBox(height: 20),
-                TextField(
-                  controller: _ingredientController,
-                  decoration: InputDecoration(
-                    labelText: 'Ingredient Name',
-                    labelStyle: TextStyle(color: Colors.grey[700]),
-                    filled: true,
-                    fillColor: Colors.white,
-                    border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(12),
-                      borderSide: BorderSide(color: Colors.grey.shade300),
-                    ),
-                    enabledBorder: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(12),
-                      borderSide: BorderSide(color: Colors.grey.shade300),
-                    ),
-                    focusedBorder: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(12),
-                      borderSide: const BorderSide(
-                        color: Color(0xFF4CAF50),
-                        width: 2,
-                      ),
-                    ),
-                  ),
-                ),
-                const SizedBox(height: 24),
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.end,
-                  children: [
-                    TextButton(
-                      onPressed: () {
-                        _ingredientController.clear();
-                        Navigator.pop(context);
-                      },
-                      style: TextButton.styleFrom(
-                        foregroundColor: Colors.grey[700],
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 20,
-                          vertical: 12,
-                        ),
-                      ),
-                      child: const Text(
-                        'Cancel',
-                        style: TextStyle(fontWeight: FontWeight.w600),
-                      ),
-                    ),
-                    const SizedBox(width: 8),
-                    ElevatedButton(
-                      onPressed: () {
-                        if (_ingredientController.text.isNotEmpty) {
-                          setState(() {
-                            availableIngredients.add(
-                              _ingredientController.text,
-                            );
-                          });
-                          _ingredientController.clear();
-                          Navigator.pop(context);
-                        }
-                      },
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: const Color(0xFF4CAF50),
-                        foregroundColor: Colors.white,
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 24,
-                          vertical: 12,
-                        ),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(12),
-                        ),
-                        elevation: 0,
-                      ),
-                      child: const Text(
-                        'Add',
-                        style: TextStyle(
-                          fontWeight: FontWeight.bold,
-                          fontSize: 15,
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-              ],
-            ),
-          ),
-        );
-      },
-    );
-  }
-
-  void _removeIngredient(String ingredient) {
+  void _toggleIngredient(String category, String ingredient) {
     setState(() {
-      availableIngredients.remove(ingredient);
+      if (selectedIngredients[category]!.contains(ingredient)) {
+        selectedIngredients[category]!.remove(ingredient);
+      } else {
+        selectedIngredients[category]!.add(ingredient);
+      }
       isFiltered = false;
     });
   }
 
+  void _toggleCategory(String category) {
+    setState(() {
+      expandedCategories[category] = !expandedCategories[category]!;
+    });
+  }
+
+  int _getTotalSelectedCount() {
+    int total = 0;
+    selectedIngredients.forEach((key, value) {
+      total += value.length;
+    });
+    return total;
+  }
+
+  List<String> _getFilteredCategories() {
+    if (searchQuery.isEmpty) {
+      return ingredientOptions.keys.toList();
+    }
+
+    List<String> filteredCategories = [];
+    ingredientOptions.forEach((category, ingredients) {
+      bool hasMatch = ingredients.any(
+        (ingredient) =>
+            ingredient.toLowerCase().contains(searchQuery.toLowerCase()),
+      );
+      if (hasMatch) {
+        filteredCategories.add(category);
+      }
+    });
+    return filteredCategories;
+  }
+
+  List<String> _getFilteredIngredients(String category) {
+    if (searchQuery.isEmpty) {
+      return ingredientOptions[category]!;
+    }
+
+    return ingredientOptions[category]!
+        .where(
+          (ingredient) =>
+              ingredient.toLowerCase().contains(searchQuery.toLowerCase()),
+        )
+        .toList();
+  }
+
+  void _onSearchChanged(String value) {
+    setState(() {
+      searchQuery = value;
+      if (value.isNotEmpty) {
+        ingredientOptions.forEach((category, ingredients) {
+          bool hasMatch = ingredients.any(
+            (ingredient) =>
+                ingredient.toLowerCase().contains(value.toLowerCase()),
+          );
+          if (hasMatch) {
+            expandedCategories[category] = true;
+          }
+        });
+      }
+    });
+  }
+
   Future<void> _filterRecipes() async {
-    if (availableIngredients.isEmpty) {
+    if (_getTotalSelectedCount() == 0) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-          content: Text('Please add ingredients first'),
+          content: Text('Please select ingredients first'),
           backgroundColor: Colors.orange,
         ),
       );
@@ -249,116 +253,120 @@ class _WhatCanICookScreenState extends State<WhatCanICookScreen> {
                 children: [
                   Container(
                     margin: const EdgeInsets.all(16),
-                    constraints: const BoxConstraints(
-                      maxWidth: double.infinity,
-                    ),
-                    padding: const EdgeInsets.all(16),
+                    padding: const EdgeInsets.all(20),
                     decoration: BoxDecoration(
                       color: Colors.white,
                       borderRadius: BorderRadius.circular(16),
-                      border: Border.all(color: Colors.grey.shade300),
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.grey.withOpacity(0.1),
+                          spreadRadius: 1,
+                          blurRadius: 8,
+                          offset: const Offset(0, 2),
+                        ),
+                      ],
                     ),
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
-                      mainAxisSize: MainAxisSize.min,
                       children: [
                         const Text(
-                          'Available Ingredients',
+                          'Select Your Available Ingredients:',
                           style: TextStyle(
                             fontSize: 16,
                             fontWeight: FontWeight.bold,
                             color: Color(0xFF424242),
                           ),
                         ),
-                        const SizedBox(height: 12),
-                        if (availableIngredients.isEmpty)
-                          const SizedBox(height: 8)
-                        else
-                          Wrap(
-                            spacing: 8,
-                            runSpacing: 8,
-                            children: availableIngredients.map((ingredient) {
-                              return Container(
-                                padding: const EdgeInsets.symmetric(
-                                  horizontal: 12,
-                                  vertical: 6,
-                                ),
-                                decoration: BoxDecoration(
-                                  color: const Color(0xFFD4E7C5),
-                                  borderRadius: BorderRadius.circular(20),
-                                ),
-                                child: Row(
-                                  mainAxisSize: MainAxisSize.min,
-                                  children: [
-                                    Text(
-                                      ingredient,
-                                      style: const TextStyle(
-                                        fontSize: 13,
-                                        color: Color(0xFF424242),
-                                      ),
+                        const SizedBox(height: 16),
+                        // Search bar
+                        TextField(
+                          controller: _searchController,
+                          onChanged: _onSearchChanged,
+                          decoration: InputDecoration(
+                            hintText: 'Search ingredients...',
+                            hintStyle: TextStyle(color: Colors.grey[400]),
+                            filled: true,
+                            fillColor: const Color(0xFFF5F5F5),
+                            prefixIcon: Icon(
+                              Icons.search,
+                              color: Colors.grey[600],
+                            ),
+                            suffixIcon: searchQuery.isNotEmpty
+                                ? IconButton(
+                                    icon: Icon(
+                                      Icons.clear,
+                                      color: Colors.grey[600],
                                     ),
-                                    const SizedBox(width: 4),
-                                    GestureDetector(
-                                      onTap: () =>
-                                          _removeIngredient(ingredient),
-                                      child: const Icon(
-                                        Icons.close,
-                                        size: 16,
-                                        color: Color(0xFF424242),
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                              );
-                            }).toList(),
+                                    onPressed: () {
+                                      _searchController.clear();
+                                      _onSearchChanged('');
+                                    },
+                                  )
+                                : null,
+                            border: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(12),
+                              borderSide: BorderSide.none,
+                            ),
+                            contentPadding: const EdgeInsets.symmetric(
+                              horizontal: 16,
+                              vertical: 12,
+                            ),
                           ),
-                        const SizedBox(height: 8),
-                        Align(
-                          alignment: Alignment.centerRight,
-                          child: GestureDetector(
-                            onTap: _showAddIngredientDialog,
-                            child: Container(
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: 12,
-                                vertical: 6,
+                        ),
+                        const SizedBox(height: 20),
+                        ..._getFilteredCategories().map((category) {
+                          int selectedCount =
+                              selectedIngredients[category]!.length;
+                          bool isExpanded = expandedCategories[category]!;
+                          List<String> filteredIngredients =
+                              _getFilteredIngredients(category);
+                          if (filteredIngredients.isEmpty) {
+                            return const SizedBox.shrink();
+                          }
+
+                          return Column(
+                            children: [
+                              _buildCategoryHeader(
+                                category,
+                                selectedCount,
+                                isExpanded,
                               ),
-                              decoration: BoxDecoration(
-                                color: const Color(0xFF4CAF50),
-                                borderRadius: BorderRadius.circular(20),
-                              ),
-                              child: const Row(
-                                mainAxisSize: MainAxisSize.min,
+                              if (isExpanded)
+                                _buildCategoryItems(
+                                  category,
+                                  filteredIngredients,
+                                ),
+                              const SizedBox(height: 12),
+                            ],
+                          );
+                        }).toList(),
+                        // Show message if no results
+                        if (_getFilteredCategories().isEmpty ||
+                            _getFilteredCategories().every(
+                              (cat) => _getFilteredIngredients(cat).isEmpty,
+                            ))
+                          Padding(
+                            padding: const EdgeInsets.symmetric(vertical: 20),
+                            child: Center(
+                              child: Column(
                                 children: [
                                   Icon(
-                                    Icons.add,
-                                    size: 16,
-                                    color: Colors.white,
+                                    Icons.search_off,
+                                    size: 48,
+                                    color: Colors.grey[400],
                                   ),
-                                  SizedBox(width: 4),
+                                  const SizedBox(height: 8),
                                   Text(
-                                    'Add Ingredient',
+                                    'No ingredients found',
                                     style: TextStyle(
-                                      fontSize: 13,
-                                      color: Colors.white,
-                                      fontWeight: FontWeight.w600,
+                                      fontSize: 14,
+                                      color: Colors.grey[600],
                                     ),
                                   ),
                                 ],
                               ),
                             ),
                           ),
-                        ),
-                        if (!isFiltered) ...[
-                          const SizedBox(height: 12),
-                          Text(
-                            'Add ingredients in order to look for meals that match the ingredients.',
-                            style: TextStyle(
-                              fontSize: 12,
-                              color: Colors.grey[600],
-                              fontStyle: FontStyle.italic,
-                            ),
-                          ),
-                        ],
                       ],
                     ),
                   ),
@@ -372,18 +380,25 @@ class _WhatCanICookScreenState extends State<WhatCanICookScreen> {
                           style: ElevatedButton.styleFrom(
                             backgroundColor: const Color(0xFF4CAF50),
                             foregroundColor: Colors.white,
-                            padding: const EdgeInsets.symmetric(vertical: 14),
+                            padding: const EdgeInsets.symmetric(vertical: 16),
                             shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(12),
+                              borderRadius: BorderRadius.circular(30),
                             ),
                             elevation: 2,
                           ),
-                          child: const Text(
-                            'Find Matching Recipes',
-                            style: TextStyle(
-                              fontWeight: FontWeight.bold,
-                              fontSize: 15,
-                            ),
+                          child: Row(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              const Icon(Icons.search, size: 20),
+                              const SizedBox(width: 8),
+                              Text(
+                                'Find Recipes (${_getTotalSelectedCount()} selected)',
+                                style: const TextStyle(
+                                  fontWeight: FontWeight.bold,
+                                  fontSize: 16,
+                                ),
+                              ),
+                            ],
                           ),
                         ),
                       ),
@@ -449,6 +464,140 @@ class _WhatCanICookScreenState extends State<WhatCanICookScreen> {
               ),
             ),
       bottomNavigationBar: _buildBottomNavigationBar(),
+    );
+  }
+
+  Widget _buildCategoryHeader(
+    String category,
+    int selectedCount,
+    bool isExpanded,
+  ) {
+    return GestureDetector(
+      onTap: () => _toggleCategory(category),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+        decoration: BoxDecoration(
+          color: selectedCount > 0
+              ? const Color(0xFFD4E7C5)
+              : const Color(0xFFF5F5F5),
+          borderRadius: BorderRadius.circular(12),
+        ),
+        child: Row(
+          children: [
+            Container(
+              width: 36,
+              height: 36,
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: Icon(
+                categoryIcons[category],
+                color: const Color(0xFF4CAF50),
+                size: 20,
+              ),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Text(
+                category,
+                style: const TextStyle(
+                  fontSize: 15,
+                  fontWeight: FontWeight.w600,
+                  color: Color(0xFF424242),
+                ),
+              ),
+            ),
+            Text(
+              '($selectedCount selected)',
+              style: TextStyle(
+                fontSize: 13,
+                color: selectedCount > 0
+                    ? const Color(0xFF4CAF50)
+                    : Colors.grey[600],
+                fontWeight: FontWeight.w500,
+              ),
+            ),
+            const SizedBox(width: 8),
+            Icon(
+              isExpanded ? Icons.keyboard_arrow_up : Icons.keyboard_arrow_down,
+              color: Colors.grey[700],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildCategoryItems(String category, [List<String>? filteredList]) {
+    List<String> ingredientsToShow =
+        filteredList ?? ingredientOptions[category]!;
+
+    return Container(
+      margin: const EdgeInsets.only(top: 8),
+      padding: const EdgeInsets.all(8),
+      decoration: BoxDecoration(
+        color: const Color(0xFFFAFAFA),
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: Column(
+        children: ingredientsToShow.map((ingredient) {
+          bool isSelected = selectedIngredients[category]!.contains(ingredient);
+
+          bool isMatch =
+              searchQuery.isNotEmpty &&
+              ingredient.toLowerCase().contains(searchQuery.toLowerCase());
+
+          return GestureDetector(
+            onTap: () => _toggleIngredient(category, ingredient),
+            child: Container(
+              margin: const EdgeInsets.symmetric(vertical: 4),
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+              decoration: BoxDecoration(
+                color: isSelected ? const Color(0xFFD4E7C5) : Colors.white,
+                borderRadius: BorderRadius.circular(8),
+                border: isMatch && !isSelected
+                    ? Border.all(color: const Color(0xFF4CAF50), width: 1.5)
+                    : null,
+              ),
+              child: Row(
+                children: [
+                  Container(
+                    width: 24,
+                    height: 24,
+                    decoration: BoxDecoration(
+                      color: isSelected
+                          ? const Color(0xFF4CAF50)
+                          : Colors.white,
+                      borderRadius: BorderRadius.circular(4),
+                      border: Border.all(
+                        color: isSelected
+                            ? const Color(0xFF4CAF50)
+                            : Colors.grey[400]!,
+                        width: 2,
+                      ),
+                    ),
+                    child: isSelected
+                        ? const Icon(Icons.check, size: 16, color: Colors.white)
+                        : null,
+                  ),
+                  const SizedBox(width: 12),
+                  Text(
+                    ingredient,
+                    style: TextStyle(
+                      fontSize: 14,
+                      color: const Color(0xFF424242),
+                      fontWeight: isSelected || isMatch
+                          ? FontWeight.w600
+                          : FontWeight.normal,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          );
+        }).toList(),
+      ),
     );
   }
 
@@ -732,7 +881,7 @@ class _WhatCanICookScreenState extends State<WhatCanICookScreen> {
 
   @override
   void dispose() {
-    _ingredientController.dispose();
+    _searchController.dispose();
     super.dispose();
   }
 }
