@@ -554,7 +554,6 @@ class _LogHistoryPageState extends State<LogHistoryPage> {
     }
   }
 
-  // NEW: Build progress bar widget
   Widget _buildCalorieProgressBar(int consumed, int goal) {
     double baseProgress = (consumed / goal).clamp(0.0, 1.0);
     double overProgress = consumed > goal
@@ -567,7 +566,6 @@ class _LogHistoryPageState extends State<LogHistoryPage> {
         children: [
           Stack(
             children: [
-              // Background bar
               Container(
                 height: 24,
                 decoration: BoxDecoration(
@@ -575,7 +573,6 @@ class _LogHistoryPageState extends State<LogHistoryPage> {
                   borderRadius: BorderRadius.circular(12),
                 ),
               ),
-              // Orange progress (up to goal)
               FractionallySizedBox(
                 widthFactor: baseProgress,
                 child: Container(
@@ -586,7 +583,6 @@ class _LogHistoryPageState extends State<LogHistoryPage> {
                   ),
                 ),
               ),
-              // Red progress (over goal)
               if (overProgress > 0)
                 FractionallySizedBox(
                   widthFactor: (baseProgress + overProgress).clamp(0.0, 1.0),
@@ -607,7 +603,6 @@ class _LogHistoryPageState extends State<LogHistoryPage> {
                     ),
                   ),
                 ),
-              // Center text showing calories
               Container(
                 height: 24,
                 alignment: Alignment.center,
@@ -1053,7 +1048,6 @@ class _LogHistoryPageState extends State<LogHistoryPage> {
               padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 16),
               child: Column(
                 children: [
-                  // Progress bar - NEW
                   _buildCalorieProgressBar(
                     _getTotalCalories(currentDate),
                     userGoalCalories,
@@ -1247,7 +1241,7 @@ class _LogHistoryPageState extends State<LogHistoryPage> {
     return Column(
       children: [
         Container(
-          width: 70,
+          width: 72,
           padding: const EdgeInsets.symmetric(vertical: 6, horizontal: 12),
           decoration: BoxDecoration(
             color: Colors.white,
