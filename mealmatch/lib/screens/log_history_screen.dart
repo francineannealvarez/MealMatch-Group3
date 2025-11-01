@@ -716,40 +716,28 @@ class _LogHistoryPageState extends State<LogHistoryPage> {
         foodLogsCache[dateKey] ??
         {'Breakfast': [], 'Lunch': [], 'Dinner': [], 'Snacks': []};
 
+    bool hasAnyFood = meals['Breakfast']!.isNotEmpty || 
+                    meals['Lunch']!.isNotEmpty || 
+                    meals['Dinner']!.isNotEmpty || 
+                    meals['Snacks']!.isNotEmpty;
+
+    if (!hasAnyFood) {
+      return Padding(
+        padding: const EdgeInsets.all(32.0),
+        child: Text(
+          'No food logged on this date.',
+          style: TextStyle(color: Colors.grey[600], fontSize: 14),
+          textAlign: TextAlign.center,
+        ),
+      );
+    }
+    
     return Column(
       children: [
-        _buildMealCard(
-          'Breakfast',
-          '🍞',
-          const Color(0xFFFFA726),
-          meals['Breakfast']!,
-          date,
-          isToday,
-        ),
-        _buildMealCard(
-          'Lunch',
-          '☀️',
-          const Color(0xFFFFB74D),
-          meals['Lunch']!,
-          date,
-          isToday,
-        ),
-        _buildMealCard(
-          'Dinner',
-          '🍽️',
-          const Color(0xFF8D6E63),
-          meals['Dinner']!,
-          date,
-          isToday,
-        ),
-        _buildMealCard(
-          'Snacks',
-          '🍎',
-          const Color(0xFFE57373),
-          meals['Snacks']!,
-          date,
-          isToday,
-        ),
+        if (meals['Breakfast']!.isNotEmpty) _buildMealCard('Breakfast', '🍞', const Color(0xFFFFA726), meals['Breakfast']!, date, isToday),
+        if (meals['Lunch']!.isNotEmpty) _buildMealCard('Lunch', '☀️', const Color(0xFFFFB74D), meals['Lunch']!, date, isToday),
+        if (meals['Dinner']!.isNotEmpty) _buildMealCard('Dinner', '🍽️', const Color(0xFF8D6E63), meals['Dinner']!, date, isToday),
+        if (meals['Snacks']!.isNotEmpty) _buildMealCard('Snacks', '🍎', const Color(0xFFE57373), meals['Snacks']!, date, isToday),
       ],
     );
   }
@@ -957,8 +945,11 @@ class _LogHistoryPageState extends State<LogHistoryPage> {
               padding: const EdgeInsets.only(bottom: 16),
               child: ElevatedButton(
                 onPressed: () {
-                  Navigator.pushNamed(context, '/logfood').then((_) {
-                    _loadLogsForDate(date);
+                  Navigator.pushNamed(context, '/logfood').then((_) async {
+                    String dateKey = _getDateKey(date);
+                    foodLogsCache.remove(dateKey); // Clear cache
+                    await _loadLogsForDate(date);
+                    setState(() {}); // Force UI refresh
                   });
                 },
                 style: ElevatedButton.styleFrom(
@@ -1030,6 +1021,12 @@ class _LogHistoryPageState extends State<LogHistoryPage> {
         backgroundColor: const Color(0xFFFFA726),
         elevation: 0,
         centerTitle: true,
+        leading: IconButton(                    // ← ADD THIS
+          icon: const Icon(Icons.arrow_back),
+          onPressed: () {
+            Navigator.pushReplacementNamed(context, '/home');
+          },
+        ),
         title: const Text(
           'Daily Calorie',
           style: TextStyle(
@@ -1197,39 +1194,62 @@ class _LogHistoryPageState extends State<LogHistoryPage> {
                 : ListView(
                     padding: const EdgeInsets.only(bottom: 16),
                     children: [
-                      _buildMealCard(
-                        'Breakfast',
-                        '🍞',
-                        const Color(0xFFFFA726),
-                        meals['Breakfast']!,
-                        currentDate,
-                        isToday,
-                      ),
-                      _buildMealCard(
-                        'Lunch',
-                        '☀️',
-                        const Color(0xFFFFB74D),
-                        meals['Lunch']!,
-                        currentDate,
-                        isToday,
-                      ),
-                      _buildMealCard(
-                        'Dinner',
-                        '🍽️',
-                        const Color(0xFF8D6E63),
-                        meals['Dinner']!,
-                        currentDate,
-                        isToday,
-                      ),
-                      _buildMealCard(
-                        'Snacks',
-                        '🍎',
-                        const Color(0xFFE57373),
-                        meals['Snacks']!,
-                        currentDate,
-                        isToday,
-                      ),
-                    ],
+                      if (meals['Breakfast']!.isNotEmpty)
+                        _buildMealCard(
+                          'Breakfast',
+                          '🍞',
+                          const Color(0xFFFFA726),
+                          meals['Breakfast']!,
+                          currentDate,
+                          isToday,
+                        ),
+                      if (meals['Lunch']!.isNotEmpty)
+                        _buildMealCard(
+                          'Lunch',
+                          '☀️',
+                          const Color(0xFFFFB74D),
+                          meals['Lunch']!,
+                          currentDate,
+                          isToday,
+                        ),
+                      if (meals['Dinner']!.isNotEmpty)
+                        _buildMealCard(
+                          'Dinner',
+                          '🍽️',
+                          const Color(0xFF8D6E63),
+                          meals['Dinner']!,
+                          currentDate,
+                          isToday,
+                        ),
+                      if (meals['Snacks']!.isNotEmpty)
+                        _buildMealCard(
+                          'Snacks',
+                          '🍎',
+                          const Color(0xFFE57373),
+                          meals['Snacks']!,
+                          currentDate,
+                          isToday,
+                        ),
+
+                        if (meals['Breakfast']!.isEmpty && 
+                          meals['Lunch']!.isEmpty && 
+                          meals['Dinner']!.isEmpty && 
+                          meals['Snacks']!.isEmpty)
+                        Padding(
+                          padding: const EdgeInsets.all(32.0),
+                          child: Column(
+                            children: [
+                              Icon(Icons.restaurant, size: 64, color: Colors.grey[400]),
+                              const SizedBox(height: 16),
+                              Text(
+                                'No food logged yet.\nGo to Home to start logging your meals!',
+                                style: TextStyle(color: Colors.grey[600], fontSize: 16),
+                                textAlign: TextAlign.center,
+                              ),
+                            ],
+                          ),
+                        ),
+                                        ],
                   ),
           ),
         ],

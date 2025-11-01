@@ -132,7 +132,11 @@ class _SelectMealScreenState extends State<SelectMealScreen> {
       final dateStr =
           '${now.year}-${now.month.toString().padLeft(2, '0')}-${now.day.toString().padLeft(2, '0')}';
 
-      await _firestore.collection('meal_logs').add({
+      await _firestore
+        .collection('users')
+        .doc(user.uid)
+        .collection('meal_logs')
+        .add({
         'userId': user.uid,
         'category': mealCategory,
         'foodName': food.name,
