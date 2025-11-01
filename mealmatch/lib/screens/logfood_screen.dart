@@ -46,15 +46,353 @@ class _SelectMealScreenState extends State<SelectMealScreen> {
   List<FoodItem> _recentFoods = [];
   bool _isLoadingRecent = true;
 
+  int _userGoalCalories = 2000;
+  int _todayConsumedCalories = 0;
+  bool _hasShownInitialWarning = false;
+
+  List<Widget> _buildQuickMealOptions() {
+    final meals = [
+      {'name': 'Breakfast', 'icon': Icons.wb_sunny_outlined},
+      {'name': 'Lunch', 'icon': Icons.restaurant_outlined},
+      {'name': 'Dinner', 'icon': Icons.dinner_dining_outlined},
+      {'name': 'Snacks', 'icon': Icons.cookie_outlined},
+    ];
+
+    return meals.map((meal) {
+      return InkWell(
+        onTap: () {
+          Navigator.pop(context, meal['name'] as String);
+        },
+        child: Container(
+          margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
+          padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 20),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(15),
+            border: Border.all(color: Colors.orange.shade200, width: 1),
+          ),
+          child: Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(10),
+                decoration: BoxDecoration(
+                  color: Colors.orange.shade100,
+                  shape: BoxShape.circle,
+                ),
+                child: Icon(
+                  meal['icon'] as IconData,
+                  color: Colors.orange.shade700,
+                  size: 24,
+                ),
+              ),
+              const SizedBox(width: 16),
+              Expanded(
+                child: Text(
+                  meal['name'] as String,
+                  style: const TextStyle(
+                    fontSize: 18,
+                    fontWeight: FontWeight.w600,
+                    color: Colors.black87,
+                  ),
+                ),
+              ),
+              Icon(
+                Icons.arrow_forward_ios,
+                color: Colors.orange.shade400,
+                size: 18,
+              ),
+            ],
+          ),
+        ),
+      );
+    }).toList();
+  }
+
   @override
   void initState() {
     super.initState();
     _loadRecentFoodsFromLogs();
+    _loadCalorieData();
+  }
+
+  Future<void> _loadCalorieData() async {
+    try {
+      final user = _auth.currentUser;
+      if (user == null) return;
+
+      final userDoc = await _firestore.collection('users').doc(user.uid).get();
+      if (userDoc.exists) {
+        final data = userDoc.data();
+        if (data != null && data.containsKey('calorieGoal')) {
+          _userGoalCalories = data['calorieGoal'] as int;
+        }
+      }
+
+      final now = DateTime.now();
+      final dateStr =
+          '${now.year}-${now.month.toString().padLeft(2, '0')}-${now.day.toString().padLeft(2, '0')}';
+
+      final todayLogs = await _firestore
+          .collection('users')
+          .doc(user.uid)
+          .collection('meal_logs')
+          .where('date', isEqualTo: dateStr)
+          .get();
+
+      int totalCalories = 0;
+      for (var doc in todayLogs.docs) {
+        final data = doc.data();
+        totalCalories += (data['calories'] as num).toInt();
+      }
+
+      setState(() {
+        _todayConsumedCalories = totalCalories;
+      });
+
+      if (_todayConsumedCalories > _userGoalCalories &&
+          !_hasShownInitialWarning) {
+        _hasShownInitialWarning = true;
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          _showCalorieWarningDialog();
+        });
+      }
+    } catch (e) {
+      print('Error loading calorie data: $e');
+    }
+  }
+
+  void _showCalorieWarningDialog() {
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) => AlertDialog(
+        backgroundColor: const Color(0xFFFFF9E6),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(20),
+          side: const BorderSide(color: Colors.orange, width: 2),
+        ),
+        title: Row(
+          children: [
+            Container(
+              padding: const EdgeInsets.all(8),
+              decoration: BoxDecoration(
+                color: Colors.orange.shade100,
+                shape: BoxShape.circle,
+              ),
+              child: const Icon(
+                Icons.warning_amber_rounded,
+                color: Colors.orange,
+                size: 24,
+              ),
+            ),
+            const SizedBox(width: 12),
+            const Expanded(
+              child: Text(
+                'Over Your Goal!',
+                style: TextStyle(
+                  fontSize: 18,
+                  fontWeight: FontWeight.bold,
+                  color: Colors.orange,
+                ),
+              ),
+            ),
+          ],
+        ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text(
+              'You have gone over your calorie goal for today.',
+              style: TextStyle(
+                fontSize: 15,
+                color: Colors.black87,
+                fontWeight: FontWeight.w500,
+              ),
+            ),
+            const SizedBox(height: 16),
+            Container(
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: Colors.orange.shade200, width: 1.5),
+              ),
+              child: Column(
+                children: [
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      const Text(
+                        'Goal:',
+                        style: TextStyle(
+                          fontWeight: FontWeight.w600,
+                          fontSize: 14,
+                        ),
+                      ),
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 12,
+                          vertical: 4,
+                        ),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFF4CAF50).withOpacity(0.1),
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        child: Text(
+                          '$_userGoalCalories cal',
+                          style: const TextStyle(
+                            fontWeight: FontWeight.bold,
+                            fontSize: 14,
+                            color: Color(0xFF4CAF50),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 8),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      const Text(
+                        'Consumed:',
+                        style: TextStyle(
+                          fontWeight: FontWeight.w600,
+                          fontSize: 14,
+                        ),
+                      ),
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 12,
+                          vertical: 4,
+                        ),
+                        decoration: BoxDecoration(
+                          color: Colors.red.shade50,
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        child: Text(
+                          '$_todayConsumedCalories cal',
+                          style: const TextStyle(
+                            fontWeight: FontWeight.bold,
+                            fontSize: 14,
+                            color: Colors.red,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                  Padding(
+                    padding: const EdgeInsets.symmetric(vertical: 8),
+                    child: Divider(height: 1, color: Colors.grey.shade300),
+                  ),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      const Text(
+                        'Over by:',
+                        style: TextStyle(
+                          fontWeight: FontWeight.bold,
+                          fontSize: 15,
+                        ),
+                      ),
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 12,
+                          vertical: 6,
+                        ),
+                        decoration: BoxDecoration(
+                          color: Colors.red,
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        child: Text(
+                          '+${_todayConsumedCalories - _userGoalCalories} cal',
+                          style: const TextStyle(
+                            fontWeight: FontWeight.bold,
+                            fontSize: 16,
+                            color: Colors.white,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 16),
+            const Text(
+              'Are you sure you want to continue adding food?',
+              style: TextStyle(
+                fontSize: 14,
+                color: Colors.black54,
+                fontWeight: FontWeight.w500,
+              ),
+              textAlign: TextAlign.center,
+            ),
+          ],
+        ),
+        actions: [
+          Row(
+            children: [
+              Expanded(
+                child: TextButton(
+                  onPressed: () {
+                    Navigator.pop(context);
+                    Navigator.pop(context); // prev screen
+                  },
+                  style: TextButton.styleFrom(
+                    padding: const EdgeInsets.symmetric(vertical: 12),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12),
+                      side: BorderSide(color: Colors.grey.shade400, width: 1.5),
+                    ),
+                  ),
+                  child: Text(
+                    'Go Back',
+                    style: TextStyle(
+                      color: Colors.grey[700],
+                      fontWeight: FontWeight.bold,
+                      fontSize: 14,
+                    ),
+                  ),
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: ElevatedButton(
+                  onPressed: () {
+                    Navigator.pop(context); // close warning
+                  },
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.orange,
+                    foregroundColor: Colors.white,
+                    padding: const EdgeInsets.symmetric(vertical: 12),
+                    elevation: 2,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                  ),
+                  child: const Text(
+                    'Continue',
+                    style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ],
+        actionsPadding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+      ),
+    );
   }
 
   Future<void> _loadRecentFoodsFromLogs() async {
     try {
+      final user = _auth.currentUser;
+      if (user == null) return;
+
       final mealLogsQuery = await _firestore
+          .collection('users')
+          .doc(user.uid)
           .collection('meal_logs')
           .orderBy('timestamp', descending: true)
           .limit(50)
@@ -125,6 +463,233 @@ class _SelectMealScreenState extends State<SelectMealScreen> {
   }
 
   Future<void> _addFoodToMeal(FoodItem food, String mealCategory) async {
+    if (_todayConsumedCalories > _userGoalCalories) {
+      final shouldContinue = await showDialog<bool>(
+        context: context,
+        barrierDismissible: false,
+        builder: (context) => AlertDialog(
+          backgroundColor: const Color(0xFFFFF9E6),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(20),
+            side: const BorderSide(color: Colors.orange, width: 2),
+          ),
+          title: Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  color: Colors.orange.shade100,
+                  shape: BoxShape.circle,
+                ),
+                child: const Icon(
+                  Icons.warning_amber_rounded,
+                  color: Colors.orange,
+                  size: 24,
+                ),
+              ),
+              const SizedBox(width: 12),
+              const Expanded(
+                child: Text(
+                  'Still Over Goal!',
+                  style: TextStyle(
+                    fontSize: 18,
+                    fontWeight: FontWeight.bold,
+                    color: Colors.orange,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text(
+                'You\'re already over your calorie goal today.',
+                style: TextStyle(
+                  fontSize: 15,
+                  color: Colors.black87,
+                  fontWeight: FontWeight.w500,
+                ),
+              ),
+              const SizedBox(height: 16),
+              Container(
+                padding: const EdgeInsets.all(16),
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: Colors.orange.shade200, width: 1.5),
+                ),
+                child: Column(
+                  children: [
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        const Text(
+                          'Current:',
+                          style: TextStyle(
+                            fontWeight: FontWeight.w600,
+                            fontSize: 14,
+                          ),
+                        ),
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 12,
+                            vertical: 4,
+                          ),
+                          decoration: BoxDecoration(
+                            color: Colors.red.shade50,
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                          child: Text(
+                            '$_todayConsumedCalories cal',
+                            style: const TextStyle(
+                              fontWeight: FontWeight.bold,
+                              fontSize: 14,
+                              color: Colors.red,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 8),
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        const Text(
+                          'Adding:',
+                          style: TextStyle(
+                            fontWeight: FontWeight.w600,
+                            fontSize: 14,
+                          ),
+                        ),
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 12,
+                            vertical: 4,
+                          ),
+                          decoration: BoxDecoration(
+                            color: Colors.orange.shade50,
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                          child: Text(
+                            '+${food.calories.toInt()} cal',
+                            style: const TextStyle(
+                              fontWeight: FontWeight.bold,
+                              fontSize: 14,
+                              color: Colors.orange,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                    Padding(
+                      padding: const EdgeInsets.symmetric(vertical: 8),
+                      child: Divider(height: 1, color: Colors.grey.shade300),
+                    ),
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        const Text(
+                          'New Total:',
+                          style: TextStyle(
+                            fontWeight: FontWeight.bold,
+                            fontSize: 15,
+                          ),
+                        ),
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 12,
+                            vertical: 6,
+                          ),
+                          decoration: BoxDecoration(
+                            color: Colors.red,
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                          child: Text(
+                            '${_todayConsumedCalories + food.calories.toInt()} cal',
+                            style: const TextStyle(
+                              fontWeight: FontWeight.bold,
+                              fontSize: 16,
+                              color: Colors.white,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 16),
+              const Text(
+                'Continue adding this food?',
+                style: TextStyle(
+                  fontSize: 14,
+                  color: Colors.black54,
+                  fontWeight: FontWeight.w500,
+                ),
+                textAlign: TextAlign.center,
+              ),
+            ],
+          ),
+          actions: [
+            Row(
+              children: [
+                Expanded(
+                  child: TextButton(
+                    onPressed: () => Navigator.pop(context, false),
+                    style: TextButton.styleFrom(
+                      padding: const EdgeInsets.symmetric(vertical: 12),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12),
+                        side: BorderSide(
+                          color: Colors.grey.shade400,
+                          width: 1.5,
+                        ),
+                      ),
+                    ),
+                    child: Text(
+                      'Cancel',
+                      style: TextStyle(
+                        color: Colors.grey[700],
+                        fontWeight: FontWeight.bold,
+                        fontSize: 14,
+                      ),
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: ElevatedButton(
+                    onPressed: () => Navigator.pop(context, true),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Colors.orange,
+                      foregroundColor: Colors.white,
+                      padding: const EdgeInsets.symmetric(vertical: 12),
+                      elevation: 2,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                    ),
+                    child: const Text(
+                      'Add Anyway',
+                      style: TextStyle(
+                        fontWeight: FontWeight.bold,
+                        fontSize: 14,
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ],
+          actionsPadding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+        ),
+      );
+
+      if (shouldContinue != true) return;
+    }
+
     try {
       final user = _auth.currentUser;
       if (user == null) return;
@@ -133,23 +698,27 @@ class _SelectMealScreenState extends State<SelectMealScreen> {
           '${now.year}-${now.month.toString().padLeft(2, '0')}-${now.day.toString().padLeft(2, '0')}';
 
       await _firestore
-        .collection('users')
-        .doc(user.uid)
-        .collection('meal_logs')
-        .add({
-        'userId': user.uid,
-        'category': mealCategory,
-        'foodName': food.name,
-        'calories': food.calories,
-        'carbs': food.carbs,
-        'fats': food.fat,
-        'proteins': food.protein,
-        'serving': food.servingsize,
-        'timestamp': FieldValue.serverTimestamp(),
-        'date': dateStr,
-        'brand': food.brand,
-        'isVerified': food.isVerified,
-        'source': food.source,
+          .collection('users')
+          .doc(user.uid)
+          .collection('meal_logs')
+          .add({
+            'userId': user.uid,
+            'category': mealCategory,
+            'foodName': food.name,
+            'calories': food.calories,
+            'carbs': food.carbs,
+            'fats': food.fat,
+            'proteins': food.protein,
+            'serving': food.servingsize,
+            'timestamp': FieldValue.serverTimestamp(),
+            'date': dateStr,
+            'brand': food.brand,
+            'isVerified': food.isVerified,
+            'source': food.source,
+          });
+
+      setState(() {
+        _todayConsumedCalories += food.calories.toInt();
       });
 
       _loadRecentFoodsFromLogs();
@@ -194,29 +763,122 @@ class _SelectMealScreenState extends State<SelectMealScreen> {
   }
 
   void _showMealSelectDialog() async {
-    final meal = await showMenu<String>(
+    final meal = await showModalBottomSheet<String>(
       context: context,
-      position: const RelativeRect.fromLTRB(100, 80, 100, 0),
-      color: Colors.white,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-      items: ['Breakfast', 'Lunch', 'Dinner', 'Snacks']
-          .map(
-            (meal) => PopupMenuItem<String>(
-              value: meal,
-              child: Center(
-                child: Padding(
-                  padding: const EdgeInsets.symmetric(vertical: 8),
-                  child: Text(meal, style: const TextStyle(fontSize: 16)),
+      backgroundColor: Colors.transparent,
+      isScrollControlled: true,
+      builder: (context) => Container(
+        decoration: BoxDecoration(
+          color: const Color(0xFFFFF9E6),
+          borderRadius: const BorderRadius.vertical(top: Radius.circular(25)),
+          border: Border.all(color: Colors.orange, width: 2),
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+              margin: const EdgeInsets.only(top: 12, bottom: 8),
+              width: 40,
+              height: 4,
+              decoration: BoxDecoration(
+                color: Colors.orange.shade300,
+                borderRadius: BorderRadius.circular(2),
+              ),
+            ),
+            Padding(
+              padding: const EdgeInsets.symmetric(vertical: 12),
+              child: Text(
+                'Select a Meal',
+                style: TextStyle(
+                  fontSize: 20,
+                  fontWeight: FontWeight.bold,
+                  color: Colors.orange.shade800,
                 ),
               ),
             ),
-          )
-          .toList(),
+            const Divider(height: 1, thickness: 1.5, color: Colors.orange),
+            ..._buildMealOptions(),
+            const SizedBox(height: 20),
+          ],
+        ),
+      ),
     );
 
     if (meal != null) {
       setState(() => _selectedMeal = meal);
     }
+  }
+
+  List<Widget> _buildMealOptions() {
+    final meals = [
+      {'name': 'Breakfast', 'icon': Icons.breakfast_dining_outlined},
+      {'name': 'Lunch', 'icon': Icons.lunch_dining_outlined},
+      {'name': 'Dinner', 'icon': Icons.dinner_dining_outlined},
+      {'name': 'Snacks', 'icon': Icons.cookie_outlined},
+    ];
+
+    return meals.map((meal) {
+      final isSelected = _selectedMeal == meal['name'];
+      return InkWell(
+        onTap: () {
+          Navigator.pop(context, meal['name'] as String);
+        },
+        child: Container(
+          margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
+          padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 20),
+          decoration: BoxDecoration(
+            color: isSelected ? Colors.orange.shade50 : Colors.white,
+            borderRadius: BorderRadius.circular(15),
+            border: Border.all(
+              color: isSelected ? Colors.orange : Colors.orange.shade200,
+              width: isSelected ? 2 : 1,
+            ),
+            boxShadow: isSelected
+                ? [
+                    BoxShadow(
+                      color: Colors.orange.withOpacity(0.3),
+                      blurRadius: 8,
+                      offset: const Offset(0, 2),
+                    ),
+                  ]
+                : [],
+          ),
+          child: Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(10),
+                decoration: BoxDecoration(
+                  color: isSelected ? Colors.orange : Colors.orange.shade100,
+                  shape: BoxShape.circle,
+                ),
+                child: Icon(
+                  meal['icon'] as IconData,
+                  color: isSelected ? Colors.white : Colors.orange.shade700,
+                  size: 24,
+                ),
+              ),
+              const SizedBox(width: 16),
+              Expanded(
+                child: Text(
+                  meal['name'] as String,
+                  style: TextStyle(
+                    fontSize: 18,
+                    fontWeight: isSelected ? FontWeight.bold : FontWeight.w600,
+                    color: isSelected ? Colors.orange.shade800 : Colors.black87,
+                  ),
+                ),
+              ),
+              if (isSelected)
+                Icon(
+                  Icons.check_circle,
+                  color: Colors.orange.shade700,
+                  size: 26,
+                ),
+            ],
+          ),
+        ),
+      );
+    }).toList();
   }
 
   @override
@@ -361,7 +1023,10 @@ class _SelectMealScreenState extends State<SelectMealScreen> {
                     preselectedMeal: _selectedMeal,
                   ),
                 ),
-              ).then((_) => _loadRecentFoodsFromLogs());
+              ).then((_) {
+                _loadRecentFoodsFromLogs();
+                _loadCalorieData();
+              });
             },
             title: Text(
               food.name,
@@ -374,39 +1039,52 @@ class _SelectMealScreenState extends State<SelectMealScreen> {
             trailing: GestureDetector(
               onTapDown: (details) async {
                 String? meal = _selectedMeal;
-                if (meal == null) {
-                  meal = await showMenu<String>(
-                    context: context,
-                    position: RelativeRect.fromLTRB(
-                      details.globalPosition.dx - 70,
-                      details.globalPosition.dy + 30,
-                      details.globalPosition.dx,
-                      0,
+                meal ??= await showModalBottomSheet<String>(
+                  context: context,
+                  backgroundColor: Colors.transparent,
+                  isScrollControlled: true,
+                  builder: (context) => Container(
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFFFF9E6),
+                      borderRadius: const BorderRadius.vertical(
+                        top: Radius.circular(25),
+                      ),
+                      border: Border.all(color: Colors.orange, width: 2),
                     ),
-                    color: Colors.white,
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                    items: ['Breakfast', 'Lunch', 'Dinner', 'Snacks']
-                        .map(
-                          (m) => PopupMenuItem<String>(
-                            value: m,
-                            child: Center(
-                              child: Padding(
-                                padding: const EdgeInsets.symmetric(
-                                  vertical: 8,
-                                ),
-                                child: Text(
-                                  m,
-                                  style: const TextStyle(fontSize: 16),
-                                ),
-                              ),
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Container(
+                          margin: const EdgeInsets.only(top: 12, bottom: 8),
+                          width: 40,
+                          height: 4,
+                          decoration: BoxDecoration(
+                            color: Colors.orange.shade300,
+                            borderRadius: BorderRadius.circular(2),
+                          ),
+                        ),
+                        Padding(
+                          padding: const EdgeInsets.symmetric(vertical: 12),
+                          child: Text(
+                            'Add to Meal',
+                            style: TextStyle(
+                              fontSize: 20,
+                              fontWeight: FontWeight.bold,
+                              color: Colors.orange.shade800,
                             ),
                           ),
-                        )
-                        .toList(),
-                  );
-                }
+                        ),
+                        const Divider(
+                          height: 1,
+                          thickness: 1.5,
+                          color: Colors.orange,
+                        ),
+                        ..._buildQuickMealOptions(),
+                        const SizedBox(height: 20),
+                      ],
+                    ),
+                  ),
+                );
 
                 if (meal != null) {
                   await _addFoodToMeal(food, meal);
@@ -534,19 +1212,25 @@ class FavoritesTab extends StatelessWidget {
     }
 
     final user = FirebaseAuth.instance.currentUser;
-    await FirebaseFirestore.instance.collection('meal_logs').add({
-      'userId': user!.uid,
-      'category': meal,
-      'foodName': recipeName,
-      'timestamp': FieldValue.serverTimestamp(),
-    });
+    await FirebaseFirestore.instance
+        .collection('users')
+        .doc(user!.uid)
+        .collection('meal_logs')
+        .add({
+          'userId': user.uid,
+          'category': meal,
+          'foodName': recipeName,
+          'timestamp': FieldValue.serverTimestamp(),
+        });
 
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        backgroundColor: Colors.green.shade600,
-        content: Text('$recipeName added to $meal!'),
-      ),
-    );
+    if (context.mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          backgroundColor: Colors.green.shade600,
+          content: Text('$recipeName added to $meal!'),
+        ),
+      );
+    }
   }
 
   @override
@@ -557,10 +1241,13 @@ class FavoritesTab extends StatelessWidget {
           .where('userId', isEqualTo: userId)
           .snapshots(),
       builder: (context, snapshot) {
-        if (!snapshot.hasData)
+        if (!snapshot.hasData) {
           return const Center(child: CircularProgressIndicator());
+        }
         final docs = snapshot.data!.docs;
-        if (docs.isEmpty) return const Center(child: Text('No favorites yet.'));
+        if (docs.isEmpty) {
+          return const Center(child: Text('No favorites yet.'));
+        }
         return ListView(
           children: docs.map((doc) {
             final data = doc.data() as Map<String, dynamic>;
@@ -615,19 +1302,25 @@ class MyRecipesTab extends StatelessWidget {
     }
 
     final user = FirebaseAuth.instance.currentUser;
-    await FirebaseFirestore.instance.collection('meal_logs').add({
-      'userId': user!.uid,
-      'category': meal,
-      'foodName': recipeName,
-      'timestamp': FieldValue.serverTimestamp(),
-    });
+    await FirebaseFirestore.instance
+        .collection('users')
+        .doc(user!.uid)
+        .collection('meal_logs')
+        .add({
+          'userId': user.uid,
+          'category': meal,
+          'foodName': recipeName,
+          'timestamp': FieldValue.serverTimestamp(),
+        });
 
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        backgroundColor: Colors.green.shade600,
-        content: Text('$recipeName added to $meal!'),
-      ),
-    );
+    if (context.mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          backgroundColor: Colors.green.shade600,
+          content: Text('$recipeName added to $meal!'),
+        ),
+      );
+    }
   }
 
   @override
@@ -638,8 +1331,9 @@ class MyRecipesTab extends StatelessWidget {
           .where('userId', isEqualTo: userId)
           .snapshots(),
       builder: (context, snapshot) {
-        if (!snapshot.hasData)
+        if (!snapshot.hasData) {
           return const Center(child: CircularProgressIndicator());
+        }
         final docs = snapshot.data!.docs;
         if (docs.isEmpty) {
           return const Center(
@@ -648,7 +1342,7 @@ class MyRecipesTab extends StatelessWidget {
               children: [
                 Icon(Icons.menu_book, size: 80, color: Colors.orange),
                 SizedBox(height: 16),
-                Text("Mom’s Meatloaf Isn’t In The Database (Yet)."),
+                Text("Mom's Meatloaf Isn't In The Database (Yet)."),
               ],
             ),
           );
