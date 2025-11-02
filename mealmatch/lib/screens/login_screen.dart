@@ -26,40 +26,22 @@ class _LoginScreenState extends State<LoginScreen> {
   @override
   void initState() {
     super.initState();
-    _checkRememberedUser();
     _initializeLogin();
   }
 
-  // ✅ If the user previously checked "Remember Me"
-  Future<void> _checkRememberedUser() async {
+  
+  Future<void> _initializeLogin() async {
     final prefs = await SharedPreferences.getInstance();
     final isRemembered = prefs.getBool('remember_me') ?? false;
 
-    // 🔥 Only auto-login if user checked "remember me"
-    if (isRemembered && _auth.currentUser != null) {
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        Navigator.pushReplacementNamed(context, '/home');
-      });
-    } else {
-      // If not remembered, sign them out to clear auto-session
+    // If not remembered, sign out
+    if (!isRemembered) {
       await _auth.signOut();
-    }
-  }
-
-  Future<void> _initializeLogin() async {
-    final prefs = await SharedPreferences.getInstance();
-    final rememberedEmail = prefs.getString('remembered_email');
-
-    // If Firebase has a user but it's NOT the remembered email → sign out
-    if (_auth.currentUser != null &&
-        _auth.currentUser!.email != rememberedEmail) {
-      await _auth.signOut();
+      return;
     }
 
-    _rememberMe = rememberedEmail != null;
-
-    // If remembered → auto-login
-    if (_rememberMe) {
+    // If remembered and user exists → auto-login
+    if (_auth.currentUser != null) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
         Navigator.pushReplacementNamed(context, '/home');
       });

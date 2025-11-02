@@ -2,6 +2,7 @@
 
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:fl_chart/fl_chart.dart';
 import '../models/fooditem.dart';
 
@@ -52,11 +53,18 @@ class _ModifyFoodScreenState extends State<ModifyFoodScreen> {
 
   Future<void> _addFoodToMeal() async {
     try {
+      final user = FirebaseAuth.instance.currentUser;
+      if (user == null) return;
+
       final now = DateTime.now();
       final dateStr =
           '${now.year}-${now.month.toString().padLeft(2, '0')}-${now.day.toString().padLeft(2, '0')}';
 
-      await _firestore.collection('meal_logs').add({
+      await _firestore
+        .collection('users')
+        .doc(user.uid)
+        .collection('meal_logs') 
+        .add({
         'category': _selectedMeal,
         'foodName': widget.food.name,
         'calories': _calculatedCalories,
