@@ -635,29 +635,44 @@ class _HomePageState extends State<HomePage> {
       child: BottomNavigationBar(
         currentIndex: _selectedIndex,
         onTap: (index) {
-          setState(() {
-            _selectedIndex = index;
-          });
-
           switch (index) {
             case 0: // Home
-              // Already on home, just reload data
+              setState(() {
+                _selectedIndex = 0;
+              });
               _loadTodayData();
               break;
             case 1: // Recipes
-              Navigator.pushReplacementNamed(context, '/recipes');
+              Navigator.pushNamed(context, '/recipes').then((_) {
+                setState(() {
+                  _selectedIndex = 0;
+                });
+              });
               break;
-            case 2: // Add (e.g., Add Food)
-              Navigator.pushReplacementNamed(context, '/add');
+            case 2: // Add
+              Navigator.pushNamed(context, '/add').then((_) {
+                setState(() {
+                  _selectedIndex = 0;
+                });
+              });
               break;
             case 3: // Log History
-              Navigator.pushReplacementNamed(context, '/history');
+              Navigator.pushNamed(context, '/history').then((_) {
+                setState(() {
+                  _selectedIndex = 0;
+                });
+              });
               break;
             case 4: // Profile
-              Navigator.pushReplacementNamed(context, '/profile');
+              Navigator.pushNamed(context, '/profile').then((_) {
+                setState(() {
+                  _selectedIndex = 0;
+                });
+              });
               break;
           }
         },
+
         type: BottomNavigationBarType.fixed,
         backgroundColor: Colors.white,
         selectedItemColor: const Color(0xFF4CAF50),
