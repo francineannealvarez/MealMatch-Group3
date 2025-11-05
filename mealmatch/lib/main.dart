@@ -14,7 +14,7 @@ import 'screens/termsandcondition_screen.dart';
 import 'screens/privacypolicy_screen.dart';
 import 'screens/log_history_screen.dart';
 import 'screens/whatcanicook_screen.dart';
-// import 'screens/profile_screen.dart';
+import 'screens/profile_screen.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -53,7 +53,7 @@ class MyApp extends StatelessWidget {
         '/privacy': (context) => const PrivacyPolicyScreen(),
         '/history': (context) => const LogHistoryPage(),
         '/whatcanicook': (context) => const WhatCanICookScreen(),
-        // '/profile': (context) => ProfileScreen(),
+        '/profile': (context) => const ProfileScreen(),
       },
     );
   }
