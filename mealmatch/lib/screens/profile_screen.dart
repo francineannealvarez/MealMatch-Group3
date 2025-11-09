@@ -25,6 +25,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
   String? avatarPath; // Nullable - will be null if user hasn't set avatar yet
 
   List<Map<String, dynamic>> achievements = [];
+  List<String> newAchievementIds = [];
 
   Map<String, bool> likedRecipes = {
     'egg_sandwich': false,
@@ -49,14 +50,22 @@ class _ProfileScreenState extends State<ProfileScreen> {
   }
 
   Future<void> _loadProfileData() async {
-    setState(() => isLoading = true);
+    if (achievements.isEmpty) {
+      setState(() => isLoading = true);
+    }
 
     try {
       // Call ProfileService to get all data from Firebase at once
       final profileData = await _profileService.getProfileData();
+
+      // Load achievements first (before setState)
+      final loadedAchievements = await _profileService.getAchievements();
+
+      // Find new achievements
+      final newAchievements = loadedAchievements.where((a) => a['isNew'] == true).toList();
       
       // Update state with data from Firebase
-      setState(() async {
+      setState(() {
         userName = profileData['name'] ?? 'User';
         userEmail = profileData['email'] ?? 'No email';
         currentStreak = profileData['streak'] ?? 0;
@@ -65,12 +74,32 @@ class _ProfileScreenState extends State<ProfileScreen> {
         recipeCount = profileData['recipeCount'] ?? 0;
         totalLikes = profileData['totalLikes'] ?? 0;
         avatarPath = profileData['avatar']; // Can be null
-        achievements = await _profileService.getAchievements();
+        achievements = loadedAchievements;
         isLoading = false;
       });
+
+      // Mark new achievements as viewed after a short delay (so user can see them)
+      if (newAchievements.isNotEmpty) {
+        await Future.delayed(const Duration(seconds: 2));
+        final idsToMark = newAchievements.map((a) => a['id'] as String).toList();
+        await _profileService.markAchievementsAsViewed(idsToMark);
+        
+        // Update UI to remove "NEW" badges after marking
+        if (mounted) {
+          setState(() {
+            for (var achievement in achievements) {
+              if (idsToMark.contains(achievement['id'])) {
+                achievement['isNew'] = false;
+              }
+            }
+          });
+        }
+      }
     } catch (e) {
       print('Error loading profile: $e');
-      setState(() => isLoading = false);
+      if (mounted) {
+        setState(() => isLoading = false);
+      }
     }
   }
 
@@ -101,22 +130,27 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 color: Color(0xFF4CAF50),
               ),
             )
-          : SingleChildScrollView(
-            child: Column(
-              children: [
-                _buildProfileHeader(),
-                const SizedBox(height: 16),
-                _buildTabSelector(),
-                const SizedBox(height: 16),
-                if (_selectedTab == 0) _buildProgressTab(),
-                if (_selectedTab == 1) _buildMyRecipesTab(),
-                const SizedBox(height: 20),
-              ],
+          : RefreshIndicator(
+              color: const Color(0xFF4CAF50),
+              onRefresh: _loadProfileData, // ✅ Pull to refresh
+              child: SingleChildScrollView(
+                physics: const AlwaysScrollableScrollPhysics(),
+                child: Column(
+                  children: [
+                    _buildProfileHeader(),
+                    const SizedBox(height: 16),
+                    _buildTabSelector(),
+                    const SizedBox(height: 16),
+                    if (_selectedTab == 0) _buildProgressTab(),
+                    if (_selectedTab == 1) _buildMyRecipesTab(),
+                    const SizedBox(height: 20),
+                  ],
+                ),
+              ),
             ),
-          ),
-          bottomNavigationBar: _buildBottomNavigationBar(),
-        );
-      }
+      bottomNavigationBar: _buildBottomNavigationBar(),
+    );
+  }
 
   Widget _buildProfileHeader() {
     return Column(
@@ -431,86 +465,101 @@ class _ProfileScreenState extends State<ProfileScreen> {
             ),
           ),
           const SizedBox(height: 16),
-         achievements.isEmpty
-            ? Center(
-                child: Column(
-                  children: [
-                    Icon(
-                      Icons.emoji_events_outlined,
-                      size: 48,
-                      color: Colors.grey.shade400,
+          ConstrainedBox(
+            constraints: const BoxConstraints(
+              minHeight: 120, // ✅ ADDED: Minimum height to prevent layout shift
+            ),
+            child: achievements.isEmpty
+                ? Center(
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Icon(
+                          Icons.emoji_events_outlined,
+                          size: 48,
+                          color: Colors.grey.shade400,
+                        ),
+                        const SizedBox(height: 8),
+                        Text(
+                          'No achievements yet',
+                          style: TextStyle(
+                              color: Colors.grey.shade600, fontSize: 14),
+                        ),
+                        const SizedBox(height: 4),
+                        Text(
+                          'Keep logging to earn badges!',
+                          style: TextStyle(
+                              color: Colors.grey.shade500, fontSize: 12),
+                        ),
+                      ],
                     ),
-                    const SizedBox(height: 8),
-                    Text(
-                      'No achievements yet',
-                      style: TextStyle(color: Colors.grey.shade600, fontSize: 14),
-                    ),
-                    const SizedBox(height: 4),
-                    Text(
-                      'Keep logging to earn badges!',
-                      style: TextStyle(color: Colors.grey.shade500, fontSize: 12),
-                    ),
-                  ],
-                ),
-              )
-              : Wrap(
-                spacing: 12,
-                runSpacing: 12,
-                children: achievements.map((achievement) {
-                  return _buildAchievementBadge(
-                    achievement['icon'],
-                    achievement['title'],
-                    achievement['isNew'],
-                  );
-                }).toList(),
-              ),
-            ],
+                  )
+                : Column(
+                    children: achievements.map((achievement) {
+                      return Padding(
+                        padding: const EdgeInsets.only(bottom: 12),
+                        child: _buildAchievementBadge(
+                          achievement['icon'],
+                          achievement['title'],
+                          achievement['isNew'],
+                        ),
+                      );
+                    }).toList(),
+                  ),
           ),
-        );
-      }
+        ],
+      ),
+    );
+  }
 
   Widget _buildAchievementBadge(String icon, String title, bool isNew) {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+      width: double.infinity, 
+      padding: const EdgeInsets.all(16), 
       decoration: BoxDecoration(
         color: isNew ? const Color(0xFF4CAF50).withOpacity(0.1) : Colors.grey[100],
-        borderRadius: BorderRadius.circular(20),
+        borderRadius: BorderRadius.circular(12), 
         border: Border.all(
           color: isNew ? const Color(0xFF4CAF50) : Colors.grey[300]!,
           width: isNew ? 2 : 1,
         ),
       ),
       child: Row(
-        mainAxisSize: MainAxisSize.min,
         children: [
-          Text(icon, style: TextStyle(fontSize: isNew ? 20 : 16)),
-          const SizedBox(width: 6),
-          Text(
-            title,
-            style: TextStyle(
-              fontSize: 12,
-              fontWeight: isNew ? FontWeight.bold : FontWeight.normal,
-              color: isNew ? const Color(0xFF4CAF50) : Colors.grey[700],
+          Text(icon, style: const TextStyle(fontSize: 24)), 
+          const SizedBox(width: 12),
+          Expanded( 
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  title,
+                  style: TextStyle(
+                    fontSize: 14, 
+                    fontWeight: isNew ? FontWeight.bold : FontWeight.w600,
+                    color: isNew ? const Color(0xFF4CAF50) : Colors.black,
+                  ),
+                ),
+                // ✅ OPTIONAL: Can add description here later if you want
+              ],
             ),
           ),
-          if (isNew) ...[
-            const SizedBox(width: 4),
+          if (isNew) 
             Container(
-              padding: const EdgeInsets.all(4),
-              decoration: const BoxDecoration(
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+              decoration: BoxDecoration(
                 color: Colors.red,
-                shape: BoxShape.circle,
+                borderRadius: BorderRadius.circular(12),
               ),
               child: const Text(
                 'NEW',
                 style: TextStyle(
                   color: Colors.white,
-                  fontSize: 8,
+                  fontSize: 10,
                   fontWeight: FontWeight.bold,
                 ),
               ),
             ),
-          ],
         ],
       ),
     );
@@ -747,6 +796,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
               Navigator.pushReplacementNamed(context, '/history');
               break;
             case 4: // Profile
+               if (_selectedIndex == 4) {
+                _loadProfileData();
+              }
               setState(() {
                 _selectedIndex = 4;
               });

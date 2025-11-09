@@ -216,101 +216,147 @@ class ProfileService {
   }
 
   // 🎖️ Get achievements based on user progress
-Future<List<Map<String, dynamic>>> getAchievements() async {
-  try {
-    final userId = currentUserId;
-    if (userId == null) return [];
+  Future<List<Map<String, dynamic>>> getAchievements() async {
+    try {
+        final userId = currentUserId;
+        if (userId == null) return [];
 
-    // Get user data
-    final streak = await getCurrentStreak();
-    final recipeCount = await getUserRecipeCount();
-    final totalLikes = await getTotalLikes();
-    
-    // Get meal logs count
-    final logsSnapshot = await _firestore
-        .collection('users')
-        .doc(userId)
-        .collection('meal_logs')
-        .get();
-    final totalLogs = logsSnapshot.docs.length;
+        // Get user data in parallel for better performance
+        final results = await Future.wait([
+        getCurrentStreak(),
+        getUserRecipeCount(),
+        getTotalLikes(),
+        _firestore.collection('users').doc(userId).collection('meal_logs').get(),
+        _firestore.collection('users').doc(userId).get(),
+      ]);
 
-    // Check viewed achievements from Firestore
-    final userDoc = await _firestore.collection('users').doc(userId).get();
-    final viewedAchievements = (userDoc.data()?['viewedAchievements'] as List<dynamic>?)?.cast<String>() ?? [];
+      final streak = results[0] as int;
+      final recipeCount = results[1] as int;
+      final totalLikes = results[2] as int;
+      final logsSnapshot = results[3] as QuerySnapshot;
+      final userDoc = results[4] as DocumentSnapshot;
 
-    List<Map<String, dynamic>> achievements = [];
-      // Define all achievements
-      if (totalLogs >= 1) {
-        achievements.add({
+      final totalLogs = logsSnapshot.docs.length;
+      final viewedAchievements = (userDoc.data() as Map<String, dynamic>?)?['viewedAchievements'] as List<dynamic>? ?? [];
+      final viewedSet = viewedAchievements.cast<String>().toSet();
+
+      // ✅ Define all possible achievements
+      final allAchievements = [
+        {
           'id': 'first_step',
           'title': 'First Step',
           'description': 'Logged your first meal',
           'icon': '🥾',
-          'isNew': !viewedAchievements.contains('first_step'),
-        });
-      }
-
-      if (recipeCount >= 1) {
-        achievements.add({
+          'requirement': totalLogs >= 1,
+        },
+        {
+          'id': 'five_meals',
+          'title': '5 Meals',
+          'description': 'Logged 5 meals',
+          'icon': '🍽️',
+          'requirement': totalLogs >= 5,
+        },
+        {
+          'id': 'ten_meals',
+          'title': '10 Meals',
+          'description': 'Logged 10 meals',
+          'icon': '🎯',
+          'requirement': totalLogs >= 10,
+        },
+        {
           'id': 'beginner_chef',
           'title': 'Beginner Chef',
           'description': 'Created your first recipe',
           'icon': '👨‍🍳',
-          'isNew': !viewedAchievements.contains('beginner_chef'),
-        });
-      }
-
-      if (streak >= 3) {
-        achievements.add({
-          'id': 'three_day_streak',
-          'title': '3-Day Streak',
-          'description': 'Logged food for 3 days in a row',
-          'icon': '🔥',
-          'isNew': !viewedAchievements.contains('three_day_streak'),
-        });
-      }
-
-      if (streak >= 7) {
-        achievements.add({
-          'id': 'weekly_champion',
-          'title': 'Weekly Champion',
-          'description': 'Maintained a 7-day streak',
-          'icon': '🏆',
-          'isNew': !viewedAchievements.contains('weekly_champion'),
-        });
-      }
-
-      if (streak >= 30) {
-        achievements.add({
-          'id': 'thirty_day_warrior',
-          'title': '30-Day Warrior',
-          'description': 'Logged for 30 consecutive days',
-          'icon': '⚔️',
-          'isNew': !viewedAchievements.contains('thirty_day_warrior'),
-        });
-      }
-
-      if (recipeCount >= 5) {
-        achievements.add({
+          'requirement': recipeCount >= 1,
+        },
+        {
           'id': 'recipe_creator',
           'title': 'Recipe Creator',
           'description': 'Created 5 recipes',
           'icon': '📖',
-          'isNew': !viewedAchievements.contains('recipe_creator'),
-        });
-      }
-
-      if (totalLikes >= 50) {
-        achievements.add({
+          'requirement': recipeCount >= 5,
+        },
+        {
+          'id': 'recipe_master',
+          'title': 'Recipe Master',
+          'description': 'Created 10 recipes',
+          'icon': '📚',
+          'requirement': recipeCount >= 10,
+        },
+        {
+          'id': 'three_day_streak',
+          'title': '3-Day Streak',
+          'description': 'Logged food for 3 days in a row',
+          'icon': '🔥',
+          'requirement': streak >= 3,
+        },
+        {
+          'id': 'weekly_champion',
+          'title': 'Weekly Champion',
+          'description': 'Maintained a 7-day streak',
+          'icon': '🏆',
+          'requirement': streak >= 7,
+        },
+        {
+          'id': 'two_week_warrior',
+          'title': '14-Day Warrior',
+          'description': 'Logged for 14 consecutive days',
+          'icon': '⚔️',
+          'requirement': streak >= 14,
+        },
+        {
+          'id': 'thirty_day_warrior',
+          'title': '30-Day Warrior',
+          'description': 'Logged for 30 consecutive days',
+          'icon': '👑',
+          'requirement': streak >= 30,
+        },
+        {
           'id': 'popular_creator',
           'title': 'Popular Creator',
           'description': 'Got 50 total likes',
           'icon': '⭐',
-          'isNew': !viewedAchievements.contains('popular_creator'),
-        });
-      }
+          'requirement': totalLikes >= 50,
+        },
+        {
+          'id': 'super_star',
+          'title': 'Super Star',
+          'description': 'Got 100 total likes',
+          'icon': '🌟',
+          'requirement': totalLikes >= 100,
+        },
+      ];
+      // ✅ Filter earned achievements and mark new ones
+      final achievements = allAchievements
+          .where((achievement) => achievement['requirement'] as bool)
+          .map((achievement) {
+            final id = achievement['id'] as String;
+            final isNew = !viewedSet.contains(id);
+            
+            return {
+              'id': id,
+              'title': achievement['title'],
+              'description': achievement['description'],
+              'icon': achievement['icon'],
+              'isNew': isNew,
+            };
+          })
+          .toList();
 
-      return achievements;
+        // ✅ Sort: new achievements first, then by unlock order
+        achievements.sort((a, b) {
+          // Prioritize new achievements
+          if (a['isNew'] != b['isNew']) {
+            return (b['isNew'] as bool) ? 1 : -1;
+          }
+          // Then sort by the order they appear in allAchievements
+          final indexA = allAchievements.indexWhere((ach) => ach['id'] == a['id']);
+          final indexB = allAchievements.indexWhere((ach) => ach['id'] == b['id']);
+          return indexA.compareTo(indexB);
+        });
+
+        return achievements;
     } catch (e) {
       print('Error getting achievements: $e');
       return [];
@@ -323,19 +369,47 @@ Future<List<Map<String, dynamic>>> getAchievements() async {
       final userId = currentUserId;
       if (userId == null) return;
 
-      final userDoc = await _firestore.collection('users').doc(userId).get();
-      final viewedAchievements = (userDoc.data()?['viewedAchievements'] as List<dynamic>?)?.cast<String>() ?? [];
+      if (achievementIds.isEmpty) return;
+
+      final userDocRef = _firestore.collection('users').doc(userId);
       
-      // Add new achievement IDs
-      viewedAchievements.addAll(achievementIds);
-      
-      await _firestore.collection('users').doc(userId).update({
-        'viewedAchievements': viewedAchievements.toSet().toList(), // Remove duplicates
+      // ✅ Use FieldValue.arrayUnion to add without duplicates
+      await userDocRef.update({
+        'viewedAchievements': FieldValue.arrayUnion(achievementIds),
       });
+
+      print('✅ Marked ${achievementIds.length} achievements as viewed');
     } catch (e) {
-      print('Error marking achievements as viewed: $e');
+      // If field doesn't exist, create it
+      if (e.toString().contains('NOT_FOUND')) {
+        try {
+          final userId = currentUserId;
+          if (userId == null) return;
+          
+          await _firestore.collection('users').doc(userId).set({
+            'viewedAchievements': achievementIds,
+          }, SetOptions(merge: true));
+          
+          print('✅ Created viewedAchievements field with ${achievementIds.length} achievements');
+        } catch (createError) {
+          print('Error creating viewedAchievements field: $createError');
+        }
+      } else {
+        print('Error marking achievements as viewed: $e');
+      }
     }
   }
+
+  // SOON: Method to check if user has new achievements (for notification badge)
+  /*Future<bool> hasNewAchievements() async {
+    try {
+      final achievements = await getAchievements();
+      return achievements.any((achievement) => achievement['isNew'] == true);
+    } catch (e) {
+      print('Error checking new achievements: $e');
+      return false;
+    }
+  }*/
 
   // 🖼️ Get user avatar (placeholder - will be implemented later in settings)
   Future<String?> getUserAvatar() async {

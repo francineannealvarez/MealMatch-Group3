@@ -197,6 +197,17 @@ class _LogHistoryPageState extends State<LogHistoryPage> {
     return [DateTime.now()];
   }
 
+  // Preload data for visible dates
+  Future<void> _preloadVisibleDates() async {
+    List<DateTime> dates = _getFilteredDates();
+    
+    // Load data for all dates in parallel
+    await Future.wait(
+      dates.map((date) => _loadLogsForDate(date))
+    );
+    
+    setState(() {});
+  }
   void _showCustomDateDialog() {
     showDialog(
       context: context,
@@ -363,7 +374,7 @@ class _LogHistoryPageState extends State<LogHistoryPage> {
                       width: double.infinity,
                       child: ElevatedButton(
                         onPressed: tempStartDate != null && tempEndDate != null
-                            ? () {
+                            ? () async {
                                 setState(() {
                                   customStartDate = tempStartDate;
                                   customEndDate = tempEndDate;
@@ -375,6 +386,7 @@ class _LogHistoryPageState extends State<LogHistoryPage> {
                                   customStartDate!,
                                   customEndDate!,
                                 );
+                                setState(() {});
                               }
                             : null,
                         style: ElevatedButton.styleFrom(
@@ -1152,7 +1164,7 @@ class _LogHistoryPageState extends State<LogHistoryPage> {
                       ],
                     ),
                   ),
-                  onSelected: (String value) {
+                  onSelected: (String value) async {
                     if (value == 'Custom Date') {
                       _showCustomDateDialog();
                     } else {
@@ -1160,6 +1172,7 @@ class _LogHistoryPageState extends State<LogHistoryPage> {
                         selectedFilter = value;
                         expandedDate = null;
                       });
+                      await _preloadVisibleDates();
                     }
                   },
                   itemBuilder: (BuildContext context) =>
