@@ -3,6 +3,7 @@ import 'package:firebase_core/firebase_core.dart';
 import 'package:mealmatch/models/fooditem.dart';
 import 'package:mealmatch/services/recipe_services.dart';
 
+import 'screens/splash_screen.dart';
 import 'screens/signup_screen.dart';
 import 'screens/getstarted_screen.dart';
 import 'screens/greet_screen.dart';
@@ -33,7 +34,8 @@ class MyApp extends StatelessWidget {
       theme: ThemeData(primarySwatch: Colors.orange),
       initialRoute: '/',
       routes: {
-        '/': (context) => WelcomeScreen(),
+        '/': (context) => const SplashScreen(),
+        '/welcome': (context) => WelcomeScreen(),
         '/signup': (context) => SignUpScreen(),
         '/preferences': (context) => GetStartedScreen(email: '', password: ''),
         '/login': (context) => const LoginScreen(),
@@ -48,7 +50,7 @@ class MyApp extends StatelessWidget {
             preselectedMeal: args['preselectedMeal'] as String?,
           );
         },
-        '/recipes': (context) => const RecipesPage(), // ✅ Works now
+        '/recipes': (context) => const RecipesPage(),
         '/terms': (context) => const TermsConditionScreen(),
         '/privacy': (context) => const PrivacyPolicyScreen(),
         '/history': (context) => const LogHistoryPage(),
