@@ -1,3 +1,5 @@
+// lib/screens/getstarted_screen.dart
+
 //import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -528,8 +530,8 @@ class StepContent extends StatelessWidget {
         final options = [
           "Sedentary",
           "Lightly active",
-          "Active",
-          "Very active",
+          "Moderately active",
+          "Extremely active",
         ];
         return Padding(
           padding: const EdgeInsets.symmetric(horizontal: 20),
@@ -742,9 +744,9 @@ String _activityDescription(String option) {
       return 'Spend most of the day sitting';
     case 'Lightly active':
       return 'Spend a good part of the day on your feet';
-    case 'Active':
+    case 'Moderately active':
       return 'Spend a good part of the day doing physical activity';
-    case 'Very active':
+    case 'Extremely active':
       return 'Spend a good part of the day doing heavy physical activity';
     default:
       return '';
