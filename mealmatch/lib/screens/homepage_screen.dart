@@ -1,6 +1,9 @@
+// lib/screens/homepage_screen.dart
+
 import 'package:flutter/material.dart';
 import '../services/calorielog_history_service.dart';
-import '../models/meal_log.dart';
+import '../services/firebase_service.dart';
+//import '../models/meal_log.dart';
 import 'package:intl/intl.dart';
 
 class HomePage extends StatefulWidget {
@@ -12,11 +15,17 @@ class HomePage extends StatefulWidget {
 
 class _HomePageState extends State<HomePage> {
   final LogService _logService = LogService();
+  final FirebaseService _firebaseService = FirebaseService();
   int _selectedIndex = 0;
 
   int userGoalCalories = 2000;
   int consumedCalories = 0;
   bool isLoading = true;
+
+  // NEW: User stats for metabolism card
+  Map<String, dynamic>? userData;
+  double? userBMR;
+  double? userTDEE;
 
   @override
   void initState() {
@@ -28,27 +37,66 @@ class _HomePageState extends State<HomePage> {
     setState(() => isLoading = true);
 
     try {
+      // Load user data for metabolism calculations
+      userData = await _logService.getUserData();
+
+      // Calculate BMR and TDEE if we have user data
+      if (userData != null) {
+        userBMR = _calculateBMR(
+          gender: userData!['gender'],
+          age: userData!['age'],
+          height: userData!['height'].toDouble(),
+          weight: userData!['weight'].toDouble(),
+        );
+
+        userTDEE =
+            userBMR! * _getActivityMultiplier(userData!['activityLevel']);
+      }
+
       // Load user's calorie goal
-      final goal = await _logService.getUserCalorieGoal();
+      final goal = await _firebaseService.getUserCalorieGoal();
       if (goal != null) {
         userGoalCalories = goal;
       }
 
       // Load today's logs
-      final logs = await _logService.getLogsGroupedByCategory(DateTime.now());
-
-      // Calculate total calories consumed today
-      List<MealLog> allLogs = [];
-      logs.forEach((category, categoryLogs) {
-        allLogs.addAll(categoryLogs);
-      });
-
-      consumedCalories = _logService.calculateTotalCalories(allLogs).toInt();
+      final logs = await _logService.getTodayLogs();
+      consumedCalories = _logService.calculateTotalCalories(logs).toInt();
     } catch (e) {
       print('Error loading today\'s data: $e');
     }
 
     setState(() => isLoading = false);
+  }
+
+  // Calculate BMR using Mifflin-St Jeor equation
+  double _calculateBMR({
+    required String gender,
+    required int age,
+    required double height,
+    required double weight,
+  }) {
+    if (gender.toLowerCase() == 'male') {
+      return (10 * weight) + (6.25 * height) - (5 * age) + 5;
+    } else {
+      return (10 * weight) + (6.25 * height) - (5 * age) - 161;
+    }
+  }
+
+  // Get activity multiplier
+  double _getActivityMultiplier(String activityLevel) {
+    switch (activityLevel.toLowerCase()) {
+      case 'sedentary':
+        return 1.2;
+      case 'lightly active':
+        return 1.375;
+      case 'moderately active':
+        return 1.55;
+      case 'extremely active':
+        return 1.9;
+      default:
+        return 1.2;
+    }
   }
 
   @override
@@ -60,18 +108,22 @@ class _HomePageState extends State<HomePage> {
             ? const Center(
                 child: CircularProgressIndicator(color: Color(0xFF4CAF50)),
               )
-            : SingleChildScrollView(
-                child: Column(
-                  children: [
-                    _buildHeader(),
-                    _buildSearchBar(),
-                    _buildTodayDate(),
-                    _buildDailyCaloriesWidget(),
-                    _buildActionButtons(),
-                    _buildCookAgainSection(),
-                    _buildDiscoverRecipesSection(),
-                    const SizedBox(height: 100),
-                  ],
+            : RefreshIndicator(
+                onRefresh: _loadTodayData,
+                child: SingleChildScrollView(
+                  physics: const AlwaysScrollableScrollPhysics(),
+                  child: Column(
+                    children: [
+                      _buildHeader(),
+                      _buildSearchBar(),
+                      _buildTodayDate(),
+                      _buildDailyCaloriesWidget(),
+                      _buildActionButtons(),
+                      _buildCookAgainSection(),
+                      _buildDiscoverRecipesSection(),
+                      const SizedBox(height: 100),
+                    ],
+                  ),
                 ),
               ),
       ),
@@ -241,7 +293,6 @@ class _HomePageState extends State<HomePage> {
               child: Stack(
                 alignment: Alignment.center,
                 children: [
-                  // Background circle
                   SizedBox(
                     width: 100,
                     height: 100,
@@ -254,7 +305,6 @@ class _HomePageState extends State<HomePage> {
                       ),
                     ),
                   ),
-                  // Primary progress (orange)
                   SizedBox(
                     width: 100,
                     height: 100,
@@ -267,7 +317,6 @@ class _HomePageState extends State<HomePage> {
                       ),
                     ),
                   ),
-                  // Over-goal indicator (red) - only shows if over goal
                   if (isOverGoal)
                     SizedBox(
                       width: 100,
@@ -281,7 +330,6 @@ class _HomePageState extends State<HomePage> {
                         ),
                       ),
                     ),
-                  // Center text
                   Column(
                     mainAxisSize: MainAxisSize.min,
                     children: [
@@ -375,7 +423,6 @@ class _HomePageState extends State<HomePage> {
               color: const Color(0xFFFF9800),
               onTap: () {
                 Navigator.pushNamed(context, '/logfood').then((_) {
-                  // Reload data when returning from log food page
                   _loadTodayData();
                 });
               },
@@ -636,43 +683,33 @@ class _HomePageState extends State<HomePage> {
         currentIndex: _selectedIndex,
         onTap: (index) {
           switch (index) {
-            case 0: // Home
-              setState(() {
-                _selectedIndex = 0;
-              });
+            case 0:
+              setState(() => _selectedIndex = 0);
               _loadTodayData();
               break;
-            case 1: // Recipes
+            case 1:
               Navigator.pushNamed(context, '/recipes').then((_) {
-                setState(() {
-                  _selectedIndex = 0;
-                });
+                setState(() => _selectedIndex = 0);
               });
               break;
-            case 2: // Add
-              Navigator.pushNamed(context, '/add').then((_) {
-                setState(() {
-                  _selectedIndex = 0;
-                });
+            case 2:
+              Navigator.pushNamed(context, '/logfood').then((_) {
+                setState(() => _selectedIndex = 0);
+                _loadTodayData();
               });
               break;
-            case 3: // Log History
+            case 3:
               Navigator.pushNamed(context, '/history').then((_) {
-                setState(() {
-                  _selectedIndex = 0;
-                });
+                setState(() => _selectedIndex = 0);
               });
               break;
-            case 4: // Profile
+            case 4:
               Navigator.pushNamed(context, '/profile').then((_) {
-                setState(() {
-                  _selectedIndex = 0;
-                });
+                setState(() => _selectedIndex = 0);
               });
               break;
           }
         },
-
         type: BottomNavigationBarType.fixed,
         backgroundColor: Colors.white,
         selectedItemColor: const Color(0xFF4CAF50),
