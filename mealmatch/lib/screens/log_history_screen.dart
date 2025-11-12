@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../services/calorielog_history_service.dart';
 import '../models/meal_log.dart';
+import '../services/firebase_service.dart';
 
 class LogHistoryPage extends StatefulWidget {
   const LogHistoryPage({super.key});
@@ -11,6 +12,7 @@ class LogHistoryPage extends StatefulWidget {
 
 class _LogHistoryPageState extends State<LogHistoryPage> {
   final LogService _logService = LogService();
+  final FirebaseService _firebaseService = FirebaseService();
 
   String selectedFilter = 'Today';
   DateTime? customStartDate;
@@ -32,8 +34,8 @@ class _LogHistoryPageState extends State<LogHistoryPage> {
   Future<void> _loadData() async {
     setState(() => isLoading = true);
 
-    // Load user's calorie goal from Firebase using LogService
-    final goal = await _logService.getUserCalorieGoal();
+    // Load user's calorie goal from Firebase using FirebaseService
+    final goal = await _firebaseService.getUserCalorieGoal();
     if (goal != null) {
       userGoalCalories = goal;
     }
@@ -200,14 +202,13 @@ class _LogHistoryPageState extends State<LogHistoryPage> {
   // Preload data for visible dates
   Future<void> _preloadVisibleDates() async {
     List<DateTime> dates = _getFilteredDates();
-    
+
     // Load data for all dates in parallel
-    await Future.wait(
-      dates.map((date) => _loadLogsForDate(date))
-    );
-    
+    await Future.wait(dates.map((date) => _loadLogsForDate(date)));
+
     setState(() {});
   }
+
   void _showCustomDateDialog() {
     showDialog(
       context: context,
@@ -728,10 +729,11 @@ class _LogHistoryPageState extends State<LogHistoryPage> {
         foodLogsCache[dateKey] ??
         {'Breakfast': [], 'Lunch': [], 'Dinner': [], 'Snacks': []};
 
-    bool hasAnyFood = meals['Breakfast']!.isNotEmpty || 
-                    meals['Lunch']!.isNotEmpty || 
-                    meals['Dinner']!.isNotEmpty || 
-                    meals['Snacks']!.isNotEmpty;
+    bool hasAnyFood =
+        meals['Breakfast']!.isNotEmpty ||
+        meals['Lunch']!.isNotEmpty ||
+        meals['Dinner']!.isNotEmpty ||
+        meals['Snacks']!.isNotEmpty;
 
     if (!hasAnyFood) {
       return Padding(
@@ -743,13 +745,45 @@ class _LogHistoryPageState extends State<LogHistoryPage> {
         ),
       );
     }
-    
+
     return Column(
       children: [
-        if (meals['Breakfast']!.isNotEmpty) _buildMealCard('Breakfast', '🍞', const Color(0xFFFFA726), meals['Breakfast']!, date, isToday),
-        if (meals['Lunch']!.isNotEmpty) _buildMealCard('Lunch', '☀️', const Color(0xFFFFB74D), meals['Lunch']!, date, isToday),
-        if (meals['Dinner']!.isNotEmpty) _buildMealCard('Dinner', '🍽️', const Color(0xFF8D6E63), meals['Dinner']!, date, isToday),
-        if (meals['Snacks']!.isNotEmpty) _buildMealCard('Snacks', '🍎', const Color(0xFFE57373), meals['Snacks']!, date, isToday),
+        if (meals['Breakfast']!.isNotEmpty)
+          _buildMealCard(
+            'Breakfast',
+            '🍞',
+            const Color(0xFFFFA726),
+            meals['Breakfast']!,
+            date,
+            isToday,
+          ),
+        if (meals['Lunch']!.isNotEmpty)
+          _buildMealCard(
+            'Lunch',
+            '☀️',
+            const Color(0xFFFFB74D),
+            meals['Lunch']!,
+            date,
+            isToday,
+          ),
+        if (meals['Dinner']!.isNotEmpty)
+          _buildMealCard(
+            'Dinner',
+            '🍽️',
+            const Color(0xFF8D6E63),
+            meals['Dinner']!,
+            date,
+            isToday,
+          ),
+        if (meals['Snacks']!.isNotEmpty)
+          _buildMealCard(
+            'Snacks',
+            '🍎',
+            const Color(0xFFE57373),
+            meals['Snacks']!,
+            date,
+            isToday,
+          ),
       ],
     );
   }
@@ -1033,7 +1067,8 @@ class _LogHistoryPageState extends State<LogHistoryPage> {
         backgroundColor: const Color(0xFFFFA726),
         elevation: 0,
         centerTitle: true,
-        leading: IconButton(                    // ← ADD THIS
+        leading: IconButton(
+          // ← ADD THIS
           icon: const Icon(Icons.arrow_back),
           onPressed: () {
             Navigator.pushReplacementNamed(context, '/home');
@@ -1244,25 +1279,32 @@ class _LogHistoryPageState extends State<LogHistoryPage> {
                           isToday,
                         ),
 
-                        if (meals['Breakfast']!.isEmpty && 
-                          meals['Lunch']!.isEmpty && 
-                          meals['Dinner']!.isEmpty && 
+                      if (meals['Breakfast']!.isEmpty &&
+                          meals['Lunch']!.isEmpty &&
+                          meals['Dinner']!.isEmpty &&
                           meals['Snacks']!.isEmpty)
                         Padding(
                           padding: const EdgeInsets.all(32.0),
                           child: Column(
                             children: [
-                              Icon(Icons.restaurant, size: 64, color: Colors.grey[400]),
+                              Icon(
+                                Icons.restaurant,
+                                size: 64,
+                                color: Colors.grey[400],
+                              ),
                               const SizedBox(height: 16),
                               Text(
                                 'No food logged yet.\nGo to Home to start logging your meals!',
-                                style: TextStyle(color: Colors.grey[600], fontSize: 16),
+                                style: TextStyle(
+                                  color: Colors.grey[600],
+                                  fontSize: 16,
+                                ),
                                 textAlign: TextAlign.center,
                               ),
                             ],
                           ),
                         ),
-                                        ],
+                    ],
                   ),
           ),
         ],
