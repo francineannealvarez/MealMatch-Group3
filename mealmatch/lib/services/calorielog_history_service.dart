@@ -1,4 +1,4 @@
-// 📁 lib/services/log_service.dart
+// 📁 lib/services/calorielog_history_service.dart
 
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
@@ -26,7 +26,7 @@ class LogService {
     // Sort in-memory to avoid composite index requirement
     final logs = snapshot.docs.map((doc) => MealLog.fromDoc(doc)).toList();
     logs.sort((a, b) => b.timestamp.compareTo(a.timestamp));
-    
+
     return logs;
   }
 
@@ -47,13 +47,15 @@ class LogService {
     // Sort in-memory
     final logs = snapshot.docs.map((doc) => MealLog.fromDoc(doc)).toList();
     logs.sort((a, b) => b.timestamp.compareTo(a.timestamp));
-    
+
     return logs;
   }
 
   /// 🔹 Get logs by date and category
   Future<List<MealLog>> getLogsByDateAndCategory(
-      DateTime date, String category) async {
+    DateTime date,
+    String category,
+  ) async {
     final user = _auth.currentUser;
     if (user == null) return [];
 
@@ -70,7 +72,7 @@ class LogService {
     // Sort in-memory
     final logs = snapshot.docs.map((doc) => MealLog.fromDoc(doc)).toList();
     logs.sort((a, b) => b.timestamp.compareTo(a.timestamp));
-    
+
     return logs;
   }
 
@@ -94,7 +96,10 @@ class LogService {
         .collection('users')
         .doc(user.uid)
         .collection('meal_logs')
-        .where('date', whereIn: dateStrings.take(10).toList()) // Firestore limit: max 10
+        .where(
+          'date',
+          whereIn: dateStrings.take(10).toList(),
+        ) // Firestore limit: max 10
         .get();
 
     // If range > 10 days, fetch in batches
@@ -153,11 +158,7 @@ class LogService {
       totalFats += log.fats;
     }
 
-    return {
-      'carbs': totalCarbs,
-      'proteins': totalProteins,
-      'fats': totalFats,
-    };
+    return {'carbs': totalCarbs, 'proteins': totalProteins, 'fats': totalFats};
   }
 
   /// 🔹 Get user's calorie goal (from `users` collection)
@@ -195,7 +196,8 @@ class LogService {
 
   /// 🔹 Group logs by category for a specific date
   Future<Map<String, List<MealLog>>> getLogsGroupedByCategory(
-      DateTime date) async {
+    DateTime date,
+  ) async {
     final logs = await getLogsByDate(date);
 
     Map<String, List<MealLog>> grouped = {
@@ -214,8 +216,39 @@ class LogService {
     return grouped;
   }
 
-  /// 🔹 Format date (YYYY-MM-DD) - MATCHES YOUR SAVE FORMAT
+  // Format date (YYYY-MM-DD) - MATCHES YOUR SAVE FORMAT
   String _formatDate(DateTime date) {
     return '${date.year}-${date.month.toString().padLeft(2, '0')}-${date.day.toString().padLeft(2, '0')}';
+  }
+
+  Future<Map<String, dynamic>?> getUserData() async {
+    final user = _auth.currentUser;
+    if (user == null) return null;
+
+    try {
+      final doc = await _firestore.collection('users').doc(user.uid).get();
+      if (doc.exists) {
+        return doc.data();
+      }
+      return null;
+    } catch (e) {
+      print('Error getting user data: $e');
+      return null;
+    }
+  }
+
+  // Calculate total protein from logs
+  double calculateTotalProtein(List<MealLog> logs) {
+    return logs.fold(0.0, (sum, log) => sum + log.proteins);
+  }
+
+  // Calculate total carbs from logs
+  double calculateTotalCarbs(List<MealLog> logs) {
+    return logs.fold(0.0, (sum, log) => sum + log.carbs);
+  }
+
+  // Calculate total fat from logs
+  double calculateTotalFat(List<MealLog> logs) {
+    return logs.fold(0.0, (sum, log) => sum + log.fats);
   }
 }
