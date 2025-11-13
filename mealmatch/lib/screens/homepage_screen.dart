@@ -148,38 +148,29 @@ class _HomePageState extends State<HomePage> {
           bottomRight: Radius.circular(20),
         ),
       ),
-      child: Row(
-        children: [
-          const SizedBox(width: 16),
-          const Icon(Icons.menu, color: Color(0xFF424242), size: 24),
-          Expanded(
-            child: Center(
-              child: RichText(
-                text: const TextSpan(
-                  children: [
-                    TextSpan(
-                      text: 'Meal',
-                      style: TextStyle(
-                        color: Color(0xFFFF9800),
-                        fontSize: 24,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
-                    TextSpan(
-                      text: 'Match',
-                      style: TextStyle(
-                        color: Color(0xFF4CAF50),
-                        fontSize: 24,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
-                  ],
+      child: Center(
+        child: RichText(
+          text: const TextSpan(
+            children: [
+              TextSpan(
+                text: 'Meal',
+                style: TextStyle(
+                  color: Color(0xFFFF9800),
+                  fontSize: 24,
+                  fontWeight: FontWeight.bold,
                 ),
               ),
-            ),
+              TextSpan(
+                text: 'Match',
+                style: TextStyle(
+                  color: Color(0xFF4CAF50),
+                  fontSize: 24,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+            ],
           ),
-          const SizedBox(width: 40),
-        ],
+        ),
       ),
     );
   }
@@ -234,7 +225,7 @@ class _HomePageState extends State<HomePage> {
 
     return Container(
       margin: const EdgeInsets.all(16),
-      padding: const EdgeInsets.all(16),
+      padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(16),
@@ -247,19 +238,20 @@ class _HomePageState extends State<HomePage> {
           ),
         ],
       ),
-      child: IntrinsicHeight(
-        child: Row(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            Expanded(
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.center,
+        children: [
+          Expanded(
+            child: Padding(
+              padding: const EdgeInsets.only(left: 8),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
-                mainAxisAlignment: MainAxisAlignment.center,
+                mainAxisSize: MainAxisSize.min,
                 children: [
                   const Text(
                     'Daily Calories',
                     style: TextStyle(
-                      fontSize: 18,
+                      fontSize: 21,
                       fontWeight: FontWeight.bold,
                       color: Color(0xFF424242),
                     ),
@@ -267,96 +259,104 @@ class _HomePageState extends State<HomePage> {
                   const SizedBox(height: 4),
                   const Text(
                     'Goal - Food = Remaining',
-                    style: TextStyle(fontSize: 12, color: Colors.grey),
+                    style: TextStyle(fontSize: 14, color: Colors.grey),
                   ),
-                  const SizedBox(height: 16),
-                  _buildCalorieRow(
-                    icon: Icons.local_fire_department,
-                    iconColor: const Color(0xFFFF9800),
-                    label: 'Calorie Goal',
-                    value: '$userGoalCalories',
-                  ),
-                  const SizedBox(height: 12),
-                  _buildCalorieRow(
-                    icon: Icons.apple,
-                    iconColor: Colors.red,
-                    label: 'Calorie Intake',
-                    value: '$consumedCalories',
+                  const SizedBox(height: 20),
+                  Padding(
+                    padding: const EdgeInsets.only(left: 16),
+                    child: Column(
+                      children: [
+                        _buildCalorieRow(
+                          icon: Icons.local_fire_department,
+                          iconColor: const Color(0xFFFF9800),
+                          label: 'Calorie Goal',
+                          value: '$userGoalCalories',
+                        ),
+                        const SizedBox(height: 16),
+                        _buildCalorieRow(
+                          icon: Icons.apple,
+                          iconColor: Colors.red,
+                          label: 'Calorie Intake',
+                          value: '$consumedCalories',
+                        ),
+                      ],
+                    ),
                   ),
                 ],
               ),
             ),
-            const SizedBox(width: 16),
-            SizedBox(
-              width: 100,
-              height: 100,
-              child: Stack(
-                alignment: Alignment.center,
-                children: [
-                  SizedBox(
-                    width: 100,
-                    height: 100,
-                    child: CircularProgressIndicator(
-                      value: 1.0,
-                      strokeWidth: 10,
-                      backgroundColor: Colors.transparent,
-                      valueColor: AlwaysStoppedAnimation<Color>(
-                        Colors.grey[200]!,
-                      ),
+          ),
+          const SizedBox(width: 8),
+          SizedBox(
+            width: 130,
+            height: 130,
+            child: Stack(
+              alignment: Alignment.center,
+              children: [
+                SizedBox(
+                  width: 130,
+                  height: 130,
+                  child: CircularProgressIndicator(
+                    value: 1.0,
+                    strokeWidth: 14,
+                    backgroundColor: Colors.transparent,
+                    valueColor: AlwaysStoppedAnimation<Color>(
+                      Colors.grey[200]!,
                     ),
                   ),
+                ),
+                SizedBox(
+                  width: 130,
+                  height: 130,
+                  child: CircularProgressIndicator(
+                    value: progress > 1.0 ? 1.0 : progress,
+                    strokeWidth: 14,
+                    backgroundColor: Colors.transparent,
+                    valueColor: const AlwaysStoppedAnimation<Color>(
+                      Color(0xFFFF9800),
+                    ),
+                  ),
+                ),
+                if (isOverGoal)
                   SizedBox(
-                    width: 100,
-                    height: 100,
+                    width: 130,
+                    height: 130,
                     child: CircularProgressIndicator(
-                      value: progress > 1.0 ? 1.0 : progress,
-                      strokeWidth: 10,
+                      value: (progress - 1.0) > 1.0 ? 1.0 : (progress - 1.0),
+                      strokeWidth: 14,
                       backgroundColor: Colors.transparent,
                       valueColor: const AlwaysStoppedAnimation<Color>(
-                        Color(0xFFFF9800),
+                        Colors.red,
                       ),
                     ),
                   ),
-                  if (isOverGoal)
-                    SizedBox(
-                      width: 100,
-                      height: 100,
-                      child: CircularProgressIndicator(
-                        value: (progress - 1.0) > 1.0 ? 1.0 : (progress - 1.0),
-                        strokeWidth: 10,
-                        backgroundColor: Colors.transparent,
-                        valueColor: const AlwaysStoppedAnimation<Color>(
-                          Colors.red,
-                        ),
+                Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(
+                      '${remaining.abs()}',
+                      style: TextStyle(
+                        fontSize: 28,
+                        fontWeight: FontWeight.bold,
+                        color: isOverGoal
+                            ? Colors.red
+                            : const Color(0xFF424242),
                       ),
                     ),
-                  Column(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Text(
-                        '${remaining.abs()}',
-                        style: TextStyle(
-                          fontSize: 20,
-                          fontWeight: FontWeight.bold,
-                          color: isOverGoal
-                              ? Colors.red
-                              : const Color(0xFF424242),
-                        ),
+                    const SizedBox(height: 4),
+                    Text(
+                      isOverGoal ? 'Over' : 'Remaining',
+                      style: TextStyle(
+                        fontSize: 13,
+                        color: isOverGoal ? Colors.red : Colors.grey,
                       ),
-                      Text(
-                        isOverGoal ? 'Over' : 'Remaining',
-                        style: TextStyle(
-                          fontSize: 11,
-                          color: isOverGoal ? Colors.red : Colors.grey,
-                        ),
-                      ),
-                    ],
-                  ),
-                ],
-              ),
+                    ),
+                  ],
+                ),
+              ],
             ),
-          ],
-        ),
+          ),
+        ],
       ),
     );
   }
@@ -369,8 +369,8 @@ class _HomePageState extends State<HomePage> {
   }) {
     return Row(
       children: [
-        Icon(icon, color: iconColor, size: 18),
-        const SizedBox(width: 8),
+        Icon(icon, color: iconColor, size: 26),
+        const SizedBox(width: 10),
         Expanded(
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
@@ -378,15 +378,16 @@ class _HomePageState extends State<HomePage> {
               Text(
                 label,
                 style: const TextStyle(
-                  fontSize: 12,
+                  fontSize: 14,
                   fontWeight: FontWeight.w500,
                   color: Colors.grey,
                 ),
               ),
+              const SizedBox(height: 2),
               Text(
                 value,
                 style: const TextStyle(
-                  fontSize: 14,
+                  fontSize: 18,
                   fontWeight: FontWeight.bold,
                   color: Color(0xFF424242),
                 ),
