@@ -62,8 +62,10 @@ class _ProfileScreenState extends State<ProfileScreen> {
       final loadedAchievements = await _profileService.getAchievements();
 
       // Find new achievements
-      final newAchievements = loadedAchievements.where((a) => a['isNew'] == true).toList();
-      
+      final newAchievements = loadedAchievements
+          .where((a) => a['isNew'] == true)
+          .toList();
+
       // Update state with data from Firebase
       setState(() {
         userName = profileData['name'] ?? 'User';
@@ -81,9 +83,11 @@ class _ProfileScreenState extends State<ProfileScreen> {
       // Mark new achievements as viewed after a short delay (so user can see them)
       if (newAchievements.isNotEmpty) {
         await Future.delayed(const Duration(seconds: 2));
-        final idsToMark = newAchievements.map((a) => a['id'] as String).toList();
+        final idsToMark = newAchievements
+            .map((a) => a['id'] as String)
+            .toList();
         await _profileService.markAchievementsAsViewed(idsToMark);
-        
+
         // Update UI to remove "NEW" badges after marking
         if (mounted) {
           setState(() {
@@ -117,18 +121,15 @@ class _ProfileScreenState extends State<ProfileScreen> {
         actions: [
           IconButton(
             icon: const Icon(Icons.settings, color: Colors.black),
-            onPressed: () {ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(content: Text('Settings coming soon!')),
-              );
+            onPressed: () {
+              Navigator.pushNamed(context, '/settings');
             },
           ),
         ],
       ),
       body: isLoading
           ? const Center(
-              child: CircularProgressIndicator(
-                color: Color(0xFF4CAF50),
-              ),
+              child: CircularProgressIndicator(color: Color(0xFF4CAF50)),
             )
           : RefreshIndicator(
               color: const Color(0xFF4CAF50),
@@ -185,19 +186,19 @@ class _ProfileScreenState extends State<ProfileScreen> {
           ),
         ),
         const SizedBox(height: 4),
-        Text(
-          userEmail,
-          style: TextStyle(color: Colors.grey, fontSize: 14),
-        ),
+        Text(userEmail, style: TextStyle(color: Colors.grey, fontSize: 14)),
         const SizedBox(height: 16),
         Row(
           mainAxisAlignment: MainAxisAlignment.center,
-           children: [
+          children: [
             _StatItem(label: 'Recipes', value: '$recipeCount'),
             const SizedBox(width: 32),
             _StatItem(label: 'Likes', value: '$totalLikes'),
             const SizedBox(width: 32),
-            const _StatItem(label: 'Followers', value: '0'), // TODO: Implement followers
+            const _StatItem(
+              label: 'Followers',
+              value: '0',
+            ), // TODO: Implement followers
           ],
         ),
       ],
@@ -211,11 +212,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Icon(
-              Icons.person,
-              size: 40,
-              color: Colors.grey[600],
-            ),
+            Icon(Icons.person, size: 40, color: Colors.grey[600]),
             const SizedBox(height: 4),
             Text(
               'No Profile',
@@ -352,8 +349,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
             weeklyGoalDays == 0
                 ? 'Start your journey today!'
                 : weeklyGoalDays == 7
-                    ? '🎉 Amazing! You logged every day this week!'
-                    : 'Keep going! ${7 - weeklyGoalDays} more day${7 - weeklyGoalDays == 1 ? '' : 's'} to go!',
+                ? '🎉 Amazing! You logged every day this week!'
+                : 'Keep going! ${7 - weeklyGoalDays} more day${7 - weeklyGoalDays == 1 ? '' : 's'} to go!',
             style: const TextStyle(
               color: Colors.grey,
               fontWeight: FontWeight.w600,
@@ -435,10 +432,10 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   currentStreak == 0
                       ? 'Start logging!'
                       : currentStreak == 1
-                          ? 'Great start! 🔥'
-                          : currentStreak >= 7
-                              ? 'On fire! 🔥🔥🔥'
-                              : 'Keep it up! 🔥',
+                      ? 'Great start! 🔥'
+                      : currentStreak >= 7
+                      ? 'On fire! 🔥🔥🔥'
+                      : 'Keep it up! 🔥',
                   style: const TextStyle(color: Colors.grey, fontSize: 12),
                 ),
               ],
@@ -483,13 +480,17 @@ class _ProfileScreenState extends State<ProfileScreen> {
                         Text(
                           'No achievements yet',
                           style: TextStyle(
-                              color: Colors.grey.shade600, fontSize: 14),
+                            color: Colors.grey.shade600,
+                            fontSize: 14,
+                          ),
                         ),
                         const SizedBox(height: 4),
                         Text(
                           'Keep logging to earn badges!',
                           style: TextStyle(
-                              color: Colors.grey.shade500, fontSize: 12),
+                            color: Colors.grey.shade500,
+                            fontSize: 12,
+                          ),
                         ),
                       ],
                     ),
@@ -514,11 +515,13 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
   Widget _buildAchievementBadge(String icon, String title, bool isNew) {
     return Container(
-      width: double.infinity, 
-      padding: const EdgeInsets.all(16), 
+      width: double.infinity,
+      padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: isNew ? const Color(0xFF4CAF50).withOpacity(0.1) : Colors.grey[100],
-        borderRadius: BorderRadius.circular(12), 
+        color: isNew
+            ? const Color(0xFF4CAF50).withOpacity(0.1)
+            : Colors.grey[100],
+        borderRadius: BorderRadius.circular(12),
         border: Border.all(
           color: isNew ? const Color(0xFF4CAF50) : Colors.grey[300]!,
           width: isNew ? 2 : 1,
@@ -526,16 +529,16 @@ class _ProfileScreenState extends State<ProfileScreen> {
       ),
       child: Row(
         children: [
-          Text(icon, style: const TextStyle(fontSize: 24)), 
+          Text(icon, style: const TextStyle(fontSize: 24)),
           const SizedBox(width: 12),
-          Expanded( 
+          Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
                   title,
                   style: TextStyle(
-                    fontSize: 14, 
+                    fontSize: 14,
                     fontWeight: isNew ? FontWeight.bold : FontWeight.w600,
                     color: isNew ? const Color(0xFF4CAF50) : Colors.black,
                   ),
@@ -544,7 +547,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
               ],
             ),
           ),
-          if (isNew) 
+          if (isNew)
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
               decoration: BoxDecoration(
@@ -592,36 +595,33 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   const SizedBox(height: 8),
                   Text(
                     'Start creating your first recipe!',
-                    style: TextStyle(
-                      color: Colors.grey[500],
-                      fontSize: 14,
-                    ),
+                    style: TextStyle(color: Colors.grey[500], fontSize: 14),
                   ),
                 ],
               ),
             )
           else
-            // TODO: Replace these hardcoded recipe cards with actual Firebase data
-            ...[
-              _buildRecipeCard(
-                'egg_sandwich',
-                'Egg Sandwich',
-                'Breakfast • Easy • 5 mins',
-                '300 kcal',
-              ),
-              _buildRecipeCard(
-                'banana_oatmeal',
-                'Banana Oatmeal',
-                'Breakfast • Easy • 3 mins',
-                '284 kcal',
-              ),
-              _buildRecipeCard(
-                'pinoy_spaghetti',
-                'Pinoy Sweet Spaghetti',
-                'Lunch/Snacks • Medium • 25 mins',
-                '321 kcal',
-              ),
-            ],
+          // TODO: Replace these hardcoded recipe cards with actual Firebase data
+          ...[
+            _buildRecipeCard(
+              'egg_sandwich',
+              'Egg Sandwich',
+              'Breakfast • Easy • 5 mins',
+              '300 kcal',
+            ),
+            _buildRecipeCard(
+              'banana_oatmeal',
+              'Banana Oatmeal',
+              'Breakfast • Easy • 3 mins',
+              '284 kcal',
+            ),
+            _buildRecipeCard(
+              'pinoy_spaghetti',
+              'Pinoy Sweet Spaghetti',
+              'Lunch/Snacks • Medium • 25 mins',
+              '321 kcal',
+            ),
+          ],
           const SizedBox(height: 16),
           OutlinedButton.icon(
             onPressed: () {
@@ -672,11 +672,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
               height: 100,
               color: Colors.grey.shade300,
               child: const Center(
-                child: Icon(
-                  Icons.restaurant,
-                  size: 40,
-                  color: Colors.grey,
-                ),
+                child: Icon(Icons.restaurant, size: 40, color: Colors.grey),
               ),
             ),
           ),
@@ -796,7 +792,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
               Navigator.pushReplacementNamed(context, '/history');
               break;
             case 4: // Profile
-               if (_selectedIndex == 4) {
+              if (_selectedIndex == 4) {
                 _loadProfileData();
               }
               setState(() {
