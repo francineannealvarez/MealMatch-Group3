@@ -114,17 +114,15 @@ class _HomePageState extends State<HomePage> {
           return const Scaffold(
             backgroundColor: Color(0xFFFFF5CF),
             body: Center(
-              child: CircularProgressIndicator(
-                color: Color(0xFF4CAF50),
-              ),
+              child: CircularProgressIndicator(color: Color(0xFF4CAF50)),
             ),
           );
         }
 
         // Check if account is scheduled for deletion
         final deletionStatus = snapshot.data;
-        if (deletionStatus != null && 
-            deletionStatus['isScheduled'] == true && 
+        if (deletionStatus != null &&
+            deletionStatus['isScheduled'] == true &&
             !_deletionDialogShown) {
           // Show dialog after build completes
           WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -182,7 +180,9 @@ class _HomePageState extends State<HomePage> {
       builder: (context) => WillPopScope(
         onWillPop: () async => false, // Prevent back button
         child: AlertDialog(
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(16),
+          ),
           backgroundColor: const Color(0xFFFFF5CF),
           title: Row(
             children: [
@@ -202,7 +202,10 @@ class _HomePageState extends State<HomePage> {
             children: [
               Text(
                 'Your account is scheduled for permanent deletion in $daysRemaining ${daysRemaining == 1 ? 'day' : 'days'}.',
-                style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w600),
+                style: const TextStyle(
+                  fontSize: 15,
+                  fontWeight: FontWeight.w600,
+                ),
               ),
               const SizedBox(height: 12),
               Text(
@@ -216,7 +219,7 @@ class _HomePageState extends State<HomePage> {
               onPressed: () async {
                 // Continue with deletion - sign out
                 Navigator.pop(context);
-                
+
                 showDialog(
                   context: context,
                   barrierDismissible: false,
@@ -226,10 +229,10 @@ class _HomePageState extends State<HomePage> {
                 );
 
                 await _firebaseService.signOut();
-                
+
                 if (!mounted) return;
                 Navigator.pop(context);
-                
+
                 Navigator.pushNamedAndRemoveUntil(
                   context,
                   '/login',
@@ -238,7 +241,10 @@ class _HomePageState extends State<HomePage> {
               },
               child: const Text(
                 'Continue Deletion',
-                style: TextStyle(color: Colors.red, fontWeight: FontWeight.w600),
+                style: TextStyle(
+                  color: Colors.red,
+                  fontWeight: FontWeight.w600,
+                ),
               ),
             ),
             ElevatedButton(
@@ -250,7 +256,9 @@ class _HomePageState extends State<HomePage> {
                   builder: (context) => WillPopScope(
                     onWillPop: () async => false,
                     child: const Center(
-                      child: CircularProgressIndicator(color: Color(0xFF4CAF50)),
+                      child: CircularProgressIndicator(
+                        color: Color(0xFF4CAF50),
+                      ),
                     ),
                   ),
                 );
@@ -273,7 +281,9 @@ class _HomePageState extends State<HomePage> {
                           children: [
                             Icon(Icons.check_circle, color: Colors.white),
                             SizedBox(width: 12),
-                            Expanded(child: Text('Account restored successfully!')),
+                            Expanded(
+                              child: Text('Account restored successfully!'),
+                            ),
                           ],
                         ),
                         backgroundColor: Color(0xFF4CAF50),
@@ -297,7 +307,9 @@ class _HomePageState extends State<HomePage> {
 
                   ScaffoldMessenger.of(context).showSnackBar(
                     const SnackBar(
-                      content: Text('Failed to restore account. Please try again.'),
+                      content: Text(
+                        'Failed to restore account. Please try again.',
+                      ),
                       backgroundColor: Colors.red,
                     ),
                   );
@@ -305,7 +317,9 @@ class _HomePageState extends State<HomePage> {
               },
               style: ElevatedButton.styleFrom(
                 backgroundColor: const Color(0xFF4CAF50),
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(8),
+                ),
               ),
               child: const Text(
                 'Restore Account',
@@ -343,16 +357,18 @@ class _HomePageState extends State<HomePage> {
                 text: 'Meal',
                 style: TextStyle(
                   color: Color(0xFFFF9800),
-                  fontSize: 24,
+                  fontSize: 32,
                   fontWeight: FontWeight.bold,
+                  fontFamily: 'MuseoModerno',
                 ),
               ),
               TextSpan(
                 text: 'Match',
                 style: TextStyle(
                   color: Color(0xFF4CAF50),
-                  fontSize: 24,
+                  fontSize: 32,
                   fontWeight: FontWeight.bold,
+                  fontFamily: 'MuseoModerno',
                 ),
               ),
             ],
@@ -881,7 +897,7 @@ class _HomePageState extends State<HomePage> {
               });
               break;
             case 2:
-              Navigator.pushNamed(context, '/logfood').then((_) {
+              Navigator.pushNamed(context, '/upload').then((_) {
                 setState(() => _selectedIndex = 0);
                 _loadTodayData();
               });

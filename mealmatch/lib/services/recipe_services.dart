@@ -204,7 +204,7 @@ class _RecipesPageState extends State<RecipesPage> {
               });
               break;
             case 2: // Add
-              Navigator.pushNamed(context, '/add').then((_) {
+              Navigator.pushNamed(context, '/upload').then((_) {
                 setState(() {
                   _selectedIndex = 2;
                 });

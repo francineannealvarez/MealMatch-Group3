@@ -794,7 +794,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
               Navigator.pushReplacementNamed(context, '/recipes');
               break;
             case 2: // Add
-              Navigator.pushNamed(context, '/add');
+              Navigator.pushNamed(context, '/upload');
               break;
             case 3: // Log History
               Navigator.pushReplacementNamed(context, '/history');

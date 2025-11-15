@@ -19,6 +19,7 @@ import 'screens/profile_screen.dart';
 import 'screens/settings_screen.dart';
 import 'screens/about_us_screen.dart';
 import 'screens/user_manual_screen.dart';
+import 'screens/upload_recipe.dart ';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -62,6 +63,7 @@ class MyApp extends StatelessWidget {
         '/settings': (context) => const SettingsScreen(),
         '/aboutus': (context) => const AboutUsScreen(),
         '/usermanual': (context) => const UserManualScreen(),
+        '/upload': (context) => const UploadRecipesScreen(),
       },
     );
   }

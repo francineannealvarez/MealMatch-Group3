@@ -1371,7 +1371,7 @@ class _LogHistoryPageState extends State<LogHistoryPage> {
               Navigator.pushReplacementNamed(context, '/recipes');
               break;
             case 2:
-              Navigator.pushReplacementNamed(context, '/add');
+              Navigator.pushReplacementNamed(context, '/upload');
               break;
             case 3:
               break;
