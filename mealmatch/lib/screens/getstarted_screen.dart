@@ -1,6 +1,5 @@
 // lib/screens/getstarted_screen.dart
 
-//import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../services/firebase_service.dart';
@@ -45,8 +44,8 @@ class GetStartedScreen extends StatefulWidget {
   const GetStartedScreen({
     super.key,
     required this.email,
-    this.password, // optional — null if Google user
-    this.isGoogleUser = false, // default: false
+    this.password,
+    this.isGoogleUser = false,
   });
 
   @override
@@ -61,6 +60,7 @@ class _GetStartedScreenState extends State<GetStartedScreen> {
 
   // User data
   String name = '';
+  String? selectedAvatar;
   List<String> goals = [];
   String activityLevel = '';
   String gender = '';
@@ -72,6 +72,17 @@ class _GetStartedScreenState extends State<GetStartedScreen> {
 
   bool _agreedToTerms = false; // ✅ checkbox state
   bool isLoading = false; // to show a loading indicator
+
+  final List<String> _avatarOptions = [
+    'assets/images/avatar_avocado.png',
+    'assets/images/avatar_burger.png',
+    'assets/images/avatar_donut.png',
+    'assets/images/avatar_pizza.png',
+    'assets/images/avatar_ramen.png',
+    'assets/images/avatar_strawberry.png',
+    'assets/images/avatar_sushi.png',
+    'assets/images/avatar_taco.png',
+  ];
 
   // --- Navigation ---
   void previousStep() {
@@ -85,7 +96,8 @@ class _GetStartedScreenState extends State<GetStartedScreen> {
   }
 
   bool isNextDisabled() {
-    if (currentStep == 1) return name.isEmpty;
+    if (currentStep == 1)
+      return name.isEmpty || selectedAvatar == null; // Require avatar
     if (currentStep == 2) return goals.isEmpty;
     if (currentStep == 3) return activityLevel.isEmpty;
     if (currentStep == 4) {
@@ -114,6 +126,7 @@ class _GetStartedScreenState extends State<GetStartedScreen> {
         await firebase_service.saveUserData(
           email: widget.email,
           name: name,
+          avatar: selectedAvatar, // ✅ Save avatar
           goals: goals,
           activityLevel: activityLevel,
           gender: gender,
@@ -131,6 +144,7 @@ class _GetStartedScreenState extends State<GetStartedScreen> {
           email: widget.email,
           password: widget.password ?? '',
           name: name,
+          avatar: selectedAvatar, // Save avatar
           goals: goals,
           activityLevel: activityLevel,
           gender: gender,
@@ -257,6 +271,9 @@ class _GetStartedScreenState extends State<GetStartedScreen> {
                       step: currentStep,
                       name: name,
                       setName: (val) => setState(() => name = val),
+                      selectedAvatar: selectedAvatar,
+                      avatarOptions: _avatarOptions,
+                      setAvatar: (val) => setState(() => selectedAvatar = val),
                       goals: goals,
                       toggleGoal: (goal) => setState(() {
                         goals.contains(goal)
@@ -393,6 +410,9 @@ class StepContent extends StatelessWidget {
   final int step;
   final String name;
   final void Function(String) setName;
+  final String? selectedAvatar;
+  final List<String> avatarOptions;
+  final void Function(String) setAvatar;
   final List<String> goals;
   final void Function(String) toggleGoal;
   final String activityLevel;
@@ -411,8 +431,11 @@ class StepContent extends StatelessWidget {
   const StepContent({
     super.key,
     required this.step,
-    required this.name,
     required this.setName,
+    required this.name,
+    required this.selectedAvatar,
+    required this.avatarOptions,
+    required this.setAvatar,
     required this.goals,
     required this.toggleGoal,
     required this.activityLevel,
@@ -433,29 +456,96 @@ class StepContent extends StatelessWidget {
   Widget build(BuildContext context) {
     switch (step) {
       case 1:
-        return Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 20),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              const SizedBox(height: 8),
-              TextField(
-                onChanged: setName,
-                decoration: InputDecoration(
-                  hintText: 'Name',
-                  filled: true,
-                  fillColor: Colors.white,
-                  contentPadding: const EdgeInsets.symmetric(
-                    horizontal: 24,
-                    vertical: 14,
-                  ),
-                  border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(20),
-                    borderSide: BorderSide.none,
+        return SingleChildScrollView(
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 20),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.center,
+              children: [
+                const SizedBox(height: 8),
+                TextField(
+                  onChanged: setName,
+                  decoration: InputDecoration(
+                    hintText: 'Name',
+                    filled: true,
+                    fillColor: Colors.white,
+                    contentPadding: const EdgeInsets.symmetric(
+                      horizontal: 24,
+                      vertical: 14,
+                    ),
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(20),
+                      borderSide: BorderSide.none,
+                    ),
                   ),
                 ),
-              ),
-            ],
+                const SizedBox(height: 24),
+                const Text(
+                  'Choose your Avatar',
+                  style: TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.w600,
+                    color: Color(0xFF7A6F5D),
+                  ),
+                ),
+                const SizedBox(height: 16),
+                // ✅ Avatar Grid - Bigger with outline only
+                GridView.builder(
+                  shrinkWrap: true,
+                  physics: const NeverScrollableScrollPhysics(),
+                  gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                    crossAxisCount: 3,
+                    crossAxisSpacing: 16,
+                    mainAxisSpacing: 16,
+                  ),
+                  itemCount: avatarOptions.length,
+                  itemBuilder: (context, index) {
+                    final avatarPath = avatarOptions[index];
+                    final isSelected = selectedAvatar == avatarPath;
+
+                    return GestureDetector(
+                      onTap: () => setAvatar(avatarPath),
+                      child: Container(
+                        decoration: BoxDecoration(
+                          shape: BoxShape.circle,
+                          border: Border.all(
+                            color: isSelected
+                                ? const Color(0xFF67B14D)
+                                : Colors.grey.shade300,
+                            width: 4,
+                          ),
+                          boxShadow: [
+                            if (isSelected)
+                              BoxShadow(
+                                color: const Color(0xFF67B14D).withOpacity(0.4),
+                                blurRadius: 12,
+                                spreadRadius: 2,
+                              ),
+                          ],
+                        ),
+                        child: ClipOval(
+                          child: Image.asset(
+                            avatarPath,
+                            fit: BoxFit.cover,
+                            errorBuilder: (context, error, stackTrace) {
+                              return Container(
+                                color: Colors.grey[300],
+                                child: Icon(
+                                  Icons.person,
+                                  size: 40,
+                                  color: Colors.grey[600],
+                                ),
+                              );
+                            },
+                          ),
+                        ),
+                      ),
+                    );
+                  },
+                ),
+                const SizedBox(height: 16),
+              ],
+            ),
           ),
         );
       case 2:

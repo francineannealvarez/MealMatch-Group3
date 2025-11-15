@@ -39,14 +39,19 @@ class _ProfileScreenState extends State<ProfileScreen> {
     'pinoy_spaghetti': 0,
   };
 
-  /*int get totalLikes {
-    return likeCounts.values.fold(0, (sum, count) => sum + count);
-  }*/
-
   @override
   void initState() {
     super.initState();
     _loadProfileData(); // Load data from Firebase on screen open
+  }
+
+  // Refresh when returning from other screens
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    if (mounted) {
+      _loadProfileData();
+    }
   }
 
   Future<void> _loadProfileData() async {
@@ -75,7 +80,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
         weeklyGoalDays = profileData['weeklyGoalDays'] ?? 0;
         recipeCount = profileData['recipeCount'] ?? 0;
         totalLikes = profileData['totalLikes'] ?? 0;
-        avatarPath = profileData['avatar']; // Can be null
+        avatarPath = profileData['avatar']; // Updated avatar from Firebase
         achievements = loadedAchievements;
         isLoading = false;
       });
@@ -121,8 +126,13 @@ class _ProfileScreenState extends State<ProfileScreen> {
         actions: [
           IconButton(
             icon: const Icon(Icons.settings, color: Colors.black),
-            onPressed: () {
-              Navigator.pushNamed(context, '/settings');
+            onPressed: () async {
+              // Wait for settings screen to return, then refresh
+              final result = await Navigator.pushNamed(context, '/settings');
+              if (result == true && mounted) {
+                // Settings returned true, meaning profile was updated
+                _loadProfileData();
+              }
             },
           ),
         ],
@@ -133,7 +143,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
             )
           : RefreshIndicator(
               color: const Color(0xFF4CAF50),
-              onRefresh: _loadProfileData, // ✅ Pull to refresh
+              onRefresh: _loadProfileData,
               child: SingleChildScrollView(
                 physics: const AlwaysScrollableScrollPhysics(),
                 child: Column(
@@ -173,20 +183,23 @@ class _ProfileScreenState extends State<ProfileScreen> {
                       return _buildAvatarPlaceholder();
                     },
                   )
-                : _buildAvatarPlaceholder(), // ✅ ADDED: Show placeholder if no avatar
+                : _buildAvatarPlaceholder(),
           ),
         ),
         const SizedBox(height: 12),
         Text(
           userName,
-          style: TextStyle(
+          style: const TextStyle(
             fontSize: 20,
             fontWeight: FontWeight.bold,
             color: Colors.black,
           ),
         ),
         const SizedBox(height: 4),
-        Text(userEmail, style: TextStyle(color: Colors.grey, fontSize: 14)),
+        Text(
+          userEmail,
+          style: const TextStyle(color: Colors.grey, fontSize: 14),
+        ),
         const SizedBox(height: 16),
         Row(
           mainAxisAlignment: MainAxisAlignment.center,
@@ -195,10 +208,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
             const SizedBox(width: 32),
             _StatItem(label: 'Likes', value: '$totalLikes'),
             const SizedBox(width: 32),
-            const _StatItem(
-              label: 'Followers',
-              value: '0',
-            ), // TODO: Implement followers
+            const _StatItem(label: 'Followers', value: '0'),
           ],
         ),
       ],
@@ -215,7 +225,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
             Icon(Icons.person, size: 40, color: Colors.grey[600]),
             const SizedBox(height: 4),
             Text(
-              'No Profile',
+              'No Avatar',
               style: TextStyle(
                 fontSize: 10,
                 color: Colors.grey[600],
@@ -392,7 +402,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 const SizedBox(height: 8),
                 Text(
                   avgDailyCalories == 0 ? 'No data yet' : 'Last 7 days',
-                  style: TextStyle(
+                  style: const TextStyle(
                     color: Colors.grey,
                     fontSize: 13,
                     fontWeight: FontWeight.w500,
@@ -463,9 +473,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
           ),
           const SizedBox(height: 16),
           ConstrainedBox(
-            constraints: const BoxConstraints(
-              minHeight: 120, // ✅ ADDED: Minimum height to prevent layout shift
-            ),
+            constraints: const BoxConstraints(minHeight: 120),
             child: achievements.isEmpty
                 ? Center(
                     child: Column(

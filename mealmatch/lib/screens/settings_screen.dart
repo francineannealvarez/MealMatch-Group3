@@ -1,3 +1,5 @@
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:mealmatch/services/firebase_service.dart';
 
@@ -52,13 +54,22 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 iconColor: const Color(0xFF4CAF50),
                 title: 'Edit Profile',
                 subtitle: 'Update your personal profile',
-                onTap: () {
-                  Navigator.push(
+                onTap: () async {
+                  // ✅ Wait for Edit Profile to return and check if profile was updated
+                  final result = await Navigator.push(
                     context,
                     MaterialPageRoute(
                       builder: (context) => const EditProfileScreen(),
                     ),
                   );
+
+                  // If profile was updated (Edit Profile returns true),
+                  if (result == true && mounted) {
+                    Navigator.pop(
+                      context,
+                      true,
+                    ); // Return to Profile with refresh signal
+                  }
                 },
               ),
               const SizedBox(height: 8),
@@ -249,307 +260,304 @@ class _SettingsScreenState extends State<SettingsScreen> {
             child: const Text('Cancel', style: TextStyle(color: Colors.grey)),
           ),
           ElevatedButton(
-          onPressed: () async {
-            Navigator.pop(context); // Close dialog first
-            
-            // Show loading indicator
-            showDialog(
-              context: context,
-              barrierDismissible: false,
-              builder: (context) => const Center(
-                child: CircularProgressIndicator(
-                  color: Color(0xFF4CAF50),
+            onPressed: () async {
+              Navigator.pop(context); // Close dialog first
+
+              // Show loading indicator
+              showDialog(
+                context: context,
+                barrierDismissible: false,
+                builder: (context) => const Center(
+                  child: CircularProgressIndicator(color: Color(0xFF4CAF50)),
                 ),
+              );
+
+              try {
+                // Call Firebase signOut
+                await _firebaseService.signOut();
+
+                if (!mounted) return;
+                Navigator.pop(context); // Close loading
+
+                // Navigate to login and clear stack
+                Navigator.pushNamedAndRemoveUntil(
+                  context,
+                  '/login',
+                  (route) => false,
+                );
+
+                // Show success message
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(
+                    content: Row(
+                      children: [
+                        Icon(Icons.check_circle, color: Colors.white),
+                        SizedBox(width: 12),
+                        Text('Successfully logged out'),
+                      ],
+                    ),
+                    backgroundColor: Color(0xFF4CAF50),
+                    behavior: SnackBarBehavior.floating,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.all(Radius.circular(10)),
+                    ),
+                    duration: Duration(seconds: 2),
+                  ),
+                );
+              } catch (e) {
+                if (!mounted) return;
+
+                // Close loading dialog
+                Navigator.pop(context);
+
+                // Show error message
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(
+                    content: Row(
+                      children: [
+                        Icon(Icons.error_outline, color: Colors.white),
+                        SizedBox(width: 12),
+                        Expanded(
+                          child: Text('Failed to log out. Please try again.'),
+                        ),
+                      ],
+                    ),
+                    backgroundColor: Colors.red,
+                    behavior: SnackBarBehavior.floating,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.all(Radius.circular(10)),
+                    ),
+                  ),
+                );
+              }
+            },
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.red,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(8),
               ),
-            );
-
-            try {
-              // Call Firebase signOut
-              await _firebaseService.signOut();
-
-              if (!mounted) return;
-              Navigator.pop(context); // Close loading
-
-              // Navigate to login and clear stack
-              Navigator.pushNamedAndRemoveUntil(
-                context,
-                '/login',
-                (route) => false,
-              );
-
-              // Show success message
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(
-                  content: Row(
-                    children: [
-                      Icon(Icons.check_circle, color: Colors.white),
-                      SizedBox(width: 12),
-                      Text('Successfully logged out'),
-                    ],
-                  ),
-                  backgroundColor: Color(0xFF4CAF50),
-                  behavior: SnackBarBehavior.floating,
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.all(Radius.circular(10)),
-                  ),
-                  duration: Duration(seconds: 2),
-                ),
-              );
-            } catch (e) {
-              if (!mounted) return;
-
-              // Close loading dialog
-              Navigator.pop(context);
-
-              // Show error message
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(
-                  content: Row(
-                    children: [
-                      Icon(Icons.error_outline, color: Colors.white),
-                      SizedBox(width: 12),
-                      Expanded(child: Text('Failed to log out. Please try again.')),
-                    ],
-                  ),
-                  backgroundColor: Colors.red,
-                  behavior: SnackBarBehavior.floating,
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.all(Radius.circular(10)),
-                  ),
-                ),
-              );
-            }
-          },
-          style: ElevatedButton.styleFrom(
-            backgroundColor: Colors.red,
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(8),
             ),
-          ),
-          child: const Text(
-            'Log Out',
-            style: TextStyle(color: Colors.white),
-          ),
-        ),
-      ],
-    ),
-  );
-}
-
-void _showDeleteAccountDialog() {
-  showDialog(
-    context: context,
-    builder: (context) => AlertDialog(
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-      backgroundColor: const Color(0xFFFFF5CF),
-      title: Row(
-        children: [
-          Icon(
-            Icons.warning_amber_rounded,
-            color: Colors.amber[700],
-            size: 28,
-          ),
-          const SizedBox(width: 8),
-          const Text(
-            'Delete Account',
-            style: TextStyle(fontWeight: FontWeight.bold),
+            child: const Text('Log Out', style: TextStyle(color: Colors.white)),
           ),
         ],
       ),
-      content: SingleChildScrollView(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
+    );
+  }
+
+  void _showDeleteAccountDialog() {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        backgroundColor: const Color(0xFFFFF5CF),
+        title: Row(
           children: [
+            Icon(
+              Icons.warning_amber_rounded,
+              color: Colors.amber[700],
+              size: 28,
+            ),
+            const SizedBox(width: 8),
             const Text(
-              'Are you sure you want to delete your MealMatch account?',
-              style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15),
-            ),
-            const SizedBox(height: 12),
-            Text(
-              'Once your account is deleted:',
-              style: TextStyle(
-                color: Colors.grey[700],
-                fontWeight: FontWeight.w600,
-                fontSize: 13,
-              ),
-            ),
-            const SizedBox(height: 8),
-            _buildDeleteWarningPoint(
-              '• All your profile information, saved meals, preferences, and activity history will be permanently removed',
-            ),
-            _buildDeleteWarningPoint(
-              '• You will not be able to recover your data or reactivate the same account',
-            ),
-            _buildDeleteWarningPoint(
-              '• Any active sessions on other devices will be automatically signed out',
-            ),
-            const SizedBox(height: 12),
-            Container(
-              padding: const EdgeInsets.all(12),
-              decoration: BoxDecoration(
-                color: Colors.red[50],
-                borderRadius: BorderRadius.circular(8),
-                border: Border.all(color: Colors.red[200]!),
-              ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    'Deletion Period:',
-                    style: TextStyle(
-                      fontWeight: FontWeight.bold,
-                      color: Colors.red[900],
-                      fontSize: 13,
-                    ),
-                  ),
-                  const SizedBox(height: 4),
-                  Text(
-                    'Your account will be scheduled for deletion and will be permanently erased after 30 days.',
-                    style: TextStyle(color: Colors.red[800], fontSize: 12),
-                  ),
-                  const SizedBox(height: 8),
-                  Text(
-                    'If you log back in within this period, the deletion request will be automatically canceled, and your account will remain active.',
-                    style: TextStyle(color: Colors.red[800], fontSize: 12),
-                  ),
-                ],
-              ),
+              'Delete Account',
+              style: TextStyle(fontWeight: FontWeight.bold),
             ),
           ],
         ),
-      ),
-      actions: [
-        TextButton(
-          onPressed: () => Navigator.pop(context),
-          child: const Text(
-            'Cancel',
-            style: TextStyle(color: Colors.grey, fontWeight: FontWeight.w600),
-          ),
-        ),
-        ElevatedButton(
-          onPressed: () async {
-            Navigator.pop(context); // Close dialog
-            
-            // Show loading
-            showDialog(
-              context: context,
-              barrierDismissible: false,
-              builder: (context) => WillPopScope(
-                onWillPop: () async => false,
-                child: const Center(
-                  child: CircularProgressIndicator(
-                    color: Color(0xFF4CAF50),
-                  ),
+        content: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text(
+                'Are you sure you want to delete your MealMatch account?',
+                style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15),
+              ),
+              const SizedBox(height: 12),
+              Text(
+                'Once your account is deleted:',
+                style: TextStyle(
+                  color: Colors.grey[700],
+                  fontWeight: FontWeight.w600,
+                  fontSize: 13,
                 ),
               ),
-            );
-
-            // ✅ FIXED: Better error handling
-            bool shouldNavigate = false;
-            String errorMessage = '';
-
-            try {
-              print('🔴 Starting deletion scheduling...');
-              
-              final result = await _firebaseService
-                  .scheduleAccountDeletion()
-                  .timeout(
-                    const Duration(seconds: 3),
-                    onTimeout: () {
-                      print('⏱️ Timeout occurred');
-                      return {
-                        'success': false,
-                        'message': 'Connection timeout. Please try again.',
-                      };
-                    },
-                  );
-
-              print('✅ Result: $result');
-
-              if (result['success'] == true) {
-                // Success - sign out and navigate
-                print('🔵 Signing out...');
-                await _firebaseService.signOut();
-                shouldNavigate = true;
-              } else {
-                // Failed
-                errorMessage = result['message'] ?? 'Unknown error';
-              }
-            } catch (e) {
-              print('❌ Catch error: $e');
-              errorMessage = 'Failed to schedule deletion: $e';
-            }
-
-            // ✅ Close loading dialog
-            if (mounted) {
-              Navigator.pop(context);
-            }
-
-            if (!mounted) return;
-
-            // ✅ Handle result
-            if (shouldNavigate) {
-              // Success - show message and navigate
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(
-                  content: Row(
-                    children: [
-                      Icon(Icons.check_circle, color: Colors.white),
-                      SizedBox(width: 12),
-                      Expanded(
-                        child: Text('Account scheduled for deletion in 30 days'),
+              const SizedBox(height: 8),
+              _buildDeleteWarningPoint(
+                '• All your profile information, saved meals, preferences, and activity history will be permanently removed',
+              ),
+              _buildDeleteWarningPoint(
+                '• You will not be able to recover your data or reactivate the same account',
+              ),
+              _buildDeleteWarningPoint(
+                '• Any active sessions on other devices will be automatically signed out',
+              ),
+              const SizedBox(height: 12),
+              Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: Colors.red[50],
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(color: Colors.red[200]!),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Deletion Period:',
+                      style: TextStyle(
+                        fontWeight: FontWeight.bold,
+                        color: Colors.red[900],
+                        fontSize: 13,
                       ),
-                    ],
-                  ),
-                  backgroundColor: Colors.red,
-                  behavior: SnackBarBehavior.floating,
-                  duration: Duration(seconds: 2),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      'Your account will be scheduled for deletion and will be permanently erased after 30 days.',
+                      style: TextStyle(color: Colors.red[800], fontSize: 12),
+                    ),
+                    const SizedBox(height: 8),
+                    Text(
+                      'If you log back in within this period, the deletion request will be automatically canceled, and your account will remain active.',
+                      style: TextStyle(color: Colors.red[800], fontSize: 12),
+                    ),
+                  ],
                 ),
-              );
-
-              Future.delayed(const Duration(milliseconds: 300), () {
-                if (mounted) {
-                  Navigator.pushNamedAndRemoveUntil(
-                    context,
-                    '/greet',
-                    (route) => false,
-                  );
-                }
-              });
-            } else {
-              // Error - show error message
-              ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(
-                  content: Row(
-                    children: [
-                      const Icon(Icons.error_outline, color: Colors.white),
-                      const SizedBox(width: 12),
-                      Expanded(child: Text(errorMessage)),
-                    ],
-                  ),
-                  backgroundColor: Colors.red,
-                  behavior: SnackBarBehavior.floating,
-                  duration: const Duration(seconds: 3),
-                ),
-              );
-            }
-          },
-          style: ElevatedButton.styleFrom(
-            backgroundColor: Colors.red,
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(8),
-            ),
-          ),
-          child: const Text(
-            'Delete Account',
-            style: TextStyle(color: Colors.white),
+              ),
+            ],
           ),
         ),
-      ],
-    ),
-  );
-}
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text(
+              'Cancel',
+              style: TextStyle(color: Colors.grey, fontWeight: FontWeight.w600),
+            ),
+          ),
+          ElevatedButton(
+            onPressed: () async {
+              Navigator.pop(context); // Close dialog
+
+              // Show loading
+              showDialog(
+                context: context,
+                barrierDismissible: false,
+                builder: (context) => WillPopScope(
+                  onWillPop: () async => false,
+                  child: const Center(
+                    child: CircularProgressIndicator(color: Color(0xFF4CAF50)),
+                  ),
+                ),
+              );
+
+              // ✅ FIXED: Better error handling
+              bool shouldNavigate = false;
+              String errorMessage = '';
+
+              try {
+                print('🔴 Starting deletion scheduling...');
+
+                final result = await _firebaseService
+                    .scheduleAccountDeletion()
+                    .timeout(
+                      const Duration(seconds: 3),
+                      onTimeout: () {
+                        print('⏱️ Timeout occurred');
+                        return {
+                          'success': false,
+                          'message': 'Connection timeout. Please try again.',
+                        };
+                      },
+                    );
+
+                print('✅ Result: $result');
+
+                if (result['success'] == true) {
+                  // Success - sign out and navigate
+                  print('🔵 Signing out...');
+                  await _firebaseService.signOut();
+                  shouldNavigate = true;
+                } else {
+                  // Failed
+                  errorMessage = result['message'] ?? 'Unknown error';
+                }
+              } catch (e) {
+                print('❌ Catch error: $e');
+                errorMessage = 'Failed to schedule deletion: $e';
+              }
+
+              // ✅ Close loading dialog
+              if (mounted) {
+                Navigator.pop(context);
+              }
+
+              if (!mounted) return;
+
+              // ✅ Handle result
+              if (shouldNavigate) {
+                // Success - show message and navigate
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(
+                    content: Row(
+                      children: [
+                        Icon(Icons.check_circle, color: Colors.white),
+                        SizedBox(width: 12),
+                        Expanded(
+                          child: Text(
+                            'Account scheduled for deletion in 30 days',
+                          ),
+                        ),
+                      ],
+                    ),
+                    backgroundColor: Colors.red,
+                    behavior: SnackBarBehavior.floating,
+                    duration: Duration(seconds: 2),
+                  ),
+                );
+
+                Future.delayed(const Duration(milliseconds: 300), () {
+                  if (mounted) {
+                    Navigator.pushNamedAndRemoveUntil(
+                      context,
+                      '/greet',
+                      (route) => false,
+                    );
+                  }
+                });
+              } else {
+                // Error - show error message
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(
+                    content: Row(
+                      children: [
+                        const Icon(Icons.error_outline, color: Colors.white),
+                        const SizedBox(width: 12),
+                        Expanded(child: Text(errorMessage)),
+                      ],
+                    ),
+                    backgroundColor: Colors.red,
+                    behavior: SnackBarBehavior.floating,
+                    duration: const Duration(seconds: 3),
+                  ),
+                );
+              }
+            },
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.red,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(8),
+              ),
+            ),
+            child: const Text(
+              'Delete Account',
+              style: TextStyle(color: Colors.white),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
 
   Widget _buildDeleteWarningPoint(String text) {
     return Padding(
@@ -573,15 +581,199 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
   final _formKey = GlobalKey<FormState>();
   final _nameController = TextEditingController();
   final _emailController = TextEditingController();
+  final _firebaseService = FirebaseService();
+  final _firestore = FirebaseFirestore.instance;
+
   String? _selectedAvatar;
+  bool _isLoading = true;
+  bool _isSaving = false;
+  String? _originalEmail;
+  String? _userId;
 
   final List<String> _avatarOptions = [
-    // for the avatar images, diko pa ma import
-    'assets/avatars/avatar1.png',
-    'assets/avatars/avatar2.png',
-    'assets/avatars/avatar3.png',
-    'assets/avatars/avatar4.png',
+    'assets/images/avatar_avocado.png',
+    'assets/images/avatar_burger.png',
+    'assets/images/avatar_donut.png',
+    'assets/images/avatar_pizza.png',
+    'assets/images/avatar_ramen.png',
+    'assets/images/avatar_strawberry.png',
+    'assets/images/avatar_sushi.png',
+    'assets/images/avatar_taco.png',
   ];
+
+  @override
+  void initState() {
+    super.initState();
+    _loadUserProfile();
+  }
+
+  @override
+  void dispose() {
+    _nameController.dispose();
+    _emailController.dispose();
+    super.dispose();
+  }
+
+  Future<void> _loadUserProfile() async {
+    setState(() => _isLoading = true);
+
+    try {
+      final user = FirebaseAuth.instance.currentUser;
+      if (user == null) {
+        if (mounted) {
+          Navigator.pop(context);
+        }
+        return;
+      }
+
+      _userId = user.uid;
+
+      // Use the getUserData method from FirebaseService
+      final userData = await _firebaseService.getUserData();
+
+      if (mounted && userData != null) {
+        setState(() {
+          _nameController.text = userData['name'] ?? '';
+          _emailController.text = user.email ?? '';
+          _originalEmail = user.email;
+          _selectedAvatar = userData['avatar'];
+          _isLoading = false;
+        });
+      } else {
+        setState(() => _isLoading = false);
+      }
+    } catch (e) {
+      print('Error loading profile: $e');
+      if (mounted) {
+        setState(() => _isLoading = false);
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Row(
+              children: [
+                const Icon(Icons.error_outline, color: Colors.white),
+                const SizedBox(width: 12),
+                Expanded(child: Text('Failed to load profile: $e')),
+              ],
+            ),
+            backgroundColor: Colors.red,
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+      }
+    }
+  }
+
+  Future<void> _saveProfile() async {
+    if (!_formKey.currentState!.validate()) return;
+
+    setState(() => _isSaving = true);
+
+    try {
+      final user = FirebaseAuth.instance.currentUser;
+      if (user == null) throw Exception('User not logged in');
+
+      // Prepare update data
+      Map<String, dynamic> updateData = {'name': _nameController.text.trim()};
+
+      // Add avatar if selected
+      if (_selectedAvatar != null) {
+        updateData['avatar'] = _selectedAvatar;
+      }
+
+      // Update profile in Firestore
+      await _firestore.collection('users').doc(user.uid).update(updateData);
+
+      // Update display name in Firebase Auth
+      await user.updateDisplayName(_nameController.text.trim());
+
+      // Check if email changed
+      final newEmail = _emailController.text.trim();
+      bool emailChanged = false;
+
+      if (newEmail != _originalEmail) {
+        try {
+          // Update email in Firebase Auth
+          await user.verifyBeforeUpdateEmail(newEmail);
+          emailChanged = true;
+        } catch (e) {
+          // Handle email update errors
+          if (e.toString().contains('requires-recent-login')) {
+            throw Exception('Please log in again to change your email');
+          } else if (e.toString().contains('email-already-in-use')) {
+            throw Exception('This email is already in use');
+          } else if (e.toString().contains('invalid-email')) {
+            throw Exception('Invalid email address');
+          }
+          rethrow;
+        }
+      }
+
+      setState(() => _isSaving = false);
+
+      if (mounted) {
+        if (emailChanged) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Row(
+                children: [
+                  Icon(Icons.email, color: Colors.white),
+                  SizedBox(width: 12),
+                  Expanded(
+                    child: Text(
+                      'Profile updated! Verification email sent. Please check your inbox.',
+                    ),
+                  ),
+                ],
+              ),
+              backgroundColor: Colors.orange,
+              behavior: SnackBarBehavior.floating,
+              duration: Duration(seconds: 4),
+            ),
+          );
+        } else {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Row(
+                children: [
+                  Icon(Icons.check_circle, color: Colors.white),
+                  SizedBox(width: 12),
+                  Text('Profile updated successfully!'),
+                ],
+              ),
+              backgroundColor: Color(0xFF4CAF50),
+              behavior: SnackBarBehavior.floating,
+            ),
+          );
+        }
+
+        // Wait a moment then pop
+        Future.delayed(const Duration(milliseconds: 500), () {
+          if (mounted) Navigator.pop(context, true);
+        });
+      }
+    } catch (e) {
+      setState(() => _isSaving = false);
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Row(
+              children: [
+                const Icon(Icons.error_outline, color: Colors.white),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Text(e.toString().replaceAll('Exception: ', '')),
+                ),
+              ],
+            ),
+            backgroundColor: Colors.red,
+            behavior: SnackBarBehavior.floating,
+            duration: const Duration(seconds: 3),
+          ),
+        );
+      }
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -592,7 +784,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
         elevation: 0,
         leading: IconButton(
           icon: const Icon(Icons.arrow_back, color: Colors.white),
-          onPressed: () => Navigator.pop(context),
+          onPressed: _isSaving ? null : () => Navigator.pop(context),
         ),
         title: const Text(
           'Edit Profile',
@@ -600,130 +792,189 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
         ),
         centerTitle: true,
       ),
-      body: SingleChildScrollView(
-        child: Padding(
-          padding: const EdgeInsets.all(16.0),
-          child: Form(
-            key: _formKey,
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
+      body: _isLoading
+          ? const Center(
+              child: CircularProgressIndicator(color: Color(0xFF4CAF50)),
+            )
+          : Stack(
               children: [
-                const Text(
-                  'Profile Picture',
-                  style: TextStyle(
-                    fontSize: 16,
-                    fontWeight: FontWeight.bold,
-                    color: Colors.black,
-                  ),
-                ),
-                const SizedBox(height: 16),
-                Center(
-                  child: Stack(
-                    children: [
-                      Container(
-                        width: 120,
-                        height: 120,
-                        decoration: BoxDecoration(
-                          shape: BoxShape.circle,
-                          border: Border.all(
-                            color: const Color(0xFF4CAF50),
-                            width: 3,
+                SingleChildScrollView(
+                  child: Padding(
+                    padding: const EdgeInsets.all(16.0),
+                    child: Form(
+                      key: _formKey,
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const Text(
+                            'Profile Picture',
+                            style: TextStyle(
+                              fontSize: 16,
+                              fontWeight: FontWeight.bold,
+                              color: Colors.black,
+                            ),
                           ),
-                          color: Colors.grey[300],
-                        ),
-                        child: ClipOval(
-                          child: _selectedAvatar != null
-                              ? Image.asset(_selectedAvatar!, fit: BoxFit.cover)
-                              : Icon(
-                                  Icons.person,
-                                  size: 60,
-                                  color: Colors.grey[600],
+                          const SizedBox(height: 16),
+                          Center(
+                            child: Stack(
+                              children: [
+                                Container(
+                                  width: 120,
+                                  height: 120,
+                                  decoration: BoxDecoration(
+                                    shape: BoxShape.circle,
+                                    border: Border.all(
+                                      color: const Color(0xFF4CAF50),
+                                      width: 3,
+                                    ),
+                                    color: Colors.grey[300],
+                                  ),
+                                  child: ClipOval(
+                                    child: _selectedAvatar != null
+                                        ? Image.asset(
+                                            _selectedAvatar!,
+                                            fit: BoxFit.cover,
+                                            errorBuilder:
+                                                (context, error, stackTrace) {
+                                                  return Icon(
+                                                    Icons.person,
+                                                    size: 60,
+                                                    color: Colors.grey[600],
+                                                  );
+                                                },
+                                          )
+                                        : Icon(
+                                            Icons.person,
+                                            size: 60,
+                                            color: Colors.grey[600],
+                                          ),
+                                  ),
                                 ),
-                        ),
-                      ),
-                      Positioned(
-                        bottom: 0,
-                        right: 0,
-                        child: GestureDetector(
-                          onTap: _showAvatarPicker,
-                          child: Container(
-                            padding: const EdgeInsets.all(8),
-                            decoration: const BoxDecoration(
-                              color: Color(0xFF4CAF50),
-                              shape: BoxShape.circle,
-                            ),
-                            child: const Icon(
-                              Icons.camera_alt,
-                              color: Colors.white,
-                              size: 20,
+                                Positioned(
+                                  bottom: 0,
+                                  right: 0,
+                                  child: GestureDetector(
+                                    onTap: _isSaving ? null : _showAvatarPicker,
+                                    child: Container(
+                                      padding: const EdgeInsets.all(8),
+                                      decoration: BoxDecoration(
+                                        color: _isSaving
+                                            ? Colors.grey
+                                            : const Color(0xFF4CAF50),
+                                        shape: BoxShape.circle,
+                                      ),
+                                      child: const Icon(
+                                        Icons.camera_alt,
+                                        color: Colors.white,
+                                        size: 20,
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                              ],
                             ),
                           ),
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-                const SizedBox(height: 32),
-                const Text(
-                  'Personal Information',
-                  style: TextStyle(
-                    fontSize: 16,
-                    fontWeight: FontWeight.bold,
-                    color: Colors.black,
-                  ),
-                ),
-                const SizedBox(height: 16),
-                _buildTextField(
-                  controller: _nameController,
-                  label: 'Name',
-                  hint: 'Enter your name',
-                  icon: Icons.person_outline,
-                ),
-                const SizedBox(height: 16),
-                _buildTextField(
-                  controller: _emailController,
-                  label: 'Email',
-                  hint: 'Enter your email',
-                  icon: Icons.email_outlined,
-                  keyboardType: TextInputType.emailAddress,
-                ),
-                const SizedBox(height: 32),
-                SizedBox(
-                  width: double.infinity,
-                  child: ElevatedButton(
-                    onPressed: () {
-                      if (_formKey.currentState!.validate()) {
-                        // SAVE PROFILE LOGIC HERE
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(
-                            content: Text('Profile updated successfully!'),
-                            backgroundColor: Color(0xFF4CAF50),
+                          const SizedBox(height: 32),
+                          const Text(
+                            'Personal Information',
+                            style: TextStyle(
+                              fontSize: 16,
+                              fontWeight: FontWeight.bold,
+                              color: Colors.black,
+                            ),
                           ),
-                        );
-                        Navigator.pop(context);
-                      }
-                    },
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: const Color(0xFF4CAF50),
-                      padding: const EdgeInsets.symmetric(vertical: 16),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(12),
-                      ),
-                    ),
-                    child: const Text(
-                      'Save Changes',
-                      style: TextStyle(
-                        fontSize: 16,
-                        fontWeight: FontWeight.bold,
+                          const SizedBox(height: 16),
+                          _buildTextField(
+                            controller: _nameController,
+                            label: 'Name',
+                            hint: 'Enter your name',
+                            icon: Icons.person_outline,
+                          ),
+                          const SizedBox(height: 16),
+                          _buildTextField(
+                            controller: _emailController,
+                            label: 'Email',
+                            hint: 'Enter your email',
+                            icon: Icons.email_outlined,
+                            keyboardType: TextInputType.emailAddress,
+                          ),
+                          const SizedBox(height: 24),
+                          Container(
+                            padding: const EdgeInsets.all(12),
+                            decoration: BoxDecoration(
+                              color: Colors.blue[50],
+                              borderRadius: BorderRadius.circular(12),
+                              border: Border.all(color: Colors.blue[200]!),
+                            ),
+                            child: Row(
+                              children: [
+                                Icon(
+                                  Icons.info_outline,
+                                  color: Colors.blue[700],
+                                ),
+                                const SizedBox(width: 12),
+                                Expanded(
+                                  child: Text(
+                                    'Changing your email will require verification. Please check your inbox.',
+                                    style: TextStyle(
+                                      color: Colors.blue[900],
+                                      fontSize: 12,
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                          const SizedBox(height: 32),
+                          SizedBox(
+                            width: double.infinity,
+                            child: ElevatedButton(
+                              onPressed: _isSaving ? null : _saveProfile,
+                              style: ElevatedButton.styleFrom(
+                                backgroundColor: const Color(0xFF4CAF50),
+                                padding: const EdgeInsets.symmetric(
+                                  vertical: 16,
+                                ),
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(12),
+                                ),
+                                disabledBackgroundColor: Colors.grey,
+                              ),
+                              child: _isSaving
+                                  ? const SizedBox(
+                                      height: 20,
+                                      width: 20,
+                                      child: CircularProgressIndicator(
+                                        color: Colors.white,
+                                        strokeWidth: 2,
+                                      ),
+                                    )
+                                  : const Text(
+                                      'Save Changes',
+                                      style: TextStyle(
+                                        fontSize: 16,
+                                        fontWeight: FontWeight.bold,
+                                        color: Colors.white,
+                                      ),
+                                    ),
+                            ),
+                          ),
+                        ],
                       ),
                     ),
                   ),
                 ),
+                if (_isSaving)
+                  Container(
+                    color: Colors.black26,
+                    child: const Center(
+                      child: CircularProgressIndicator(
+                        color: Color(0xFF4CAF50),
+                      ),
+                    ),
+                  ),
               ],
             ),
-          ),
-        ),
-      ),
     );
   }
 
@@ -753,6 +1004,8 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
               ),
               itemCount: _avatarOptions.length,
               itemBuilder: (context, index) {
+                final isSelected = _selectedAvatar == _avatarOptions[index];
+
                 return GestureDetector(
                   onTap: () {
                     setState(() {
@@ -764,8 +1017,10 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                     decoration: BoxDecoration(
                       shape: BoxShape.circle,
                       border: Border.all(
-                        color: const Color(0xFF4CAF50),
-                        width: 2,
+                        color: isSelected
+                            ? const Color(0xFF4CAF50)
+                            : Colors.grey[400]!,
+                        width: isSelected ? 3 : 2,
                       ),
                     ),
                     child: ClipOval(
@@ -817,6 +1072,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
         TextFormField(
           controller: controller,
           keyboardType: keyboardType,
+          enabled: !_isSaving,
           decoration: InputDecoration(
             hintText: hint,
             prefixIcon: Icon(icon, color: const Color(0xFF4CAF50)),
@@ -834,10 +1090,24 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
               borderRadius: BorderRadius.circular(12),
               borderSide: const BorderSide(color: Color(0xFF4CAF50), width: 2),
             ),
+            errorBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(12),
+              borderSide: const BorderSide(color: Colors.red, width: 1),
+            ),
+            disabledBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(12),
+              borderSide: BorderSide(color: Colors.grey[300]!),
+            ),
           ),
           validator: (value) {
-            if (value == null || value.isEmpty) {
+            if (value == null || value.trim().isEmpty) {
               return 'Please enter your $label';
+            }
+            if (label == 'Email') {
+              final emailRegex = RegExp(r'^[\w-\.]+@([\w-]+\.)+[\w-]{2,4}$');
+              if (!emailRegex.hasMatch(value.trim())) {
+                return 'Please enter a valid email';
+              }
             }
             return null;
           },
@@ -1266,12 +1536,12 @@ class _ChangePasswordScreenState extends State<ChangePasswordScreen> {
   final _currentPasswordController = TextEditingController();
   final _newPasswordController = TextEditingController();
   final _confirmPasswordController = TextEditingController();
-  final _firebaseService = FirebaseService(); 
+  final _firebaseService = FirebaseService();
 
   bool _obscureCurrentPassword = true;
   bool _obscureNewPassword = true;
   bool _obscureConfirmPassword = true;
-  bool _isLoading = false; 
+  bool _isLoading = false;
   bool _areFieldsFilled = false;
 
   @override
@@ -1293,7 +1563,8 @@ class _ChangePasswordScreenState extends State<ChangePasswordScreen> {
 
   void _checkFieldsFilled() {
     setState(() {
-      _areFieldsFilled = _currentPasswordController.text.isNotEmpty &&
+      _areFieldsFilled =
+          _currentPasswordController.text.isNotEmpty &&
           _newPasswordController.text.isNotEmpty &&
           _confirmPasswordController.text.isNotEmpty;
     });
@@ -1362,7 +1633,8 @@ class _ChangePasswordScreenState extends State<ChangePasswordScreen> {
                             obscureText: _obscureNewPassword,
                             onToggleVisibility: () {
                               setState(
-                                () => _obscureNewPassword = !_obscureNewPassword,
+                                () =>
+                                    _obscureNewPassword = !_obscureNewPassword,
                               );
                             },
                           ),
@@ -1420,18 +1692,20 @@ class _ChangePasswordScreenState extends State<ChangePasswordScreen> {
                     SizedBox(
                       width: double.infinity,
                       child: ElevatedButton(
-                        onPressed: (_isLoading || !_areFieldsFilled) 
+                        onPressed: (_isLoading || !_areFieldsFilled)
                             ? null
                             : _handleChangePassword,
                         style: ElevatedButton.styleFrom(
-                          backgroundColor: _areFieldsFilled // Change color based on state
+                          backgroundColor:
+                              _areFieldsFilled // Change color based on state
                               ? const Color(0xFF4CAF50)
                               : Colors.grey,
                           padding: const EdgeInsets.symmetric(vertical: 16),
                           shape: RoundedRectangleBorder(
                             borderRadius: BorderRadius.circular(12),
                           ),
-                          disabledBackgroundColor: Colors.grey, // Add disabled state
+                          disabledBackgroundColor:
+                              Colors.grey, // Add disabled state
                         ),
                         child: _isLoading
                             ? const SizedBox(
@@ -1462,9 +1736,7 @@ class _ChangePasswordScreenState extends State<ChangePasswordScreen> {
             Container(
               color: Colors.black26,
               child: const Center(
-                child: CircularProgressIndicator(
-                  color: Color(0xFF4CAF50),
-                ),
+                child: CircularProgressIndicator(color: Color(0xFF4CAF50)),
               ),
             ),
         ],
@@ -1506,7 +1778,7 @@ class _ChangePasswordScreenState extends State<ChangePasswordScreen> {
             ),
           ),
         );
-        
+
         // Navigate back after a short delay
         Future.delayed(const Duration(milliseconds: 500), () {
           if (mounted) Navigator.pop(context);
@@ -1533,9 +1805,9 @@ class _ChangePasswordScreenState extends State<ChangePasswordScreen> {
       }
     } catch (e) {
       setState(() => _isLoading = false);
-      
+
       if (!mounted) return;
-      
+
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Row(
@@ -1615,7 +1887,8 @@ class _ChangePasswordScreenState extends State<ChangePasswordScreen> {
               borderSide: BorderSide(color: Colors.grey[300]!),
             ),
           ),
-          validator: validator ??
+          validator:
+              validator ??
               (value) {
                 if (value == null || value.isEmpty) {
                   return 'Please enter $label';
@@ -1630,5 +1903,3 @@ class _ChangePasswordScreenState extends State<ChangePasswordScreen> {
     );
   }
 }
-
- 
