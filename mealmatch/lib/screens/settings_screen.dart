@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:mealmatch/services/firebase_service.dart';
 
 class SettingsScreen extends StatefulWidget {
   const SettingsScreen({super.key});
@@ -8,6 +9,8 @@ class SettingsScreen extends StatefulWidget {
 }
 
 class _SettingsScreenState extends State<SettingsScreen> {
+  final _firebaseService = FirebaseService();
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -246,138 +249,307 @@ class _SettingsScreenState extends State<SettingsScreen> {
             child: const Text('Cancel', style: TextStyle(color: Colors.grey)),
           ),
           ElevatedButton(
-            onPressed: () {
-              // LOG OUT LOGIC HERE
-              Navigator.pop(context);
-              Navigator.pushReplacementNamed(context, '/login');
-            },
-            style: ElevatedButton.styleFrom(
-              backgroundColor: Colors.red,
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(8),
+          onPressed: () async {
+            Navigator.pop(context); // Close dialog first
+            
+            // Show loading indicator
+            showDialog(
+              context: context,
+              barrierDismissible: false,
+              builder: (context) => const Center(
+                child: CircularProgressIndicator(
+                  color: Color(0xFF4CAF50),
+                ),
               ),
+            );
+
+            try {
+              // Call Firebase signOut
+              await _firebaseService.signOut();
+
+              if (!mounted) return;
+              Navigator.pop(context); // Close loading
+
+              // Navigate to login and clear stack
+              Navigator.pushNamedAndRemoveUntil(
+                context,
+                '/login',
+                (route) => false,
+              );
+
+              // Show success message
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(
+                  content: Row(
+                    children: [
+                      Icon(Icons.check_circle, color: Colors.white),
+                      SizedBox(width: 12),
+                      Text('Successfully logged out'),
+                    ],
+                  ),
+                  backgroundColor: Color(0xFF4CAF50),
+                  behavior: SnackBarBehavior.floating,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.all(Radius.circular(10)),
+                  ),
+                  duration: Duration(seconds: 2),
+                ),
+              );
+            } catch (e) {
+              if (!mounted) return;
+
+              // Close loading dialog
+              Navigator.pop(context);
+
+              // Show error message
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(
+                  content: Row(
+                    children: [
+                      Icon(Icons.error_outline, color: Colors.white),
+                      SizedBox(width: 12),
+                      Expanded(child: Text('Failed to log out. Please try again.')),
+                    ],
+                  ),
+                  backgroundColor: Colors.red,
+                  behavior: SnackBarBehavior.floating,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.all(Radius.circular(10)),
+                  ),
+                ),
+              );
+            }
+          },
+          style: ElevatedButton.styleFrom(
+            backgroundColor: Colors.red,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(8),
             ),
-            child: const Text('Log Out'),
+          ),
+          child: const Text(
+            'Log Out',
+            style: TextStyle(color: Colors.white),
+          ),
+        ),
+      ],
+    ),
+  );
+}
+
+void _showDeleteAccountDialog() {
+  showDialog(
+    context: context,
+    builder: (context) => AlertDialog(
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+      backgroundColor: const Color(0xFFFFF5CF),
+      title: Row(
+        children: [
+          Icon(
+            Icons.warning_amber_rounded,
+            color: Colors.amber[700],
+            size: 28,
+          ),
+          const SizedBox(width: 8),
+          const Text(
+            'Delete Account',
+            style: TextStyle(fontWeight: FontWeight.bold),
           ),
         ],
       ),
-    );
-  }
-
-  void _showDeleteAccountDialog() {
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-        backgroundColor: const Color(0xFFFFF5CF),
-        title: Row(
+      content: SingleChildScrollView(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Icon(
-              Icons.warning_amber_rounded,
-              color: Colors.amber[700],
-              size: 28,
-            ),
-            const SizedBox(width: 8),
             const Text(
-              'Delete Account',
-              style: TextStyle(fontWeight: FontWeight.bold),
+              'Are you sure you want to delete your MealMatch account?',
+              style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15),
+            ),
+            const SizedBox(height: 12),
+            Text(
+              'Once your account is deleted:',
+              style: TextStyle(
+                color: Colors.grey[700],
+                fontWeight: FontWeight.w600,
+                fontSize: 13,
+              ),
+            ),
+            const SizedBox(height: 8),
+            _buildDeleteWarningPoint(
+              '• All your profile information, saved meals, preferences, and activity history will be permanently removed',
+            ),
+            _buildDeleteWarningPoint(
+              '• You will not be able to recover your data or reactivate the same account',
+            ),
+            _buildDeleteWarningPoint(
+              '• Any active sessions on other devices will be automatically signed out',
+            ),
+            const SizedBox(height: 12),
+            Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: Colors.red[50],
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(color: Colors.red[200]!),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'Deletion Period:',
+                    style: TextStyle(
+                      fontWeight: FontWeight.bold,
+                      color: Colors.red[900],
+                      fontSize: 13,
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    'Your account will be scheduled for deletion and will be permanently erased after 30 days.',
+                    style: TextStyle(color: Colors.red[800], fontSize: 12),
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    'If you log back in within this period, the deletion request will be automatically canceled, and your account will remain active.',
+                    style: TextStyle(color: Colors.red[800], fontSize: 12),
+                  ),
+                ],
+              ),
             ),
           ],
         ),
-        content: SingleChildScrollView(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              const Text(
-                'Are you sure you want to delete your MealMatch account?',
-                style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15),
-              ),
-              const SizedBox(height: 12),
-              Text(
-                'Once your account is deleted:',
-                style: TextStyle(
-                  color: Colors.grey[700],
-                  fontWeight: FontWeight.w600,
-                  fontSize: 13,
-                ),
-              ),
-              const SizedBox(height: 8),
-              _buildDeleteWarningPoint(
-                '• All your profile information, saved meals, preferences, and activity history will be permanently removed',
-              ),
-              _buildDeleteWarningPoint(
-                '• You will not be able to recover your data or reactivate the same account',
-              ),
-              _buildDeleteWarningPoint(
-                '• Any active sessions on other devices will be automatically signed out',
-              ),
-              const SizedBox(height: 12),
-              Container(
-                padding: const EdgeInsets.all(12),
-                decoration: BoxDecoration(
-                  color: Colors.red[50],
-                  borderRadius: BorderRadius.circular(8),
-                  border: Border.all(color: Colors.red[200]!),
-                ),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      'Deletion Period:',
-                      style: TextStyle(
-                        fontWeight: FontWeight.bold,
-                        color: Colors.red[900],
-                        fontSize: 13,
-                      ),
-                    ),
-                    const SizedBox(height: 4),
-                    Text(
-                      'Your account will be scheduled for deletion and will be permanently erased after 30 days.',
-                      style: TextStyle(color: Colors.red[800], fontSize: 12),
-                    ),
-                    const SizedBox(height: 8),
-                    Text(
-                      'If you log back in within this period, the deletion request will be automatically canceled, and your account will remain active.',
-                      style: TextStyle(color: Colors.red[800], fontSize: 12),
-                    ),
-                  ],
-                ),
-              ),
-            ],
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.pop(context),
+          child: const Text(
+            'Cancel',
+            style: TextStyle(color: Colors.grey, fontWeight: FontWeight.w600),
           ),
         ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text(
-              'Cancel',
-              style: TextStyle(color: Colors.grey, fontWeight: FontWeight.w600),
-            ),
-          ),
-          ElevatedButton(
-            onPressed: () {
-              // DELETE ACCOUNT LOGIC HERE
+        ElevatedButton(
+          onPressed: () async {
+            Navigator.pop(context); // Close dialog
+            
+            // Show loading
+            showDialog(
+              context: context,
+              barrierDismissible: false,
+              builder: (context) => WillPopScope(
+                onWillPop: () async => false,
+                child: const Center(
+                  child: CircularProgressIndicator(
+                    color: Color(0xFF4CAF50),
+                  ),
+                ),
+              ),
+            );
+
+            // ✅ FIXED: Better error handling
+            bool shouldNavigate = false;
+            String errorMessage = '';
+
+            try {
+              print('🔴 Starting deletion scheduling...');
+              
+              final result = await _firebaseService
+                  .scheduleAccountDeletion()
+                  .timeout(
+                    const Duration(seconds: 3),
+                    onTimeout: () {
+                      print('⏱️ Timeout occurred');
+                      return {
+                        'success': false,
+                        'message': 'Connection timeout. Please try again.',
+                      };
+                    },
+                  );
+
+              print('✅ Result: $result');
+
+              if (result['success'] == true) {
+                // Success - sign out and navigate
+                print('🔵 Signing out...');
+                await _firebaseService.signOut();
+                shouldNavigate = true;
+              } else {
+                // Failed
+                errorMessage = result['message'] ?? 'Unknown error';
+              }
+            } catch (e) {
+              print('❌ Catch error: $e');
+              errorMessage = 'Failed to schedule deletion: $e';
+            }
+
+            // ✅ Close loading dialog
+            if (mounted) {
               Navigator.pop(context);
+            }
+
+            if (!mounted) return;
+
+            // ✅ Handle result
+            if (shouldNavigate) {
+              // Success - show message and navigate
               ScaffoldMessenger.of(context).showSnackBar(
                 const SnackBar(
-                  content: Text('Account deletion scheduled for 30 days'),
+                  content: Row(
+                    children: [
+                      Icon(Icons.check_circle, color: Colors.white),
+                      SizedBox(width: 12),
+                      Expanded(
+                        child: Text('Account scheduled for deletion in 30 days'),
+                      ),
+                    ],
+                  ),
                   backgroundColor: Colors.red,
+                  behavior: SnackBarBehavior.floating,
+                  duration: Duration(seconds: 2),
                 ),
               );
-            },
-            style: ElevatedButton.styleFrom(
-              backgroundColor: Colors.red,
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(8),
-              ),
+
+              Future.delayed(const Duration(milliseconds: 300), () {
+                if (mounted) {
+                  Navigator.pushNamedAndRemoveUntil(
+                    context,
+                    '/greet',
+                    (route) => false,
+                  );
+                }
+              });
+            } else {
+              // Error - show error message
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(
+                  content: Row(
+                    children: [
+                      const Icon(Icons.error_outline, color: Colors.white),
+                      const SizedBox(width: 12),
+                      Expanded(child: Text(errorMessage)),
+                    ],
+                  ),
+                  backgroundColor: Colors.red,
+                  behavior: SnackBarBehavior.floating,
+                  duration: const Duration(seconds: 3),
+                ),
+              );
+            }
+          },
+          style: ElevatedButton.styleFrom(
+            backgroundColor: Colors.red,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(8),
             ),
-            child: const Text('Delete Account'),
           ),
-        ],
-      ),
-    );
-  }
+          child: const Text(
+            'Delete Account',
+            style: TextStyle(color: Colors.white),
+          ),
+        ),
+      ],
+    ),
+  );
+}
 
   Widget _buildDeleteWarningPoint(String text) {
     return Padding(
@@ -1094,10 +1266,38 @@ class _ChangePasswordScreenState extends State<ChangePasswordScreen> {
   final _currentPasswordController = TextEditingController();
   final _newPasswordController = TextEditingController();
   final _confirmPasswordController = TextEditingController();
+  final _firebaseService = FirebaseService(); 
 
   bool _obscureCurrentPassword = true;
   bool _obscureNewPassword = true;
   bool _obscureConfirmPassword = true;
+  bool _isLoading = false; 
+  bool _areFieldsFilled = false;
+
+  @override
+  void initState() {
+    super.initState();
+    // ✅ Add listeners to all text controllers
+    _currentPasswordController.addListener(_checkFieldsFilled);
+    _newPasswordController.addListener(_checkFieldsFilled);
+    _confirmPasswordController.addListener(_checkFieldsFilled);
+  }
+
+  @override
+  void dispose() {
+    _currentPasswordController.dispose();
+    _newPasswordController.dispose();
+    _confirmPasswordController.dispose();
+    super.dispose();
+  }
+
+  void _checkFieldsFilled() {
+    setState(() {
+      _areFieldsFilled = _currentPasswordController.text.isNotEmpty &&
+          _newPasswordController.text.isNotEmpty &&
+          _confirmPasswordController.text.isNotEmpty;
+    });
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -1116,142 +1316,243 @@ class _ChangePasswordScreenState extends State<ChangePasswordScreen> {
         ),
         centerTitle: true,
       ),
-      body: SingleChildScrollView(
-        child: Padding(
-          padding: const EdgeInsets.all(16.0),
-          child: Form(
-            key: _formKey,
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Container(
-                  padding: const EdgeInsets.all(20),
-                  decoration: BoxDecoration(
-                    color: Colors.white,
-                    borderRadius: BorderRadius.circular(16),
-                    boxShadow: [
-                      BoxShadow(
-                        color: Colors.grey.withOpacity(0.2),
-                        blurRadius: 8,
-                        offset: const Offset(0, 2),
-                      ),
-                    ],
-                  ),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      _buildPasswordField(
-                        controller: _currentPasswordController,
-                        label: 'Current Password',
-                        hint: 'Enter current password',
-                        obscureText: _obscureCurrentPassword,
-                        onToggleVisibility: () {
-                          setState(
-                            () => _obscureCurrentPassword =
-                                !_obscureCurrentPassword,
-                          );
-                        },
-                      ),
-                      const SizedBox(height: 20),
-                      _buildPasswordField(
-                        controller: _newPasswordController,
-                        label: 'New Password',
-                        hint: 'Enter new password',
-                        obscureText: _obscureNewPassword,
-                        onToggleVisibility: () {
-                          setState(
-                            () => _obscureNewPassword = !_obscureNewPassword,
-                          );
-                        },
-                      ),
-                      const SizedBox(height: 20),
-                      _buildPasswordField(
-                        controller: _confirmPasswordController,
-                        label: 'Confirm New Password',
-                        hint: 'Re-enter new password',
-                        obscureText: _obscureConfirmPassword,
-                        onToggleVisibility: () {
-                          setState(
-                            () => _obscureConfirmPassword =
-                                !_obscureConfirmPassword,
-                          );
-                        },
-                        validator: (value) {
-                          if (value != _newPasswordController.text) {
-                            return 'Passwords do not match';
-                          }
-                          return null;
-                        },
-                      ),
-                    ],
-                  ),
-                ),
-                const SizedBox(height: 24),
-                Container(
-                  padding: const EdgeInsets.all(16),
-                  decoration: BoxDecoration(
-                    color: Colors.blue[50],
-                    borderRadius: BorderRadius.circular(12),
-                    border: Border.all(color: Colors.blue[200]!),
-                  ),
-                  child: Row(
-                    children: [
-                      Icon(
-                        Icons.info_outline,
-                        color: Colors.blue[700],
-                        size: 24,
-                      ),
-                      const SizedBox(width: 12),
-                      Expanded(
-                        child: Text(
-                          'Password must be at least 6 characters long.',
-                          style: TextStyle(
-                            color: Colors.blue[900],
-                            fontSize: 13,
+      body: Stack(
+        children: [
+          SingleChildScrollView(
+            child: Padding(
+              padding: const EdgeInsets.all(16.0),
+              child: Form(
+                key: _formKey,
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.all(20),
+                      decoration: BoxDecoration(
+                        color: Colors.white,
+                        borderRadius: BorderRadius.circular(16),
+                        boxShadow: [
+                          BoxShadow(
+                            color: Colors.grey.withOpacity(0.2),
+                            blurRadius: 8,
+                            offset: const Offset(0, 2),
                           ),
-                        ),
+                        ],
                       ),
-                    ],
-                  ),
-                ),
-                const SizedBox(height: 24),
-                SizedBox(
-                  width: double.infinity,
-                  child: ElevatedButton(
-                    onPressed: () {
-                      if (_formKey.currentState!.validate()) {
-                        // CHANGE PASSWORD LOGIC HERE
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(
-                            content: Text('Password changed successfully!'),
-                            backgroundColor: Color(0xFF4CAF50),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          _buildPasswordField(
+                            controller: _currentPasswordController,
+                            label: 'Current Password',
+                            hint: 'Enter current password',
+                            obscureText: _obscureCurrentPassword,
+                            onToggleVisibility: () {
+                              setState(
+                                () => _obscureCurrentPassword =
+                                    !_obscureCurrentPassword,
+                              );
+                            },
                           ),
-                        );
-                        Navigator.pop(context);
-                      }
-                    },
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: const Color(0xFF4CAF50),
-                      padding: const EdgeInsets.symmetric(vertical: 16),
-                      shape: RoundedRectangleBorder(
+                          const SizedBox(height: 20),
+                          _buildPasswordField(
+                            controller: _newPasswordController,
+                            label: 'New Password',
+                            hint: 'Enter new password',
+                            obscureText: _obscureNewPassword,
+                            onToggleVisibility: () {
+                              setState(
+                                () => _obscureNewPassword = !_obscureNewPassword,
+                              );
+                            },
+                          ),
+                          const SizedBox(height: 20),
+                          _buildPasswordField(
+                            controller: _confirmPasswordController,
+                            label: 'Confirm New Password',
+                            hint: 'Re-enter new password',
+                            obscureText: _obscureConfirmPassword,
+                            onToggleVisibility: () {
+                              setState(
+                                () => _obscureConfirmPassword =
+                                    !_obscureConfirmPassword,
+                              );
+                            },
+                            validator: (value) {
+                              if (value != _newPasswordController.text) {
+                                return 'Passwords do not match';
+                              }
+                              return null;
+                            },
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(height: 24),
+                    Container(
+                      padding: const EdgeInsets.all(16),
+                      decoration: BoxDecoration(
+                        color: Colors.blue[50],
                         borderRadius: BorderRadius.circular(12),
+                        border: Border.all(color: Colors.blue[200]!),
+                      ),
+                      child: Row(
+                        children: [
+                          Icon(
+                            Icons.info_outline,
+                            color: Colors.blue[700],
+                            size: 24,
+                          ),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: Text(
+                              'Password must be at least 6 characters long.',
+                              style: TextStyle(
+                                color: Colors.blue[900],
+                                fontSize: 13,
+                              ),
+                            ),
+                          ),
+                        ],
                       ),
                     ),
-                    child: const Text(
-                      'Change Password',
-                      style: TextStyle(
-                        fontSize: 16,
-                        fontWeight: FontWeight.bold,
+                    const SizedBox(height: 24),
+                    SizedBox(
+                      width: double.infinity,
+                      child: ElevatedButton(
+                        onPressed: (_isLoading || !_areFieldsFilled) 
+                            ? null
+                            : _handleChangePassword,
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: _areFieldsFilled // Change color based on state
+                              ? const Color(0xFF4CAF50)
+                              : Colors.grey,
+                          padding: const EdgeInsets.symmetric(vertical: 16),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          disabledBackgroundColor: Colors.grey, // Add disabled state
+                        ),
+                        child: _isLoading
+                            ? const SizedBox(
+                                height: 20,
+                                width: 20,
+                                child: CircularProgressIndicator(
+                                  color: Colors.white,
+                                  strokeWidth: 2,
+                                ),
+                              )
+                            : const Text(
+                                'Change Password',
+                                style: TextStyle(
+                                  fontSize: 16,
+                                  fontWeight: FontWeight.bold,
+                                  color: Colors.white,
+                                ),
+                              ),
                       ),
                     ),
-                  ),
+                  ],
                 ),
-              ],
+              ),
             ),
           ),
-        ),
+          // ✅ Add full-screen loading overlay
+          if (_isLoading)
+            Container(
+              color: Colors.black26,
+              child: const Center(
+                child: CircularProgressIndicator(
+                  color: Color(0xFF4CAF50),
+                ),
+              ),
+            ),
+        ],
       ),
     );
+  }
+
+  // ✅ NEW: Handle password change
+  Future<void> _handleChangePassword() async {
+    if (!_formKey.currentState!.validate()) return;
+
+    setState(() => _isLoading = true);
+
+    try {
+      final result = await _firebaseService.changePassword(
+        currentPassword: _currentPasswordController.text.trim(),
+        newPassword: _newPasswordController.text.trim(),
+      );
+
+      setState(() => _isLoading = false);
+
+      if (!mounted) return;
+
+      if (result['success']) {
+        // Show success message
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Row(
+              children: [
+                const Icon(Icons.check_circle, color: Colors.white),
+                const SizedBox(width: 12),
+                Text(result['message']),
+              ],
+            ),
+            backgroundColor: const Color(0xFF4CAF50),
+            behavior: SnackBarBehavior.floating,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(10),
+            ),
+          ),
+        );
+        
+        // Navigate back after a short delay
+        Future.delayed(const Duration(milliseconds: 500), () {
+          if (mounted) Navigator.pop(context);
+        });
+      } else {
+        // Show error message
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Row(
+              children: [
+                const Icon(Icons.error_outline, color: Colors.white),
+                const SizedBox(width: 12),
+                Expanded(child: Text(result['message'])),
+              ],
+            ),
+            backgroundColor: Colors.red,
+            behavior: SnackBarBehavior.floating,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(10),
+            ),
+            duration: const Duration(seconds: 4),
+          ),
+        );
+      }
+    } catch (e) {
+      setState(() => _isLoading = false);
+      
+      if (!mounted) return;
+      
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Row(
+            children: [
+              const Icon(Icons.error_outline, color: Colors.white),
+              const SizedBox(width: 12),
+              const Expanded(child: Text('An unexpected error occurred')),
+            ],
+          ),
+          backgroundColor: Colors.red,
+          behavior: SnackBarBehavior.floating,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(10),
+          ),
+        ),
+      );
+    }
   }
 
   Widget _buildPasswordField({
@@ -1277,6 +1578,7 @@ class _ChangePasswordScreenState extends State<ChangePasswordScreen> {
         TextFormField(
           controller: controller,
           obscureText: obscureText,
+          enabled: !_isLoading, // ✅ Disable when loading
           decoration: InputDecoration(
             hintText: hint,
             prefixIcon: const Icon(
@@ -1308,9 +1610,12 @@ class _ChangePasswordScreenState extends State<ChangePasswordScreen> {
               borderRadius: BorderRadius.circular(12),
               borderSide: const BorderSide(color: Colors.red, width: 1),
             ),
+            disabledBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(12),
+              borderSide: BorderSide(color: Colors.grey[300]!),
+            ),
           ),
-          validator:
-              validator ??
+          validator: validator ??
               (value) {
                 if (value == null || value.isEmpty) {
                   return 'Please enter $label';
@@ -1325,3 +1630,5 @@ class _ChangePasswordScreenState extends State<ChangePasswordScreen> {
     );
   }
 }
+
+ 

@@ -100,6 +100,102 @@ class FirebaseService {
     }, SetOptions(merge: true));
   }
 
+  // ✅ NEW: Change user password
+  Future<Map<String, dynamic>> changePassword({
+    required String currentPassword,
+    required String newPassword,
+  }) async {
+    try {
+      final user = _auth.currentUser;
+      
+      if (user == null) {
+        return {
+          'success': false,
+          'message': 'No user is currently signed in',
+        };
+      }
+
+      // Step 1: Re-authenticate user with current password
+      final credential = EmailAuthProvider.credential(
+        email: user.email!,
+        password: currentPassword,
+      );
+
+      try {
+        await user.reauthenticateWithCredential(credential);
+      } on FirebaseAuthException catch (e) {
+        if (e.code == 'wrong-password') {
+          return {
+            'success': false,
+            'message': 'Current password is incorrect',
+          };
+        } else if (e.code == 'invalid-credential') {
+          return {
+            'success': false,
+            'message': 'Current password is incorrect',
+          };
+        } else {
+          return {
+            'success': false,
+            'message': 'Authentication failed: ${e.message}',
+          };
+        }
+      }
+
+      // Step 2: Update password
+      try {
+        await user.updatePassword(newPassword);
+        
+        // Optional: Log password change in Firestore
+        await _firestore.collection('users').doc(user.uid).update({
+          'passwordChangedAt': FieldValue.serverTimestamp(),
+        });
+
+        return {
+          'success': true,
+          'message': 'Password changed successfully',
+        };
+      } on FirebaseAuthException catch (e) {
+        if (e.code == 'weak-password') {
+          return {
+            'success': false,
+            'message': 'The new password is too weak',
+          };
+        } else if (e.code == 'requires-recent-login') {
+          return {
+            'success': false,
+            'message': 'Please log out and log in again before changing password',
+          };
+        } else {
+          return {
+            'success': false,
+            'message': 'Failed to update password: ${e.message}',
+          };
+        }
+      }
+    } catch (e) {
+      print('❌ changePassword error: $e');
+      return {
+        'success': false,
+        'message': 'An unexpected error occurred',
+      };
+    }
+  }
+
+  // ✅ NEW: Sign out user
+  Future<void> signOut() async {
+    try {
+      await _auth.signOut();
+    } catch (e) {
+      print('❌ signOut error: $e');
+    }
+  }
+
+  // ✅ NEW: Get current user
+  User? getCurrentUser() {
+    return _auth.currentUser;
+  }
+
   // ✅ NEW: Get user's daily calorie goal
   Future<int?> getUserCalorieGoal() async {
     try {
@@ -303,4 +399,145 @@ class FirebaseService {
     if (bmi < 30) return 'Overweight';
     return 'Obese';
   }
+
+  // ✅ UPDATED: Faster account deletion scheduling
+  Future<Map<String, dynamic>> scheduleAccountDeletion() async {
+    try {
+      final user = _auth.currentUser;
+      
+      if (user == null) {
+        return {
+          'success': false,
+          'message': 'No user is currently signed in',
+        };
+      }
+
+      // Calculate deletion date (30 days from now) 
+      // 🔴 CHANGE THIS NUMBER to modify deletion period (e.g., 60 for 60 days)
+      final deletionDate = DateTime.now().add(const Duration(days: 30));
+
+      // ✅ Mark account as scheduled for deletion in Firestore (FASTER - no await inside try)
+      final updateFuture = _firestore.collection('users').doc(user.uid).update({
+        'scheduledForDeletion': true,
+        'deletionScheduledAt': FieldValue.serverTimestamp(),
+        'deletionDate': Timestamp.fromDate(deletionDate),
+        'lastUpdated': FieldValue.serverTimestamp(),
+      });
+
+      // ✅ Wait for Firestore update to complete
+      await updateFuture;
+
+      // ✅ Return success IMMEDIATELY without signing out
+      // (Sign out will be handled by the UI)
+      return {
+        'success': true,
+        'message': 'Account scheduled for deletion',
+        'deletionDate': deletionDate,
+      };
+    } catch (e) {
+      print('❌ scheduleAccountDeletion error: $e');
+      return {
+        'success': false,
+        'message': 'Failed to schedule account deletion: $e',
+      };
+    }
+  }
+
+// Cancel account deletion (restore account)
+Future<Map<String, dynamic>> cancelAccountDeletion() async {
+  try {
+    final user = _auth.currentUser;
+    
+    if (user == null) {
+      return {
+        'success': false,
+        'message': 'No user is currently signed in',
+      };
+    }
+
+    // Remove deletion flags from Firestore
+    await _firestore.collection('users').doc(user.uid).update({
+      'scheduledForDeletion': FieldValue.delete(),
+      'deletionScheduledAt': FieldValue.delete(),
+      'deletionDate': FieldValue.delete(),
+      'lastUpdated': FieldValue.serverTimestamp(),
+    });
+
+    return {
+      'success': true,
+      'message': 'Account deletion cancelled successfully',
+    };
+  } catch (e) {
+    print('❌ cancelAccountDeletion error: $e');
+    return {
+      'success': false,
+      'message': 'Failed to cancel account deletion: $e',
+    };
+  }
 }
+
+// Check if account is scheduled for deletion
+Future<Map<String, dynamic>?> checkDeletionStatus() async {
+  try {
+    final user = _auth.currentUser;
+    
+    if (user == null) return null;
+
+    final doc = await _firestore.collection('users').doc(user.uid).get();
+
+    if (doc.exists && doc.data() != null) {
+      final data = doc.data()!;
+      
+      if (data['scheduledForDeletion'] == true) {
+        final deletionDate = (data['deletionDate'] as Timestamp?)?.toDate();
+        
+        return {
+          'isScheduled': true,
+          'deletionDate': deletionDate,
+          'daysRemaining': deletionDate != null 
+              ? deletionDate.difference(DateTime.now()).inDays 
+              : 0,
+        };
+      }
+    }
+    
+    return {'isScheduled': false};
+  } catch (e) {
+    print('❌ checkDeletionStatus error: $e');
+    return null;
+  }
+}
+
+// Permanently delete account (call this after 30 days)
+Future<Map<String, dynamic>> permanentlyDeleteAccount() async {
+  try {
+    final user = _auth.currentUser;
+    
+    if (user == null) {
+      return {
+        'success': false,
+        'message': 'No user is currently signed in',
+      };
+    }
+
+    // Delete user data from Firestore
+    await _firestore.collection('users').doc(user.uid).delete();
+    
+    // Delete the Firebase Auth account
+    await user.delete();
+
+    return {
+      'success': true,
+      'message': 'Account permanently deleted',
+    };
+  } catch (e) {
+    print('❌ permanentlyDeleteAccount error: $e');
+    return {
+      'success': false,
+      'message': 'Failed to delete account: $e',
+    };
+  }
+}
+
+}
+
