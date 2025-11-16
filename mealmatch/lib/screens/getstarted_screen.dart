@@ -176,16 +176,16 @@ class _GetStartedScreenState extends State<GetStartedScreen> {
   @override
   Widget build(BuildContext context) {
     final List<Color> bgTop = [
-      const Color(0xFFD5E3CC),
-      const Color(0xFFD5E3CC),
-      const Color(0xFFFFE1C7),
-      const Color(0xFFFFE1C7),
+      const Color(0xFFD5E3CC),  
+      const Color(0xFFFFE1C7),  
+      const Color(0xFFD5E3CC),  
+      const Color(0xFFFFE1C7),  
     ];
     final List<Color> bgBottom = [
-      const Color(0xFFC8DBB8),
-      const Color(0xFFC8DBB8),
-      const Color(0xFFFFD3AD),
-      const Color(0xFFFFD3AD),
+      const Color(0xFFC8DBB8), 
+      const Color(0xFFFFD3AD),  
+      const Color(0xFFC8DBB8),  
+      const Color(0xFFFFD3AD),  
     ];
 
     return Scaffold(

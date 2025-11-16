@@ -201,14 +201,13 @@ class _ProfileScreenState extends State<ProfileScreen> {
           style: const TextStyle(color: Colors.grey, fontSize: 14),
         ),
         const SizedBox(height: 16),
+        // ✅ UPDATED: Only Recipes and Likes
         Row(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
             _StatItem(label: 'Recipes', value: '$recipeCount'),
-            const SizedBox(width: 32),
+            const SizedBox(width: 48), // ✅ Increased spacing (was 32)
             _StatItem(label: 'Likes', value: '$totalLikes'),
-            const SizedBox(width: 32),
-            const _StatItem(label: 'Followers', value: '0'),
           ],
         ),
       ],
