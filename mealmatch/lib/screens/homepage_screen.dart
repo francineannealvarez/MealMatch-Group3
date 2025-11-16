@@ -27,13 +27,9 @@ class _HomePageState extends State<HomePage> {
   double? userBMR;
   double? userTDEE;
 
-  late Future<Map<String, dynamic>?> _deletionCheckFuture;
-  bool _deletionDialogShown = false; // Prevent multiple dialogs
-
   @override
   void initState() {
     super.initState();
-    _deletionCheckFuture = _firebaseService.checkDeletionStatus();
     _loadTodayData();
   }
 
@@ -105,38 +101,7 @@ class _HomePageState extends State<HomePage> {
 
   @override
   Widget build(BuildContext context) {
-    // Wrap everything in FutureBuilder
-    return FutureBuilder<Map<String, dynamic>?>(
-      future: _deletionCheckFuture,
-      builder: (context, snapshot) {
-        // Show loading while checking deletion status
-        if (snapshot.connectionState == ConnectionState.waiting) {
-          return const Scaffold(
-            backgroundColor: Color(0xFFFFF5CF),
-            body: Center(
-              child: CircularProgressIndicator(color: Color(0xFF4CAF50)),
-            ),
-          );
-        }
-
-        // Check if account is scheduled for deletion
-        final deletionStatus = snapshot.data;
-        if (deletionStatus != null &&
-            deletionStatus['isScheduled'] == true &&
-            !_deletionDialogShown) {
-          // Show dialog after build completes
-          WidgetsBinding.instance.addPostFrameCallback((_) {
-            if (!_deletionDialogShown) {
-              _deletionDialogShown = true;
-              _showDeletionWarningDialog(deletionStatus);
-            }
-          });
-        }
-
-        // Show normal home screen
-        return _buildHomeScreen();
-      },
-    );
+    return _buildHomeScreen();
   }
 
   Widget _buildHomeScreen() {
@@ -167,168 +132,6 @@ class _HomePageState extends State<HomePage> {
               ),
       ),
       bottomNavigationBar: _buildBottomNavigationBar(),
-    );
-  }
-
-  // Deletion warning dialog
-  void _showDeletionWarningDialog(Map<String, dynamic> deletionStatus) {
-    final daysRemaining = deletionStatus['daysRemaining'] ?? 0;
-
-    showDialog(
-      context: context,
-      barrierDismissible: false,
-      builder: (context) => WillPopScope(
-        onWillPop: () async => false, // Prevent back button
-        child: AlertDialog(
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(16),
-          ),
-          backgroundColor: const Color(0xFFFFF5CF),
-          title: Row(
-            children: [
-              Icon(Icons.info_outline, color: Colors.orange[700], size: 28),
-              const SizedBox(width: 8),
-              const Expanded(
-                child: Text(
-                  'Account Deletion Scheduled',
-                  style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18),
-                ),
-              ),
-            ],
-          ),
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                'Your account is scheduled for permanent deletion in $daysRemaining ${daysRemaining == 1 ? 'day' : 'days'}.',
-                style: const TextStyle(
-                  fontSize: 15,
-                  fontWeight: FontWeight.w600,
-                ),
-              ),
-              const SizedBox(height: 12),
-              Text(
-                'Would you like to cancel the deletion and restore your account?',
-                style: TextStyle(color: Colors.grey[700], fontSize: 14),
-              ),
-            ],
-          ),
-          actions: [
-            TextButton(
-              onPressed: () async {
-                // Continue with deletion - sign out
-                Navigator.pop(context);
-
-                showDialog(
-                  context: context,
-                  barrierDismissible: false,
-                  builder: (context) => const Center(
-                    child: CircularProgressIndicator(color: Color(0xFF4CAF50)),
-                  ),
-                );
-
-                await _firebaseService.signOut();
-
-                if (!mounted) return;
-                Navigator.pop(context);
-
-                Navigator.pushNamedAndRemoveUntil(
-                  context,
-                  '/login',
-                  (route) => false,
-                );
-              },
-              child: const Text(
-                'Continue Deletion',
-                style: TextStyle(
-                  color: Colors.red,
-                  fontWeight: FontWeight.w600,
-                ),
-              ),
-            ),
-            ElevatedButton(
-              onPressed: () async {
-                // Show loading immediately
-                showDialog(
-                  context: context,
-                  barrierDismissible: false,
-                  builder: (context) => WillPopScope(
-                    onWillPop: () async => false,
-                    child: const Center(
-                      child: CircularProgressIndicator(
-                        color: Color(0xFF4CAF50),
-                      ),
-                    ),
-                  ),
-                );
-
-                try {
-                  // Cancel deletion
-                  final result = await _firebaseService.cancelAccountDeletion();
-
-                  if (!mounted) return;
-
-                  // Close loading
-                  Navigator.pop(context);
-                  // Close the deletion dialog
-                  Navigator.pop(context);
-
-                  if (result['success']) {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(
-                        content: Row(
-                          children: [
-                            Icon(Icons.check_circle, color: Colors.white),
-                            SizedBox(width: 12),
-                            Expanded(
-                              child: Text('Account restored successfully!'),
-                            ),
-                          ],
-                        ),
-                        backgroundColor: Color(0xFF4CAF50),
-                        behavior: SnackBarBehavior.floating,
-                        duration: Duration(seconds: 2),
-                      ),
-                    );
-                  } else {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      SnackBar(
-                        content: Text(result['message']),
-                        backgroundColor: Colors.red,
-                      ),
-                    );
-                  }
-                } catch (e) {
-                  if (!mounted) return;
-
-                  Navigator.pop(context);
-                  Navigator.pop(context);
-
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(
-                      content: Text(
-                        'Failed to restore account. Please try again.',
-                      ),
-                      backgroundColor: Colors.red,
-                    ),
-                  );
-                }
-              },
-              style: ElevatedButton.styleFrom(
-                backgroundColor: const Color(0xFF4CAF50),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(8),
-                ),
-              ),
-              child: const Text(
-                'Restore Account',
-                style: TextStyle(color: Colors.white),
-              ),
-            ),
-          ],
-        ),
-      ),
     );
   }
 

@@ -31,126 +31,238 @@ class _LoginScreenState extends State<LoginScreen> {
   }
 
   
+  // ✅ UPDATED: Initialize login check
   Future<void> _initializeLogin() async {
     final prefs = await SharedPreferences.getInstance();
     final isRemembered = prefs.getBool('remember_me') ?? false;
 
     // If not remembered, sign out
     if (!isRemembered) {
-      await _auth.signOut();
+      await _firebaseService.signOut();
       return;
     }
 
-    if (_auth.currentUser != null) {
+    final currentUser = _firebaseService.getCurrentUser();
+    if (currentUser != null) {
+      // Check deletion status
       final status = await _firebaseService.checkDeletionStatus();
       
-      // ✅ If expired, show error and stay on login
-      if (status != null && status['isExpired'] == true) {
-        await prefs.setBool('remember_me', false);
+      if (status != null && status['isScheduled'] == true) {
+        final daysRemaining = status['daysRemaining'] as int?;
         
-        WidgetsBinding.instance.addPostFrameCallback((_) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text('${status['message']}'),
-              backgroundColor: Colors.red,
-              duration: Duration(seconds: 5),
-            ),
-          );
-        });
-        return;
+        // If expired, delete and show message
+        if (daysRemaining != null && daysRemaining <= 0) {
+          await _firebaseService.permanentlyDeleteAccount();
+          await prefs.setBool('remember_me', false);
+          
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            if (mounted) {
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(
+                  content: Text('Your account has been permanently deleted. Please create a new account.'),
+                  backgroundColor: Colors.red,
+                  duration: Duration(seconds: 5),
+                ),
+              );
+            }
+          });
+          return;
+        }
+        
+        // If still within grace period, show dialog on home screen
       }
+      
+      // Navigate to home
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) {
+          Navigator.pushReplacementNamed(context, '/home');
+        }
+      });
+    }
       
       // ✅ Navigate to home (HomePage will show dialog if scheduled)
       WidgetsBinding.instance.addPostFrameCallback((_) {
         Navigator.pushReplacementNamed(context, '/home');
       });
     }
-  }
 
-  // ✅ Login logic with Firebase
+  // ✅ UPDATED: Handle login using FirebaseService
   Future<void> _handleLogin() async {
     if (!_formKey.currentState!.validate()) return;
 
     setState(() => _isLoading = true);
 
     try {
-      await _auth.signInWithEmailAndPassword(
+      // ✅ Use FirebaseService instead of direct Firebase Auth
+      final result = await _firebaseService.signInUser(
         email: _emailController.text.trim(),
         password: _passwordController.text.trim(),
       );
 
-      // ✅ Check if account expired
-      final status = await _firebaseService.checkDeletionStatus();
-       if (status != null && status['isExpired'] == true) {
-        setState(() => _isLoading = false);
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('${status['message']}'),
-            backgroundColor: Colors.red,
-            duration: Duration(seconds: 5),
-          ),
-        );
-        return;
+      if (result['success'] == true) {
+        // ✅ Save remember me preference
+        final prefs = await SharedPreferences.getInstance();
+        await prefs.setBool('remember_me', _rememberMe);
+
+        // ✅ Navigate to home
+        if (mounted) {
+          Navigator.pushReplacementNamed(context, '/home');
+        }
+      } else if (result['accountDeleted'] == true) {
+        // ✅ Account was deleted
+        if (mounted) {
+          _showDialog(
+            'Account Deleted',
+            result['message'] ?? 'Your account has been permanently deleted.',
+          );
+        }
+      } else if (result['scheduledForDeletion'] == true) {
+        // ✅ Account is scheduled for deletion
+        final days = result['daysRemaining'];
+        if (mounted) {
+          _showCancelDeletionDialog(days);
+        }
+      } else {
+        // ✅ Show error message
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text(result['message'] ?? 'Login failed')),
+          );
+        }
       }
-
-      final prefs = await SharedPreferences.getInstance();
-      await prefs.setBool('remember_me', _rememberMe);
-
-      Navigator.pushReplacementNamed(context, '/home');
-    } on FirebaseAuthException catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(e.message ?? 'Login failed')),
-      );
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('An error occurred: $e')),
+        );
+      }
     } finally {
-      setState(() => _isLoading = false);
+      if (mounted) {
+        setState(() => _isLoading = false);
+      }
     }
   }
+
+  // ✅ Add these helper methods sa login screen
+  void _showDialog(String title, String message) {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Text(title),
+        content: Text(message),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('OK'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _showCancelDeletionDialog(int daysRemaining) {
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) => AlertDialog(
+        title: const Text('Account Scheduled for Deletion'),
+        content: Text(
+          'Your account will be permanently deleted in $daysRemaining days. '
+          'Would you like to cancel the deletion and restore your account?',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () async {
+              // Cancel deletion
+              final result = await _firebaseService.cancelAccountDeletion();
+              Navigator.pop(context);
+              
+              if (result['success'] == true) {
+                // Account restored - go to home
+                if (mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(content: Text('Account restored successfully!')),
+                  );
+                  Navigator.pushReplacementNamed(context, '/home');
+                }
+              }
+            },
+            child: const Text('Cancel Deletion'),
+          ),
+          TextButton(
+            onPressed: () async {
+              // User wants to proceed with deletion
+              await _firebaseService.signOut();
+              Navigator.pop(context);
+            },
+            child: const Text('Sign Out'),
+          ),
+        ],
+      ),
+    );
+  }
+
   void handleBack() {
     Navigator.pop(context); // Navigate back to greet/welcome screen
   }
 
   void handleGoogleLogin(BuildContext context) async {
-    // Show loading indicator while signing in
+  // Show loading indicator
     showDialog(
       context: context,
       barrierDismissible: false,
       builder: (context) => const Center(child: CircularProgressIndicator()),
     );
 
-    // Call your AuthService
+    // Call AuthService
     final UserCredential? userCredential = await AuthService.signInWithGoogle();
 
     // Remove loading screen
-    Navigator.of(context).pop();
+    if (mounted) Navigator.of(context).pop();
 
     if (userCredential != null) {
-      final user = userCredential.user;
-      print("Signed in as ${user?.displayName}, ${user?.email}");
-
+      // ✅ Check deletion status
       final status = await _firebaseService.checkDeletionStatus();
+      
+      if (status != null && status['isScheduled'] == true) {
+        final daysRemaining = status['daysRemaining'] as int?;
         
-        if (status != null && status['isExpired'] == true) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text('${status['message']}'),
-              backgroundColor: Colors.red,
-              duration: Duration(seconds: 5),
-            ),
-          );
+        // If expired, delete account
+        if (daysRemaining != null && daysRemaining <= 0) {
+          await _firebaseService.permanentlyDeleteAccount();
+          
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(
+                content: Text('Your account has been permanently deleted. Please create a new account.'),
+                backgroundColor: Colors.red,
+                duration: Duration(seconds: 5),
+              ),
+            );
+          }
           return;
         }
+        
+        // If within grace period, show dialog
+        if (mounted) {
+          _showCancelDeletionDialog(daysRemaining ?? 0);
+          return;
+        }
+      }
 
-      // ✅ Navigate to your home screen or main app
-      Navigator.of(context).pushReplacement(
-        MaterialPageRoute(
-          builder: (_) => const HomePage(), // <-- replace with your actual home screen widget
-        ),
-      );
+      // ✅ Navigate to home
+      if (mounted) {
+        Navigator.of(context).pushReplacement(
+          MaterialPageRoute(builder: (_) => const HomePage()),
+        );
+      }
     } else {
-      // ❌ User canceled or sign-in failed
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text("Google sign-in canceled or failed")),
-      );
+      // Sign-in failed
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text("Google sign-in canceled or failed")),
+        );
+      }
     }
   }
 
