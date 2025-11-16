@@ -68,24 +68,8 @@ flutter:
 
   # To add assets to your application, add an assets section, like this:
   assets:
-     - assets/images/header_logo.png
-     - assets/images/app_logo.png
-     - assets/images/dummy_profile.png
-     - assets/images/greet_img.png
-     - assets/images/greetscreen.png
-
-     # intro animation
-     - assets/videos/greet_animation.mp4
-
-     # avatars
-     - assets/images/avatar_avocado.png
-     - assets/images/avatar_burger.png
-     - assets/images/avatar_donut.png
-     - assets/images/avatar_pizza.png
-     - assets/images/avatar_ramen.png
-     - assets/images/avatar_strawberry.png
-     - assets/images/avatar_sushi.png
-     - assets/images/avatar_taco.png
+    - assets/images/
+    - assets/videos/
 
 
   # An image asset can refer to one or more resolution-specific "variants", see

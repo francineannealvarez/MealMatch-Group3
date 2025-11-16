@@ -2,6 +2,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:mealmatch/services/firebase_service.dart';
+import '../widgets/avatar_picker.dart';
 
 class SettingsScreen extends StatefulWidget {
   const SettingsScreen({super.key});
@@ -528,17 +529,6 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
   // ignore: unused_field
   String? _userId;
 
-  final List<String> _avatarOptions = [
-    'assets/images/avatar_avocado.png',
-    'assets/images/avatar_burger.png',
-    'assets/images/avatar_donut.png',
-    'assets/images/avatar_pizza.png',
-    'assets/images/avatar_ramen.png',
-    'assets/images/avatar_strawberry.png',
-    'assets/images/avatar_sushi.png',
-    'assets/images/avatar_taco.png',
-  ];
-
   @override
   void initState() {
     super.initState();
@@ -754,62 +744,11 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                           ),
                           const SizedBox(height: 16),
                           Center(
-                            child: Stack(
-                              children: [
-                                Container(
-                                  width: 120,
-                                  height: 120,
-                                  decoration: BoxDecoration(
-                                    shape: BoxShape.circle,
-                                    border: Border.all(
-                                      color: const Color(0xFF4CAF50),
-                                      width: 3,
-                                    ),
-                                    color: Colors.grey[300],
-                                  ),
-                                  child: ClipOval(
-                                    child: _selectedAvatar != null
-                                        ? Image.asset(
-                                            _selectedAvatar!,
-                                            fit: BoxFit.cover,
-                                            errorBuilder:
-                                                (context, error, stackTrace) {
-                                                  return Icon(
-                                                    Icons.person,
-                                                    size: 60,
-                                                    color: Colors.grey[600],
-                                                  );
-                                                },
-                                          )
-                                        : Icon(
-                                            Icons.person,
-                                            size: 60,
-                                            color: Colors.grey[600],
-                                          ),
-                                  ),
-                                ),
-                                Positioned(
-                                  bottom: 0,
-                                  right: 0,
-                                  child: GestureDetector(
-                                    onTap: _isSaving ? null : _showAvatarPicker,
-                                    child: Container(
-                                      padding: const EdgeInsets.all(8),
-                                      decoration: BoxDecoration(
-                                        color: _isSaving
-                                            ? Colors.grey
-                                            : const Color(0xFF4CAF50),
-                                        shape: BoxShape.circle,
-                                      ),
-                                      child: const Icon(
-                                        Icons.camera_alt,
-                                        color: Colors.white,
-                                        size: 20,
-                                      ),
-                                    ),
-                                  ),
-                                ),
-                              ],
+                            child: AvatarDisplay(
+                              avatarPath: _selectedAvatar,
+                              size: 120,
+                              showEditButton: true,
+                              onEditPressed: _isSaving ? null : _showAvatarPicker,
                             ),
                           ),
                           const SizedBox(height: 32),
@@ -933,53 +872,17 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
               style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
             ),
             const SizedBox(height: 16),
-            GridView.builder(
-              shrinkWrap: true,
-              gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                crossAxisCount: 4,
-                crossAxisSpacing: 16,
-                mainAxisSpacing: 16,
-              ),
-              itemCount: _avatarOptions.length,
-              itemBuilder: (context, index) {
-                final isSelected = _selectedAvatar == _avatarOptions[index];
-
-                return GestureDetector(
-                  onTap: () {
-                    setState(() {
-                      _selectedAvatar = _avatarOptions[index];
-                    });
-                    Navigator.pop(context);
-                  },
-                  child: Container(
-                    decoration: BoxDecoration(
-                      shape: BoxShape.circle,
-                      border: Border.all(
-                        color: isSelected
-                            ? const Color(0xFF4CAF50)
-                            : Colors.grey[400]!,
-                        width: isSelected ? 3 : 2,
-                      ),
-                    ),
-                    child: ClipOval(
-                      child: Image.asset(
-                        _avatarOptions[index],
-                        fit: BoxFit.cover,
-                        errorBuilder: (context, error, stackTrace) {
-                          return Container(
-                            color: Colors.grey[300],
-                            child: Icon(
-                              Icons.person,
-                              size: 40,
-                              color: Colors.grey[600],
-                            ),
-                          );
-                        },
-                      ),
-                    ),
-                  ),
-                );
+            // ✅ USE THE NEW REUSABLE WIDGET
+            AvatarPicker(
+              selectedAvatar: _selectedAvatar,
+              onAvatarSelected: (avatar) {
+                setState(() {
+                  _selectedAvatar = avatar;
+                });
+                Navigator.pop(context);
               },
+              showSkipOption: false, // No skip option in Settings
+              isGridView: false, // 4 columns for modal
             ),
             const SizedBox(height: 16),
           ],

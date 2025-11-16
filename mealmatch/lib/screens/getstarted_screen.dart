@@ -3,6 +3,7 @@
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../services/firebase_service.dart';
+import '../widgets/avatar_picker.dart';
 
 // Preferences flow UI
 
@@ -24,7 +25,7 @@ String _stepTitle(int step) {
 String _stepSubtitle(int step) {
   switch (step) {
     case 1:
-      return 'What should we call you?';
+      return 'What should we call you? (Avatar is optional)';
     case 2:
       return 'Choose at least one goal:';
     case 3:
@@ -73,17 +74,6 @@ class _GetStartedScreenState extends State<GetStartedScreen> {
   bool _agreedToTerms = false; // ✅ checkbox state
   bool isLoading = false; // to show a loading indicator
 
-  final List<String> _avatarOptions = [
-    'assets/images/avatar_avocado.png',
-    'assets/images/avatar_burger.png',
-    'assets/images/avatar_donut.png',
-    'assets/images/avatar_pizza.png',
-    'assets/images/avatar_ramen.png',
-    'assets/images/avatar_strawberry.png',
-    'assets/images/avatar_sushi.png',
-    'assets/images/avatar_taco.png',
-  ];
-
   // --- Navigation ---
   void previousStep() {
     if (currentStep > 1) {
@@ -96,8 +86,9 @@ class _GetStartedScreenState extends State<GetStartedScreen> {
   }
 
   bool isNextDisabled() {
-    if (currentStep == 1)
-      return name.isEmpty || selectedAvatar == null; // Require avatar
+    if (currentStep == 1) {
+      return name.isEmpty; // ✅ Avatar is now optional
+    }
     if (currentStep == 2) return goals.isEmpty;
     if (currentStep == 3) return activityLevel.isEmpty;
     if (currentStep == 4) {
@@ -106,11 +97,10 @@ class _GetStartedScreenState extends State<GetStartedScreen> {
           height.isEmpty ||
           weight.isEmpty ||
           goalWeight.isEmpty ||
-          !_agreedToTerms; // ✅ must agree before proceeding
+          !_agreedToTerms;
     }
     return false;
   }
-
   // --- Signup function ---
   void handleNext() async {
     if (currentStep < totalSteps) {
@@ -272,7 +262,6 @@ class _GetStartedScreenState extends State<GetStartedScreen> {
                       name: name,
                       setName: (val) => setState(() => name = val),
                       selectedAvatar: selectedAvatar,
-                      avatarOptions: _avatarOptions,
                       setAvatar: (val) => setState(() => selectedAvatar = val),
                       goals: goals,
                       toggleGoal: (goal) => setState(() {
@@ -411,8 +400,7 @@ class StepContent extends StatelessWidget {
   final String name;
   final void Function(String) setName;
   final String? selectedAvatar;
-  final List<String> avatarOptions;
-  final void Function(String) setAvatar;
+  final void Function(String?) setAvatar;
   final List<String> goals;
   final void Function(String) toggleGoal;
   final String activityLevel;
@@ -434,7 +422,6 @@ class StepContent extends StatelessWidget {
     required this.setName,
     required this.name,
     required this.selectedAvatar,
-    required this.avatarOptions,
     required this.setAvatar,
     required this.goals,
     required this.toggleGoal,
@@ -481,7 +468,7 @@ class StepContent extends StatelessWidget {
                 ),
                 const SizedBox(height: 24),
                 const Text(
-                  'Choose your Avatar',
+                  'Choose your Avatar (Optional)',
                   style: TextStyle(
                     fontSize: 16,
                     fontWeight: FontWeight.w600,
@@ -489,59 +476,12 @@ class StepContent extends StatelessWidget {
                   ),
                 ),
                 const SizedBox(height: 16),
-                // ✅ Avatar Grid - Bigger with outline only
-                GridView.builder(
-                  shrinkWrap: true,
-                  physics: const NeverScrollableScrollPhysics(),
-                  gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                    crossAxisCount: 3,
-                    crossAxisSpacing: 16,
-                    mainAxisSpacing: 16,
-                  ),
-                  itemCount: avatarOptions.length,
-                  itemBuilder: (context, index) {
-                    final avatarPath = avatarOptions[index];
-                    final isSelected = selectedAvatar == avatarPath;
-
-                    return GestureDetector(
-                      onTap: () => setAvatar(avatarPath),
-                      child: Container(
-                        decoration: BoxDecoration(
-                          shape: BoxShape.circle,
-                          border: Border.all(
-                            color: isSelected
-                                ? const Color(0xFF67B14D)
-                                : Colors.grey.shade300,
-                            width: 4,
-                          ),
-                          boxShadow: [
-                            if (isSelected)
-                              BoxShadow(
-                                color: const Color(0xFF67B14D).withOpacity(0.4),
-                                blurRadius: 12,
-                                spreadRadius: 2,
-                              ),
-                          ],
-                        ),
-                        child: ClipOval(
-                          child: Image.asset(
-                            avatarPath,
-                            fit: BoxFit.cover,
-                            errorBuilder: (context, error, stackTrace) {
-                              return Container(
-                                color: Colors.grey[300],
-                                child: Icon(
-                                  Icons.person,
-                                  size: 40,
-                                  color: Colors.grey[600],
-                                ),
-                              );
-                            },
-                          ),
-                        ),
-                      ),
-                    );
-                  },
+                // ✅ USE THE NEW REUSABLE WIDGET
+                AvatarPicker(
+                  selectedAvatar: selectedAvatar,
+                  onAvatarSelected: setAvatar,
+                  showSkipOption: true,
+                  isGridView: true,
                 ),
                 const SizedBox(height: 16),
               ],
