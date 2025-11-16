@@ -180,9 +180,16 @@ class _LogHistoryPageState extends State<LogHistoryPage> {
     } else if (selectedFilter == 'This Week') {
       List<DateTime> dates = [];
       DateTime now = DateTime.now();
-      for (int i = 6; i >= 0; i--) {
-        dates.add(now.subtract(Duration(days: i)));
+      
+      // Find Sunday of current week (weekday 7 = Sunday in Dart)
+      int daysFromSunday = now.weekday % 7; // 0 if Sunday, 1 if Monday, ... 6 if Saturday
+      DateTime startOfWeek = now.subtract(Duration(days: daysFromSunday));
+      
+      // Generate Sunday to Today
+      for (int i = 0; i <= daysFromSunday; i++) {
+        dates.add(startOfWeek.add(Duration(days: i)));
       }
+      
       return dates;
     } else if (selectedFilter == 'Custom Date' &&
         customStartDate != null &&

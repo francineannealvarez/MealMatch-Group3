@@ -88,6 +88,11 @@ class ProfileService {
            date.day == now.day;
   }
 
+  // Helper: Format date as YYYY-MM-DD
+  String _formatDate(DateTime date) {
+    return '${date.year}-${date.month.toString().padLeft(2, '0')}-${date.day.toString().padLeft(2, '0')}';
+  }
+
   // 📊 Get average daily calories (last 7 days)
   Future<int> getAvgDailyCalories() async {
     try {
@@ -137,7 +142,7 @@ class ProfileService {
       final userId = currentUserId;
       if (userId == null) return {'daysLogged': 0, 'totalDays': 7};
 
-      /* Get start of current week (Monday)
+      /* Get start of current week (if want to  start at Monday)
       final now = DateTime.now();
       final weekStart = now.subtract(Duration(days: now.weekday - 1));
       final weekStartMidnight = DateTime(weekStart.year, weekStart.month, weekStart.day);*/
@@ -215,38 +220,96 @@ class ProfileService {
     }
   }
 
-  // 🎖️ Get achievements based on user progress
+  // ✅ NEW: Get unique days logged
+  Future<int> _getUniqueDaysLogged() async {
+    try {
+      final userId = currentUserId;
+      if (userId == null) return 0;
+
+      final logsSnapshot = await _firestore
+          .collection('users')
+          .doc(userId)
+          .collection('meal_logs')
+          .get();
+
+      Set<String> uniqueDays = {};
+      for (var doc in logsSnapshot.docs) {
+        final timestamp = (doc.data()['timestamp'] as Timestamp).toDate();
+        final dateKey = _formatDate(timestamp);
+        uniqueDays.add(dateKey);
+      }
+
+      return uniqueDays.length;
+    } catch (e) {
+      print('Error getting unique days: $e');
+      return 0;
+    }
+  }
+
+  // ✅ NEW: Check if user logged all meals in a day
+  Future<bool> _hasLoggedAllMealsToday() async {
+    try {
+      final userId = currentUserId;
+      if (userId == null) return false;
+
+      final today = _formatDate(DateTime.now());
+
+      final logsSnapshot = await _firestore
+          .collection('users')
+          .doc(userId)
+          .collection('meal_logs')
+          .where('date', isEqualTo: today)
+          .get();
+
+      Set<String> categories = {};
+      for (var doc in logsSnapshot.docs) {
+        final category = doc.data()['category'];
+        if (category != null) categories.add(category.toString().toLowerCase());
+      }
+
+      return categories.contains('breakfast') && 
+             categories.contains('lunch') && 
+             categories.contains('dinner');
+    } catch (e) {
+      print('Error checking all meals: $e');
+      return false;
+    }
+  }
+
+  // 🎖️ Get achievements (with subcollection support)
   Future<List<Map<String, dynamic>>> getAchievements() async {
     try {
-        final userId = currentUserId;
-        if (userId == null) return [];
+      final userId = currentUserId;
+      if (userId == null) return [];
 
-        // Get user data in parallel for better performance
-        final results = await Future.wait([
+      // Get user stats
+      final results = await Future.wait([
         getCurrentStreak(),
         getUserRecipeCount(),
         getTotalLikes(),
         _firestore.collection('users').doc(userId).collection('meal_logs').get(),
-        _firestore.collection('users').doc(userId).get(),
+        _getUniqueDaysLogged(),
+        _hasLoggedAllMealsToday(),
       ]);
 
       final streak = results[0] as int;
       final recipeCount = results[1] as int;
       final totalLikes = results[2] as int;
       final logsSnapshot = results[3] as QuerySnapshot;
-      final userDoc = results[4] as DocumentSnapshot;
+      final uniqueDays = results[4] as int;
+      final hasAllMeals = results[5] as bool;
 
       final totalLogs = logsSnapshot.docs.length;
-      final viewedAchievements = (userDoc.data() as Map<String, dynamic>?)?['viewedAchievements'] as List<dynamic>? ?? [];
-      final viewedSet = viewedAchievements.cast<String>().toSet();
 
-      // ✅ Define all possible achievements
+      // Define all achievements
       final allAchievements = [
+        // 🥾 Getting Started
         {
           'id': 'first_step',
           'title': 'First Step',
           'description': 'Logged your first meal',
           'icon': '🥾',
+          'category': 'getting_started',
           'requirement': totalLogs >= 1,
         },
         {
@@ -254,6 +317,7 @@ class ProfileService {
           'title': '5 Meals',
           'description': 'Logged 5 meals',
           'icon': '🍽️',
+          'category': 'milestones',
           'requirement': totalLogs >= 5,
         },
         {
@@ -261,34 +325,33 @@ class ProfileService {
           'title': '10 Meals',
           'description': 'Logged 10 meals',
           'icon': '🎯',
+          'category': 'milestones',
           'requirement': totalLogs >= 10,
         },
         {
-          'id': 'beginner_chef',
-          'title': 'Beginner Chef',
-          'description': 'Created your first recipe',
-          'icon': '👨‍🍳',
-          'requirement': recipeCount >= 1,
+          'id': 'fifty_meals',
+          'title': '50 Meals',
+          'description': 'Logged 50 meals',
+          'icon': '🌟',
+          'category': 'milestones',
+          'requirement': totalLogs >= 50,
         },
         {
-          'id': 'recipe_creator',
-          'title': 'Recipe Creator',
-          'description': 'Created 5 recipes',
-          'icon': '📖',
-          'requirement': recipeCount >= 5,
+          'id': 'century_club',
+          'title': 'Century Club',
+          'description': 'Logged 100 meals',
+          'icon': '💯',
+          'category': 'milestones',
+          'requirement': totalLogs >= 100,
         },
-        {
-          'id': 'recipe_master',
-          'title': 'Recipe Master',
-          'description': 'Created 10 recipes',
-          'icon': '📚',
-          'requirement': recipeCount >= 10,
-        },
+
+        // 🔥 Streaks
         {
           'id': 'three_day_streak',
           'title': '3-Day Streak',
           'description': 'Logged food for 3 days in a row',
           'icon': '🔥',
+          'category': 'streaks',
           'requirement': streak >= 3,
         },
         {
@@ -296,6 +359,7 @@ class ProfileService {
           'title': 'Weekly Champion',
           'description': 'Maintained a 7-day streak',
           'icon': '🏆',
+          'category': 'streaks',
           'requirement': streak >= 7,
         },
         {
@@ -303,6 +367,7 @@ class ProfileService {
           'title': '14-Day Warrior',
           'description': 'Logged for 14 consecutive days',
           'icon': '⚔️',
+          'category': 'streaks',
           'requirement': streak >= 14,
         },
         {
@@ -310,13 +375,77 @@ class ProfileService {
           'title': '30-Day Warrior',
           'description': 'Logged for 30 consecutive days',
           'icon': '👑',
+          'category': 'streaks',
           'requirement': streak >= 30,
+        },
+
+        // 📔 Consistency
+        {
+          'id': 'food_diary',
+          'title': 'Food Diary',
+          'description': 'Logged meals for 30 unique days',
+          'icon': '📔',
+          'category': 'consistency',
+          'requirement': uniqueDays >= 30,
+        },
+        {
+          'id': 'dedicated_tracker',
+          'title': 'Dedicated Tracker',
+          'description': 'Logged meals for 60 unique days',
+          'icon': '📚',
+          'category': 'consistency',
+          'requirement': uniqueDays >= 60,
+        },
+        {
+          'id': 'balanced_diet',
+          'title': 'Balanced Day',
+          'description': 'Log all 3 meals in one day',
+          'icon': '⚖️',
+          'category': 'consistency',
+          'requirement': hasAllMeals,
+        },
+
+        // 👨‍🍳 Recipes
+        {
+          'id': 'beginner_chef',
+          'title': 'Beginner Chef',
+          'description': 'Created your first recipe',
+          'icon': '👨‍🍳',
+          'category': 'recipes',
+          'requirement': recipeCount >= 1,
+        },
+        {
+          'id': 'recipe_creator',
+          'title': 'Recipe Creator',
+          'description': 'Created 5 recipes',
+          'icon': '📖',
+          'category': 'recipes',
+          'requirement': recipeCount >= 5,
+        },
+        {
+          'id': 'recipe_master',
+          'title': 'Recipe Master',
+          'description': 'Created 10 recipes',
+          'icon': '📚',
+          'category': 'recipes',
+          'requirement': recipeCount >= 10,
+        },
+
+        // ⭐ Social
+        {
+          'id': 'first_fan',
+          'title': 'First Fan',
+          'description': 'Got your first like',
+          'icon': '❤️',
+          'category': 'social',
+          'requirement': totalLikes >= 1,
         },
         {
           'id': 'popular_creator',
           'title': 'Popular Creator',
           'description': 'Got 50 total likes',
           'icon': '⭐',
+          'category': 'social',
           'requirement': totalLikes >= 50,
         },
         {
@@ -324,42 +453,90 @@ class ProfileService {
           'title': 'Super Star',
           'description': 'Got 100 total likes',
           'icon': '🌟',
+          'category': 'social',
           'requirement': totalLikes >= 100,
         },
       ];
-      // ✅ Filter earned achievements and mark new ones
-      final achievements = allAchievements
-          .where((achievement) => achievement['requirement'] as bool)
-          .map((achievement) {
-            final id = achievement['id'] as String;
-            final isNew = !viewedSet.contains(id);
-            
-            return {
-              'id': id,
-              'title': achievement['title'],
-              'description': achievement['description'],
-              'icon': achievement['icon'],
-              'isNew': isNew,
-            };
-          })
-          .toList();
 
-        // ✅ Sort: new achievements first, then by unlock order
-        achievements.sort((a, b) {
-          // Prioritize new achievements
-          if (a['isNew'] != b['isNew']) {
-            return (b['isNew'] as bool) ? 1 : -1;
+      // Get unlocked achievements from subcollection
+      final achievementsSnapshot = await _firestore
+          .collection('users')
+          .doc(userId)
+          .collection('achievements')
+          .get();
+
+      Map<String, Map<String, dynamic>> unlockedAchievements = {};
+      for (var doc in achievementsSnapshot.docs) {
+        unlockedAchievements[doc.id] = doc.data();
+      }
+
+      // Process achievements
+      List<Map<String, dynamic>> earnedAchievements = [];
+
+      for (var achievement in allAchievements) {
+        final id = achievement['id'] as String;
+        final isEarned = achievement['requirement'] as bool;
+
+        if (isEarned) {
+          final unlockedData = unlockedAchievements[id];
+          final isNew = unlockedData == null;
+
+          // If new achievement, unlock it
+          if (isNew) {
+            await _unlockAchievement(id);
           }
-          // Then sort by the order they appear in allAchievements
-          final indexA = allAchievements.indexWhere((ach) => ach['id'] == a['id']);
-          final indexB = allAchievements.indexWhere((ach) => ach['id'] == b['id']);
-          return indexA.compareTo(indexB);
-        });
 
-        return achievements;
+          earnedAchievements.add({
+            'id': id,
+            'title': achievement['title'],
+            'description': achievement['description'],
+            'icon': achievement['icon'],
+            'category': achievement['category'],
+            'isNew': isNew,
+            'unlockedAt': unlockedData?['unlockedAt'],
+          });
+        }
+      }
+
+      // Sort: new first, then by unlock date
+      earnedAchievements.sort((a, b) {
+        if (a['isNew'] != b['isNew']) {
+          return (b['isNew'] as bool) ? 1 : -1;
+        }
+        
+        final timestampA = a['unlockedAt'] as Timestamp?;
+        final timestampB = b['unlockedAt'] as Timestamp?;
+        
+        if (timestampA == null || timestampB == null) return 0;
+        return timestampB.compareTo(timestampA);
+      });
+
+      return earnedAchievements;
     } catch (e) {
       print('Error getting achievements: $e');
       return [];
+    }
+  }
+
+  // ✅ NEW: Unlock achievement (save to subcollection)
+  Future<void> _unlockAchievement(String achievementId) async {
+    try {
+      final userId = currentUserId;
+      if (userId == null) return;
+
+      await _firestore
+          .collection('users')
+          .doc(userId)
+          .collection('achievements')
+          .doc(achievementId)
+          .set({
+        'unlockedAt': FieldValue.serverTimestamp(),
+        'viewedAt': null,
+      });
+
+      print('✅ Unlocked achievement: $achievementId');
+    } catch (e) {
+      print('Error unlocking achievement: $e');
     }
   }
 
@@ -371,32 +548,35 @@ class ProfileService {
 
       if (achievementIds.isEmpty) return;
 
-      final userDocRef = _firestore.collection('users').doc(userId);
-      
-      // ✅ Use FieldValue.arrayUnion to add without duplicates
-      await userDocRef.update({
-        'viewedAchievements': FieldValue.arrayUnion(achievementIds),
-      });
+      final batch = _firestore.batch();
 
+      for (var id in achievementIds) {
+        final docRef = _firestore
+            .collection('users')
+            .doc(userId)
+            .collection('achievements')
+            .doc(id);
+
+        batch.update(docRef, {
+          'viewedAt': FieldValue.serverTimestamp(),
+        });
+      }
+
+      await batch.commit();
       print('✅ Marked ${achievementIds.length} achievements as viewed');
     } catch (e) {
-      // If field doesn't exist, create it
-      if (e.toString().contains('NOT_FOUND')) {
-        try {
-          final userId = currentUserId;
-          if (userId == null) return;
-          
-          await _firestore.collection('users').doc(userId).set({
-            'viewedAchievements': achievementIds,
-          }, SetOptions(merge: true));
-          
-          print('✅ Created viewedAchievements field with ${achievementIds.length} achievements');
-        } catch (createError) {
-          print('Error creating viewedAchievements field: $createError');
-        }
-      } else {
-        print('Error marking achievements as viewed: $e');
-      }
+      print('Error marking achievements as viewed: $e');
+    }
+  }
+
+  // 🔔 Check if user has new achievements
+  Future<bool> hasNewAchievements() async {
+    try {
+      final achievements = await getAchievements();
+      return achievements.any((achievement) => achievement['isNew'] == true);
+    } catch (e) {
+      print('Error checking new achievements: $e');
+      return false;
     }
   }
 

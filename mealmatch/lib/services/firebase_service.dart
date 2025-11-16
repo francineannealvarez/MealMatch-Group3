@@ -154,6 +154,7 @@ class FirebaseService {
 
       // Delete meal_logs subcollection (your main data)
       await deleteSubcollection('meal_logs');
+      await deleteSubcollection('achievements');
       
       // Add more subcollections here if you create them in the future:
       
