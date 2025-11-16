@@ -2,7 +2,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:mealmatch/screens/homepage_screen.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-
+import '../services/firebase_service.dart';
 import '../services/auth_service.dart';
 
 class LoginScreen extends StatefulWidget {
@@ -22,6 +22,7 @@ class _LoginScreenState extends State<LoginScreen> {
   bool _isPasswordVisible = false;
 
   final FirebaseAuth _auth = FirebaseAuth.instance;
+  final FirebaseService _firebaseService = FirebaseService();
 
   @override
   void initState() {
@@ -40,8 +41,26 @@ class _LoginScreenState extends State<LoginScreen> {
       return;
     }
 
-    // If remembered and user exists → auto-login
     if (_auth.currentUser != null) {
+      final status = await _firebaseService.checkDeletionStatus();
+      
+      // ✅ If expired, show error and stay on login
+      if (status != null && status['isExpired'] == true) {
+        await prefs.setBool('remember_me', false);
+        
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('${status['message']}'),
+              backgroundColor: Colors.red,
+              duration: Duration(seconds: 5),
+            ),
+          );
+        });
+        return;
+      }
+      
+      // ✅ Navigate to home (HomePage will show dialog if scheduled)
       WidgetsBinding.instance.addPostFrameCallback((_) {
         Navigator.pushReplacementNamed(context, '/home');
       });
@@ -59,6 +78,20 @@ class _LoginScreenState extends State<LoginScreen> {
         email: _emailController.text.trim(),
         password: _passwordController.text.trim(),
       );
+
+      // ✅ Check if account expired
+      final status = await _firebaseService.checkDeletionStatus();
+       if (status != null && status['isExpired'] == true) {
+        setState(() => _isLoading = false);
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('${status['message']}'),
+            backgroundColor: Colors.red,
+            duration: Duration(seconds: 5),
+          ),
+        );
+        return;
+      }
 
       final prefs = await SharedPreferences.getInstance();
       await prefs.setBool('remember_me', _rememberMe);
@@ -93,6 +126,19 @@ class _LoginScreenState extends State<LoginScreen> {
     if (userCredential != null) {
       final user = userCredential.user;
       print("Signed in as ${user?.displayName}, ${user?.email}");
+
+      final status = await _firebaseService.checkDeletionStatus();
+        
+        if (status != null && status['isExpired'] == true) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('${status['message']}'),
+              backgroundColor: Colors.red,
+              duration: Duration(seconds: 5),
+            ),
+          );
+          return;
+        }
 
       // ✅ Navigate to your home screen or main app
       Navigator.of(context).pushReplacement(

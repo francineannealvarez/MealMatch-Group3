@@ -401,54 +401,140 @@ class FirebaseService {
     return 'Obese';
   }
 
-  // ✅ UPDATED: Faster account deletion scheduling
-  Future<Map<String, dynamic>> scheduleAccountDeletion() async {
-    try {
-      final user = _auth.currentUser;
-
-      if (user == null) {
-        return {'success': false, 'message': 'No user is currently signed in'};
-      }
-
-      // Calculate deletion date (30 days from now)
-      // 🔴 CHANGE THIS NUMBER to modify deletion period (e.g., 60 for 60 days)
-      final deletionDate = DateTime.now().add(const Duration(days: 30));
-
-      // ✅ Mark account as scheduled for deletion in Firestore (FASTER - no await inside try)
-      final updateFuture = _firestore.collection('users').doc(user.uid).update({
-        'scheduledForDeletion': true,
-        'deletionScheduledAt': FieldValue.serverTimestamp(),
-        'deletionDate': Timestamp.fromDate(deletionDate),
-        'lastUpdated': FieldValue.serverTimestamp(),
-      });
-
-      // ✅ Wait for Firestore update to complete
-      await updateFuture;
-
-      // ✅ Return success IMMEDIATELY without signing out
-      // (Sign out will be handled by the UI)
-      return {
-        'success': true,
-        'message': 'Account scheduled for deletion',
-        'deletionDate': deletionDate,
-      };
-    } catch (e) {
-      print('❌ scheduleAccountDeletion error: $e');
+  // 1. Schedule account deletion (30 days)
+Future<Map<String, dynamic>> scheduleAccountDeletion() async {
+  try {
+    final user = _auth.currentUser;
+    
+    if (user == null) {
       return {
         'success': false,
-        'message': 'Failed to schedule account deletion: $e',
+        'message': 'No user is currently signed in',
       };
     }
+
+    final deletionDate = DateTime.now().add(const Duration(days: 30));
+    final warningDate = DateTime.now().add(const Duration(days: 23)); // Day 23 = 7 days before deletion
+
+    // Mark account as scheduled for deletion
+    await _firestore.collection('users').doc(user.uid).update({
+      'scheduledForDeletion': true,
+      'deletionScheduledAt': FieldValue.serverTimestamp(),
+      'deletionDate': Timestamp.fromDate(deletionDate),
+      'warningDate': Timestamp.fromDate(warningDate),
+      'warningEmailSent': false, // Track if warning email was sent
+      'lastUpdated': FieldValue.serverTimestamp(),
+    });
+
+    return {
+      'success': true,
+      'message': 'Account scheduled for deletion',
+      'deletionDate': deletionDate,
+    };
+  } catch (e) {
+    print('❌ scheduleAccountDeletion error: $e');
+    return {
+      'success': false,
+      'message': 'Failed to schedule account deletion: $e',
+    };
   }
+}
 
-  // Cancel account deletion (restore account)
-  Future<Map<String, dynamic>> cancelAccountDeletion() async {
-    try {
-      final user = _auth.currentUser;
+// 2. Restore/Cancel account deletion
+Future<Map<String, dynamic>> restoreAccount() async {
+  try {
+    final user = _auth.currentUser;
+    
+    if (user == null) {
+      return {
+        'success': false,
+        'message': 'No user is currently signed in',
+      };
+    }
 
-      if (user == null) {
-        return {'success': false, 'message': 'No user is currently signed in'};
+    // Remove all deletion flags
+    await _firestore.collection('users').doc(user.uid).update({
+      'scheduledForDeletion': FieldValue.delete(),
+      'deletionScheduledAt': FieldValue.delete(),
+      'deletionDate': FieldValue.delete(),
+      'warningDate': FieldValue.delete(),
+      'warningEmailSent': FieldValue.delete(),
+      'lastUpdated': FieldValue.serverTimestamp(),
+    });
+
+    return {
+      'success': true,
+      'message': 'Account restored successfully',
+    };
+  } catch (e) {
+    print('❌ restoreAccount error: $e');
+    return {
+      'success': false,
+      'message': 'Failed to restore account: $e',
+    };
+  }
+}
+
+// 3. Check deletion status on login
+Future<Map<String, dynamic>?> checkDeletionStatus() async {
+  try {
+    final user = _auth.currentUser;
+    
+    if (user == null) return null;
+
+    final doc = await _firestore.collection('users').doc(user.uid).get();
+
+    if (doc.exists && doc.data() != null) {
+      final data = doc.data()!;
+      
+      if (data['scheduledForDeletion'] == true) {
+        final deletionDate = (data['deletionDate'] as Timestamp?)?.toDate();
+        
+        // Check if deletion date has passed
+        if (deletionDate != null && DateTime.now().isAfter(deletionDate)) {
+          // Account should be deleted NOW
+          await _firestore.collection('users').doc(user.uid).delete();
+          await user.delete();
+          await _auth.signOut();
+          
+          return {
+            'isScheduled': true,
+            'isExpired': true,
+            'message': 'Account has been permanently deleted',
+          };
+        }
+        
+        final daysRemaining = deletionDate != null 
+            ? deletionDate.difference(DateTime.now()).inDays 
+            : 0;
+        
+        return {
+          'isScheduled': true,
+          'isExpired': false,
+          'deletionDate': deletionDate,
+          'daysRemaining': daysRemaining,
+        };
       }
+    }
+    
+    return {'isScheduled': false};
+  } catch (e) {
+    print('❌ checkDeletionStatus error: $e');
+    return null;
+  }
+}
+
+// Cancel account deletion (restore account)
+Future<Map<String, dynamic>> cancelAccountDeletion() async {
+  try {
+    final user = _auth.currentUser;
+    
+    if (user == null) {
+      return {
+        'success': false,
+        'message': 'No user is currently signed in',
+      };
+    }
 
       // Remove deletion flags from Firestore
       await _firestore.collection('users').doc(user.uid).update({
@@ -471,37 +557,6 @@ class FirebaseService {
     }
   }
 
-  // Check if account is scheduled for deletion
-  Future<Map<String, dynamic>?> checkDeletionStatus() async {
-    try {
-      final user = _auth.currentUser;
-
-      if (user == null) return null;
-
-      final doc = await _firestore.collection('users').doc(user.uid).get();
-
-      if (doc.exists && doc.data() != null) {
-        final data = doc.data()!;
-
-        if (data['scheduledForDeletion'] == true) {
-          final deletionDate = (data['deletionDate'] as Timestamp?)?.toDate();
-
-          return {
-            'isScheduled': true,
-            'deletionDate': deletionDate,
-            'daysRemaining': deletionDate != null
-                ? deletionDate.difference(DateTime.now()).inDays
-                : 0,
-          };
-        }
-      }
-
-      return {'isScheduled': false};
-    } catch (e) {
-      print('❌ checkDeletionStatus error: $e');
-      return null;
-    }
-  }
 
   // Permanently delete account (call this after 30 days)
   Future<Map<String, dynamic>> permanentlyDeleteAccount() async {
