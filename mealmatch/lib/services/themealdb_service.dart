@@ -4,42 +4,38 @@ import 'dart:math';
 
 class TheMealDBService {
   static const String baseUrl = 'https://www.themealdb.com/api/json/v1/1';
-
-  // --- REMOVED: static final Random _random = Random(); ---
-  // This was causing your sync bug. We will create a seeded Random locally.
-
-  /// Generate realistic fake cooking time based on meal type
-  static int _generateCookingTime(String mealName, Random random) { // <-- Added 'random' param
+  
+  static int _generateCookingTime(String mealName, Random random) {
     final name = mealName.toLowerCase();
     
-    // Quick meals (15-25 min)
+    int rawTime; // We'll store the un-rounded time here
+
     if (name.contains('sandwich') || name.contains('salad') || 
         name.contains('toast') || name.contains('smoothie')) {
-      return 15 + random.nextInt(10); // <-- Use local 'random'
+      rawTime = 15 + random.nextInt(10);
     }
     
-    // Medium meals (25-45 min)
-    if (name.contains('pasta') || name.contains('stir') || 
+    else if (name.contains('pasta') || name.contains('stir') || 
         name.contains('fried') || name.contains('noodle')) {
-      return 25 + random.nextInt(20); // <-- Use local 'random'
+      rawTime = 25 + random.nextInt(20);
     }
     
-    // Slow meals (45-90 min)
-    if (name.contains('roast') || name.contains('bake') || 
+    else if (name.contains('roast') || name.contains('bake') || 
         name.contains('stew') || name.contains('curry')) {
-      return 45 + random.nextInt(45); // <-- Use local 'random'
+      rawTime = 45 + random.nextInt(45);
     }
     
     // Default: 30-50 minutes
-    return 30 + random.nextInt(20); // <-- Use local 'random'
+    else {
+      rawTime = 30 + random.nextInt(20);
+    }
+    return _roundToNearestFive(rawTime);
   }
 
-  /// Generate realistic servings (2-6 people)
   static int _generateServings(Random random) { // <-- Added 'random' param
     return 2 + random.nextInt(5); // <-- Use local 'random'
   }
 
-  /// Generate realistic nutrition values based on meal type
   static Map<String, dynamic> _generateNutrition(String mealName, Random random) { // <-- Added 'random' param
     final name = mealName.toLowerCase();
     
@@ -124,12 +120,10 @@ class TheMealDBService {
         final meals = (data['meals'] as List).cast<Map<String, dynamic>>();
         print('✅ Found ${meals.length} meals from API');
 
-        // Convert to our format WITH FAKE DATA
         final results = meals.take(number).map((meal) {
           final mealName = meal['strMeal'] ?? 'Unknown Recipe';
           print('  - $mealName (ID: ${meal['idMeal']})');
           
-          // --- FIX: Create seeded random for consistent fake data ---
           final random = Random(meal['idMeal'].hashCode);
 
           return {
@@ -139,13 +133,13 @@ class TheMealDBService {
             'missedIngredientCount': 0,
             'missedIngredients': [],
             // FAKE DATA
-            'readyInMinutes': _generateCookingTime(mealName, random), // Pass random
-            'servings': _generateServings(random), // Pass random
-            'nutrition': _generateNutrition(mealName, random), // Pass random
+            'readyInMinutes': _generateCookingTime(mealName, random), 
+            'servings': _generateServings(random), 
+            'nutrition': _generateNutrition(mealName, random), 
           };
         }).toList();
 
-        print('✅ Returning ${results.length} recipes with fake data');
+        print('✅ Returning ${results.length} recipes with data');
         return results;
       } else {
         print('❌ API Error: Status ${response.statusCode}');
@@ -158,8 +152,6 @@ class TheMealDBService {
     }
   }
 
-  /// Get full meal details including ingredients and instructions
-  // --- FIXED: Removed the duplicate getMealDetails method ---
   static Future<Map<String, dynamic>?> getMealDetails(String mealId) async {
     try {
       final url = Uri.parse('$baseUrl/lookup.php?i=$mealId');
@@ -189,8 +181,7 @@ class TheMealDBService {
 
           final mealName = meal['strMeal'] ?? 'Unknown Recipe';
           print('✅ Loaded details for: $mealName');
-
-          // --- FIX: Create seeded random for consistent fake data ---
+          
           final random = Random(mealId.hashCode);
           
           return {
@@ -204,9 +195,9 @@ class TheMealDBService {
             'youtubeUrl': meal['strYoutube'] ?? '',
             'sourceUrl': meal['strSource'] ?? '',
             // FAKE DATA
-            'readyInMinutes': _generateCookingTime(mealName, random), // Pass random
+            'readyInMinutes': _generateCookingTime(mealName, random), 
             'servings': _generateServings(random), // Pass random
-            'nutrition': _generateNutrition(mealName, random), // Pass random
+            'nutrition': _generateNutrition(mealName, random), 
             'author': (meal['strSource'] != null && meal['strSource'].isNotEmpty) 
               ? Uri.tryParse(meal['strSource'])?.host.replaceAll('www.', '') ?? 'TheMealDB'
               : 'TheMealDB Community',
@@ -221,7 +212,6 @@ class TheMealDBService {
     }
   }
 
-  // --- REPLACE this method in mealdb_service.dart ---
   static Future<List<Map<String, dynamic>>> searchRecipes(String query) async {
     try {
       final url = Uri.parse('$baseUrl/search.php?s=${Uri.encodeComponent(query)}');
@@ -243,7 +233,6 @@ class TheMealDBService {
         return meals.map((meal) {
           final mealName = meal['strMeal'] ?? 'Unknown Recipe';
           
-          // --- FIX: Create seeded random for consistent fake data ---
           final random = Random(meal['idMeal'].hashCode);
 
           return {
@@ -252,7 +241,6 @@ class TheMealDBService {
             'category': meal['strCategory'] ?? '',
             'area': meal['strArea'] ?? '',
             'image': meal['strMealThumb'],
-            // FAKE DATA
             'readyInMinutes': _generateCookingTime(mealName, random),
             'servings': _generateServings(random),
             'rating': 4.0 + random.nextDouble(), // Add missing rating
@@ -285,7 +273,6 @@ class TheMealDBService {
             final meal = data['meals'][0];
             final mealName = meal['strMeal'] ?? 'Unknown Recipe';
             
-            // --- FIX: Create seeded random for consistent fake data ---
             final random = Random(meal['idMeal'].hashCode);
 
             meals.add({
@@ -295,7 +282,6 @@ class TheMealDBService {
               'area': meal['strArea'] ?? '',
               'image': meal['strMealThumb'],
               
-              // --- FAKE DATA ---
               'readyInMinutes': _generateCookingTime(mealName, random),
               'servings': _generateServings(random),
               'rating': 4.0 + random.nextDouble(), // Add missing rating
@@ -311,6 +297,11 @@ class TheMealDBService {
     }
     
     return meals;
+  }
+
+  /// Rounds an integer to the nearest multiple of 5
+  static int _roundToNearestFive(int number) {
+    return (number / 5).round() * 5;
   }
   
 
