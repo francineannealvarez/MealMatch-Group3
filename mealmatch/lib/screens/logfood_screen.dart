@@ -1432,36 +1432,7 @@ class MyRecipesTab extends StatelessWidget {
                   const SizedBox(height: 32),
                   ElevatedButton.icon(
                     onPressed: () {
-                      // ✨ Show "Coming Soon" snackbar
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        SnackBar(
-                          behavior: SnackBarBehavior.floating,
-                          margin: const EdgeInsets.symmetric(
-                            horizontal: 20,
-                            vertical: 10,
-                          ),
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(12),
-                          ),
-                          backgroundColor: Colors.orange,
-                          duration: const Duration(seconds: 2),
-                          content: const Row(
-                            children: [
-                              Icon(Icons.construction, color: Colors.white),
-                              SizedBox(width: 12),
-                              Expanded(
-                                child: Text(
-                                  'Coming Soon! Stay tuned for custom recipes.',
-                                  style: TextStyle(
-                                    fontSize: 15,
-                                    color: Colors.white,
-                                  ),
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                      );
+                      Navigator.pushNamed(context, '/upload');
                     },
                     icon: const Icon(Icons.add_circle_outline, size: 22),
                     label: const Text(
