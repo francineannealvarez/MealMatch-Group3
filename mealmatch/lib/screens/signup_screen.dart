@@ -15,7 +15,8 @@ class _SignUpScreenState extends State<SignUpScreen> {
   final GlobalKey<FormState> _formKey = GlobalKey<FormState>();
   final TextEditingController emailController = TextEditingController();
   final TextEditingController passwordController = TextEditingController();
-  final TextEditingController confirmPasswordController = TextEditingController();
+  final TextEditingController confirmPasswordController =
+      TextEditingController();
   bool _isPasswordVisible = false;
   bool _isConfirmPasswordVisible = false;
 
@@ -36,7 +37,8 @@ class _SignUpScreenState extends State<SignUpScreen> {
     );
 
     try {
-      final UserCredential? userCredential = await AuthService.signInWithGoogle();
+      final UserCredential? userCredential =
+          await AuthService.signInWithGoogle();
 
       // Close the loading indicator
       Navigator.of(context).pop();
@@ -62,12 +64,9 @@ class _SignUpScreenState extends State<SignUpScreen> {
         } else {
           // Returning user → Home
           Navigator.of(context).pushReplacement(
-            MaterialPageRoute(
-              builder: (_) => const HomePage(),
-            ),
+            MaterialPageRoute(builder: (_) => const HomePage()),
           );
         }
-
       } else {
         // ❌ Sign-in failed or canceled
         ScaffoldMessenger.of(context).showSnackBar(
@@ -77,12 +76,11 @@ class _SignUpScreenState extends State<SignUpScreen> {
     } catch (e) {
       Navigator.of(context).pop();
       print("Error during Google Sign-In: $e");
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text("Error: $e")),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text("Error: $e")));
     }
   }
-
 
   @override
   Widget build(BuildContext context) {
@@ -106,22 +104,30 @@ class _SignUpScreenState extends State<SignUpScreen> {
   Widget _buildAppBar(BuildContext context) {
     return Container(
       width: double.infinity,
-      padding: EdgeInsets.only(top: 38, right: 38, bottom: 4, left: 38),
+      padding: EdgeInsets.only(top: 4, right: 38, bottom: 4, left: 38),
       child: Row(
         children: [
-          GestureDetector(
-            onTap: () => handleBack(context),
-            child: Icon(Icons.arrow_back, size: 28, color: Colors.black),
-          ),
-          SizedBox(width: 84),
-          Text(
-            "Sign Up",
-            style: TextStyle(
-              fontSize: 30,
-              fontWeight: FontWeight.bold,
-              color: Colors.green[400],
+          Align(
+            alignment: Alignment.centerLeft,
+            child: IconButton(
+              icon: Icon(Icons.arrow_back, color: Colors.black),
+              onPressed: () => handleBack(context),
             ),
           ),
+          Expanded(
+            // Takes remaining space
+            child: Center(
+              child: Text(
+                "Sign Up",
+                style: TextStyle(
+                  fontSize: 28,
+                  fontWeight: FontWeight.bold,
+                  color: Colors.green[400],
+                ),
+              ),
+            ),
+          ),
+          SizedBox(width: 28), // Balance for back button
         ],
       ),
     );
@@ -151,6 +157,7 @@ class _SignUpScreenState extends State<SignUpScreen> {
           TextSpan(
             text: "Meal",
             style: TextStyle(
+              fontFamily: 'MuseoModerno',
               fontSize: 40,
               fontWeight: FontWeight.bold,
               color: Color(0xFFF48011),
@@ -159,6 +166,7 @@ class _SignUpScreenState extends State<SignUpScreen> {
           TextSpan(
             text: "Match",
             style: TextStyle(
+              fontFamily: 'MuseoModerno',
               fontSize: 40,
               fontWeight: FontWeight.bold,
               color: Color(0xFF5EA140),
@@ -258,6 +266,7 @@ class _SignUpScreenState extends State<SignUpScreen> {
                         ? Icons.visibility
                         : Icons.visibility_off,
                     color: Colors.grey.shade600,
+                    size: 15,
                   ),
                   onPressed: () {
                     setState(() {
@@ -290,11 +299,11 @@ class _SignUpScreenState extends State<SignUpScreen> {
                   vertical: 18,
                 ),
                 border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(50),
+                  borderRadius: BorderRadius.circular(30),
                   borderSide: BorderSide(color: Colors.grey.shade300),
                 ),
                 focusedBorder: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(50),
+                  borderRadius: BorderRadius.circular(30),
                   borderSide: BorderSide(color: Color(0xFF5EA140), width: 2),
                 ),
                 suffixIcon: IconButton(
@@ -303,6 +312,7 @@ class _SignUpScreenState extends State<SignUpScreen> {
                         ? Icons.visibility
                         : Icons.visibility_off,
                     color: Colors.grey.shade600,
+                    size: 15,
                   ),
                   onPressed: () {
                     setState(() {
@@ -467,33 +477,30 @@ class _SignUpScreenState extends State<SignUpScreen> {
   }
 
   void _onCreateAccountPressed(BuildContext context) {
-  if (_formKey.currentState?.validate() == true) {
-    final String email = emailController.text.trim();
-    final String password = passwordController.text.trim();
+    if (_formKey.currentState?.validate() == true) {
+      final String email = emailController.text.trim();
+      final String password = passwordController.text.trim();
 
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        content: Text('Please enter your information!'),
-        backgroundColor: Color(0xFF5EA140),
-      ),
-    );
-
-    // 👉 Navigate to GetStartedScreen FIRST, before clearing
-    Navigator.of(context).pushReplacement(
-      MaterialPageRoute(
-        builder: (_) => GetStartedScreen(
-          email: email,
-          password: password,
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Please enter your information!'),
+          backgroundColor: Color(0xFF5EA140),
         ),
-      ),
-    );
+      );
 
-    // ✅ Now you can clear them safely after navigating
-    emailController.clear();
-    passwordController.clear();
-    confirmPasswordController.clear();
+      // 👉 Navigate to GetStartedScreen FIRST, before clearing
+      Navigator.of(context).pushReplacement(
+        MaterialPageRoute(
+          builder: (_) => GetStartedScreen(email: email, password: password),
+        ),
+      );
+
+      // ✅ Now you can clear them safely after navigating
+      emailController.clear();
+      passwordController.clear();
+      confirmPasswordController.clear();
+    }
   }
-}
 
   /*void _onGoogleLoginPressed(BuildContext context) {
     Navigator.of(context).push(
