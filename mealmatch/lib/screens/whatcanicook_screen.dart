@@ -1,7 +1,8 @@
-// lib/screens/what_can_i_cook_screen.dart
+// lib/screens/whatcanicook_screen.dart
 import 'package:flutter/material.dart';
-import 'package:mealmatch/services/spoonacular_services.dart';
-import 'recipes_screen.dart';
+import 'package:mealmatch/services/themealdb_service.dart';
+import 'package:mealmatch/screens/recipe_details_screen.dart';
+import 'dart:math'; // <-- 1. IMPORT ADDED
 
 class WhatCanICookScreen extends StatefulWidget {
   const WhatCanICookScreen({super.key});
@@ -11,17 +12,52 @@ class WhatCanICookScreen extends StatefulWidget {
 }
 
 class _WhatCanICookScreenState extends State<WhatCanICookScreen> {
-  // controllers for each category (multiple ingredients per field separated by commas)
-  final TextEditingController _proteinController = TextEditingController();
-  final TextEditingController _vegController = TextEditingController();
-  final TextEditingController _grainsController = TextEditingController();
-  final TextEditingController _saucesController = TextEditingController();
-  final TextEditingController _dairyController = TextEditingController();
-  final TextEditingController _spicesController = TextEditingController();
+  final List<String> selectedIngredients = [];
+  final TextEditingController _searchController = TextEditingController();
+  
+  final Map<String, List<String>> categoryIngredients = {
+    'Vegetables': [
+      'onion', 'garlic', 'tomato', 'potato', 'carrot', 'cabbage',
+      'bell pepper', 'broccoli', 'spinach', 'lettuce'
+    ],
+    'Fruits': [
+      'apple', 'banana', 'orange', 'lemon', 'lime', 'mango',
+      'strawberry', 'blueberry', 'pineapple', 'watermelon'
+    ],
+    'Protein/Meat': [
+      'chicken', 'beef', 'pork', 'fish', 'salmon', 'shrimp', 
+      'tuna', 'bacon', 'sausage', 'lamb'
+    ],
+    'Grains & Carbs': [
+      'rice', 'pasta', 'noodles', 'bread', 'flour', 'oats',
+      'quinoa', 'couscous', 'tortilla', 'cornmeal'
+    ],
+    'Sauces & Condiments': [
+      'soy sauce', 'vinegar', 'ketchup', 'mayonnaise', 'mustard',
+      'hot sauce', 'worcestershire sauce', 'fish sauce', 'olive oil', 'sesame oil'
+    ],
+    'Dairy & Eggs': [
+      'egg', 'milk', 'cheese', 'butter', 'cream', 
+      'yogurt', 'sour cream', 'parmesan', 'mozzarella', 'cheddar'
+    ],
+    'Spices & Herbs': [
+      'salt', 'pepper', 'garlic powder', 'paprika', 'cumin',
+      'oregano', 'basil', 'thyme', 'rosemary', 'ginger'
+    ],
+  };
+
+  final Map<String, bool> expandedCategories = {
+    'Vegetables': false,
+    'Fruits': false,
+    'Protein/Meat': false,
+    'Grains & Carbs': false,
+    'Sauces & Condiments': false,
+    'Dairy & Eggs': false,
+    'Spices & Herbs': false,
+  };
 
   bool isLoading = false;
   bool showResults = false;
-
   List<Map<String, dynamic>> completeRecipes = [];
   List<Map<String, dynamic>> partialRecipes = [];
 
@@ -30,48 +66,47 @@ class _WhatCanICookScreenState extends State<WhatCanICookScreen> {
 
   @override
   void dispose() {
-    _proteinController.dispose();
-    _vegController.dispose();
-    _grainsController.dispose();
-    _saucesController.dispose();
-    _dairyController.dispose();
-    _spicesController.dispose();
+    _searchController.dispose();
     super.dispose();
   }
 
-  List<String> _collectIngredients() {
-    // split by commas, trim, remove empties
-    final combinedText = [
-      _proteinController.text,
-      _vegController.text,
-      _grainsController.text,
-      _saucesController.text,
-      _dairyController.text,
-      _spicesController.text,
-    ].join(',');
-
-    final parts = combinedText
-        .split(',')
-        .map((s) => s.trim())
-        .where((s) => s.isNotEmpty)
-        .toList();
-
-    // dedupe (lowercase)
-    final seen = <String>{};
-    final result = <String>[];
-    for (var p in parts) {
-      final lower = p.toLowerCase();
-      if (!seen.contains(lower)) {
-        seen.add(lower);
-        result.add(p);
+  void _addIngredient(String ingredient) {
+    setState(() {
+      final lowerIngredient = ingredient.toLowerCase().trim();
+      if (!selectedIngredients.contains(lowerIngredient) && lowerIngredient.isNotEmpty) {
+        selectedIngredients.add(lowerIngredient);
       }
+    });
+  }
+
+  void _removeIngredient(String ingredient) {
+    setState(() {
+      selectedIngredients.remove(ingredient);
+    });
+  }
+
+  void _addCustomIngredient() {
+    final text = _searchController.text.trim();
+    if (text.isNotEmpty) {
+      _addIngredient(text);
+      _searchController.clear();
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Added "$text" to your ingredients'),
+          backgroundColor: primaryGreen,
+          duration: const Duration(seconds: 2),
+        ),
+      );
     }
-    return result;
+  }
+
+  int _getSelectedCountInCategory(String category) {
+    final categoryItems = categoryIngredients[category] ?? [];
+    return categoryItems.where((item) => selectedIngredients.contains(item)).length;
   }
 
   Future<void> _findRecipes() async {
-    final ingredients = _collectIngredients();
-    if (ingredients.isEmpty) {
+    if (selectedIngredients.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: const Text('Please add at least one ingredient'),
@@ -89,24 +124,60 @@ class _WhatCanICookScreenState extends State<WhatCanICookScreen> {
     });
 
     try {
-      // call Spoonacular
-      final found = await SpoonacularService.findByIngredients(ingredients, number: 10);
+      final found = await TheMealDBService.findByIngredients(
+        selectedIngredients,
+        number: 10,
+      );
 
-      // classify into complete vs partial by missedIngredientCount
+      if (found.isEmpty) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: const Text('No recipes found. Try different ingredients.'),
+            backgroundColor: Colors.orange,
+            duration: const Duration(seconds: 3),
+          ),
+        );
+      }
+
       final complete = <Map<String, dynamic>>[];
       final partial = <Map<String, dynamic>>[];
 
-      for (var r in found) {
-        final missed = (r['missedIngredientCount'] ?? 0) as int;
-        final mapped = {
-          'id': r['id'],
-          'name': r['title'],
-          'image': r['image'],
-          'missed': missed,
-          'missingIngredients': r['missedIngredients'] ?? [],
-        };
-        if (missed == 0) complete.add(mapped);
-        else partial.add(mapped);
+      for (var recipe in found) {
+        // Get details. The service file *already added* the fake data.
+        final details = await TheMealDBService.getMealDetails(recipe['id'].toString());
+        
+        if (details != null) {
+          final recipeIngredients = (details['ingredients'] as List)
+              .map((ing) => ing['name'].toString().toLowerCase())
+              .toList();
+
+          final missingIngredients = <String>[];
+          for (var recipeIng in recipeIngredients) {
+            bool found = selectedIngredients.any((userIng) =>
+                recipeIng.contains(userIng) || userIng.contains(recipeIng));
+            if (!found) {
+              missingIngredients.add(recipeIng);
+            }
+          }
+
+          final recipeData = {
+            'id': recipe['id'],
+            'title': recipe['title'],
+            'image': recipe['image'],
+            'missedIngredientCount': missingIngredients.length,
+            'missedIngredients': missingIngredients.take(3).toList(),
+            'readyInMinutes': details['readyInMinutes'], // <-- Read from details
+            'rating': details['rating'],               // <-- Read from details
+            'author': details['author'],               // <-- Read from details
+          };
+          // ------------------------------------------
+
+          if (missingIngredients.length <= 2) {
+            complete.add(recipeData);
+          } else {
+            partial.add(recipeData);
+          }
+        }
       }
 
       setState(() {
@@ -114,11 +185,14 @@ class _WhatCanICookScreenState extends State<WhatCanICookScreen> {
         partialRecipes = partial;
         showResults = true;
       });
+
     } catch (e) {
-      debugPrint("Find error: $e");
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Error fetching recipes: $e'), backgroundColor: Colors.red),
+        SnackBar(content: Text('Error: $e'), backgroundColor: Colors.red),
       );
+      setState(() {
+        showResults = false;
+      });
     } finally {
       setState(() {
         isLoading = false;
@@ -126,80 +200,309 @@ class _WhatCanICookScreenState extends State<WhatCanICookScreen> {
     }
   }
 
-  Widget _buildInputField(String label, String hint, TextEditingController controller) {
-    return Container(
-      margin: const EdgeInsets.symmetric(vertical: 6),
-      child: TextField(
-        controller: controller,
-        decoration: InputDecoration(
-          hintText: hint,
-          filled: true,
-          fillColor: Colors.white,
-          prefixIcon: Icon(Icons.circle, color: primaryGreen, size: 18),
-          suffixIcon: controller.text.isNotEmpty
-              ? IconButton(
-                  icon: Icon(Icons.clear, color: Colors.grey[600]),
-                  onPressed: () {
-                    controller.clear();
-                    setState(() {});
-                  },
-                )
-              : null,
-          border: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(12),
-            borderSide: BorderSide.none,
-          ),
-          contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-        ),
-        onChanged: (_) => setState(() {}),
+  void _saveRecipe(Map<String, dynamic> recipe) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text('${recipe['title']} saved!'),
+        backgroundColor: primaryGreen,
+        duration: const Duration(seconds: 2),
       ),
     );
   }
 
-  Widget _buildRecipeCard(Map<String, dynamic> recipe, {bool isPartial = false}) {
-    final missing = recipe['missingIngredients'] as List<dynamic>? ?? [];
+  void _cookNow(Map<String, dynamic> recipe) {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => RecipeDetailsScreen(
+          recipeId: recipe['id'].toString(),
+        ),
+      ),
+    );
+  }
+
+  IconData _getCategoryIcon(String category) {
+    switch (category) {
+      case 'Vegetables':
+        return Icons.eco;
+      case 'Fruits':
+        return Icons.apple;
+      case 'Protein/Meat':
+        return Icons.set_meal;
+      case 'Grains & Carbs':
+        return Icons.rice_bowl;
+      case 'Sauces & Condiments':
+        return Icons.liquor;
+      case 'Dairy & Eggs':
+        return Icons.egg;
+      case 'Spices & Herbs':
+        return Icons.grass;
+      default:
+        return Icons.circle;
+    }
+  }
+
+  Color _getCategoryColor(String category) {
+    switch (category) {
+      case 'Vegetables':
+        return Colors.green;
+      case 'Fruits':
+        return Colors.orange;
+      case 'Protein/Meat':
+        return Colors.red;
+      case 'Grains & Carbs':
+        return Colors.brown;
+      case 'Sauces & Condiments':
+        return Colors.grey;
+      case 'Dairy & Eggs':
+        return Colors.blue;
+      case 'Spices & Herbs':
+        return Colors.green[700]!;
+      default:
+        return Colors.grey;
+    }
+  }
+
+  Widget _buildCategoryBox(String category) {
+    final ingredients = categoryIngredients[category] ?? [];
+    final isExpanded = expandedCategories[category] ?? false;
+    final selectedCount = _getSelectedCountInCategory(category);
+
     return Container(
-      width: 180,
-      margin: const EdgeInsets.only(right: 12),
+      margin: const EdgeInsets.only(bottom: 10),
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(14),
-        boxShadow: [BoxShadow(color: Colors.grey.withOpacity(0.12), blurRadius: 6)],
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: Colors.grey[300]!),
       ),
       child: Column(
         children: [
-          Expanded(
-            child: ClipRRect(
-              borderRadius: const BorderRadius.vertical(top: Radius.circular(14)),
-              child: recipe['image'] != null && recipe['image'] != ""
-                  ? Image.network(
-                      recipe['image'],
-                      width: double.infinity,
-                      height: double.infinity,
-                      fit: BoxFit.cover,
-                      errorBuilder: (_, __, ___) => Container(
-                        color: Colors.grey[200],
-                        child: const Center(child: Icon(Icons.image_not_supported)),
+          InkWell(
+            onTap: () {
+              setState(() {
+                expandedCategories[category] = !isExpanded;
+              });
+            },
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 14),
+              child: Row(
+                children: [
+                  Icon(
+                    _getCategoryIcon(category),
+                    color: _getCategoryColor(category),
+                    size: 22,
+                  ),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: Text(
+                      category,
+                      style: const TextStyle(
+                        fontSize: 14,
+                        fontWeight: FontWeight.w600,
                       ),
-                    )
-                  : Container(color: Colors.grey[200], child: const Center(child: Icon(Icons.image))),
+                    ),
+                  ),
+                  Text(
+                    '($selectedCount selected)',
+                    style: TextStyle(
+                      fontSize: 12,
+                      color: Colors.grey[600],
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  Icon(
+                    isExpanded ? Icons.arrow_drop_down : Icons.arrow_right,
+                    color: Colors.grey[700],
+                  ),
+                ],
+              ),
             ),
           ),
+          if (isExpanded)
+            Container(
+              padding: const EdgeInsets.fromLTRB(12, 0, 12, 8),
+              child: Column(
+                children: ingredients.map((ingredient) {
+                  final isSelected = selectedIngredients.contains(ingredient);
+                  return Container(
+                    margin: const EdgeInsets.only(bottom: 6),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFE8F5E9),
+                      borderRadius: BorderRadius.circular(6),
+                    ),
+                    child: CheckboxListTile(
+                      value: isSelected,
+                      onChanged: (val) {
+                        if (val == true) {
+                          _addIngredient(ingredient);
+                        } else {
+                          _removeIngredient(ingredient);
+                        }
+                      },
+                      title: Text(
+                        ingredient,
+                        style: const TextStyle(
+                          fontSize: 14,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                      activeColor: primaryGreen,
+                      dense: true,
+                      contentPadding: const EdgeInsets.symmetric(horizontal: 8),
+                      controlAffinity: ListTileControlAffinity.leading,
+                    ),
+                  );
+                }).toList(),
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+
+  // --- 3. UPDATED _buildRecipeCard METHOD ---
+  Widget _buildRecipeCard(Map<String, dynamic> recipe, {bool isPartial = false}) {
+    final missing = recipe['missedIngredients'] as List<dynamic>? ?? [];
+
+    // --- GET THE NEW FAKE DATA ---
+    final cookTime = recipe['readyInMinutes'] ?? 0;
+    final author = recipe['author'] ?? 'Author';
+    final rating = recipe['rating'] ?? 4.5;
+    // ----------------------------
+    
+    return Container(
+      margin: const EdgeInsets.only(bottom: 16),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(12),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.grey.withOpacity(0.2),
+            blurRadius: 6,
+            offset: const Offset(0, 2),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          ClipRRect(
+            borderRadius: const BorderRadius.vertical(top: Radius.circular(12)),
+            child: recipe['image'] != null && recipe['image'] != ''
+                ? Image.network(
+                    recipe['image'],
+                    width: double.infinity,
+                    height: 160,
+                    fit: BoxFit.cover,
+                    errorBuilder: (_, __, ___) => Container(
+                      height: 160,
+                      color: Colors.grey[200],
+                      child: const Center(
+                        child: Text('Insert Picture Here'),
+                      ),
+                    ),
+                  )
+                : Container(
+                    height: 160,
+                    color: Colors.grey[200],
+                    child: const Center(
+                      child: Text('Insert Picture Here'),
+                    ),
+                  ),
+          ),
           Padding(
-            padding: const EdgeInsets.all(8),
-            child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              Text(recipe['name'] ?? '',
-                  maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(fontWeight: FontWeight.w600)),
-              const SizedBox(height: 6),
-              if (isPartial)
+            padding: const EdgeInsets.all(12),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
                 Text(
-                  'Missing: ${missing.join(", ")}',
-                  style: const TextStyle(fontSize: 12, color: Colors.orange),
-                  maxLines: 2,
-                  overflow: TextOverflow.ellipsis,
+                  recipe['title'] ?? 'Recipe Name',
+                  style: const TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.bold,
+                  ),
                 ),
-            ]),
-          )
+                const SizedBox(height: 4),
+                // --- UPDATE AUTHOR ---
+                Text(
+                  author, // <-- UPDATED
+                  style: const TextStyle(fontSize: 12, color: Colors.grey),
+                ),
+                const SizedBox(height: 4),
+                // --- UPDATE COOK TIME ---
+                Row(
+                  children: [
+                    const Icon(Icons.access_time, size: 14, color: Colors.grey),
+                    const SizedBox(width: 4),
+                    Text('$cookTime min', style: const TextStyle(fontSize: 12)), // <-- UPDATED
+                  ],
+                ),
+                if (isPartial && missing.isNotEmpty) ...[
+                  const SizedBox(height: 8),
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                    decoration: BoxDecoration(
+                      color: Colors.orange[100],
+                      borderRadius: BorderRadius.circular(4),
+                    ),
+                    child: Text(
+                      'Must Have Ingredients: ${missing.join(", ")}',
+                      style: TextStyle(
+                        fontSize: 11,
+                        color: Colors.orange[800],
+                      ),
+                    ),
+                  ),
+                ],
+                const SizedBox(height: 12),
+                Row(
+                  children: [
+                    Expanded(
+                      child: OutlinedButton.icon(
+                        onPressed: () => _saveRecipe(recipe),
+                        icon: const Icon(Icons.favorite_border, size: 16),
+                        label: const Text('Save', style: TextStyle(fontSize: 13)),
+                        style: OutlinedButton.styleFrom(
+                          foregroundColor: Colors.red,
+                          side: const BorderSide(color: Colors.red),
+                          padding: const EdgeInsets.symmetric(vertical: 8),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(20),
+                          ),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: ElevatedButton.icon(
+                        onPressed: () => _cookNow(recipe),
+                        icon: const Icon(Icons.restaurant, size: 16),
+                        label: const Text('Cook Now', style: TextStyle(fontSize: 13)),
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: primaryGreen,
+                          foregroundColor: Colors.white,
+                          padding: const EdgeInsets.symmetric(vertical: 8),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(20),
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 4),
+                // --- UPDATE RATINGS ---
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.end,
+                  children: [
+                    const Icon(Icons.star, size: 14, color: Colors.amber),
+                    const SizedBox(width: 4),
+                    Text(rating.toStringAsFixed(1), style: const TextStyle(fontSize: 11)), // <-- UPDATED
+                  ],
+                ),
+              ],
+            ),
+          ),
         ],
       ),
     );
@@ -213,132 +516,216 @@ class _WhatCanICookScreenState extends State<WhatCanICookScreen> {
         backgroundColor: primaryGreen,
         elevation: 0,
         leading: IconButton(
-          onPressed: () => Navigator.pop(context),
+          onPressed: showResults
+              ? () => setState(() => showResults = false)
+              : () => Navigator.pop(context),
           icon: const Icon(Icons.arrow_back, color: Colors.white),
         ),
-        title: const Text('What Can I Cook?'),
+        title: const Text(
+          'What Can I Cook?',
+          style: TextStyle(color: Colors.white),
+        ),
         centerTitle: true,
       ),
-      body: SafeArea(
-        child: SingleChildScrollView(
-          padding: const EdgeInsets.fromLTRB(16, 16, 16, 24),
+      body: SingleChildScrollView(
+        child: Padding(
+          padding: const EdgeInsets.all(16),
           child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              // Card containing inputs
-              Container(
-                padding: const EdgeInsets.all(16),
-                decoration: BoxDecoration(
-                  color: Colors.white,
-                  borderRadius: BorderRadius.circular(16),
+              if (!showResults) ...[
+                // Main white box containing everything
+                Container(
+                  padding: const EdgeInsets.all(16),
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      // Title
+                      const Text(
+                        'Select Available Ingredients:',
+                        style: TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                      const SizedBox(height: 16),
+                      
+                      // Search bar
+                      TextField(
+                        controller: _searchController,
+                        decoration: InputDecoration(
+                          hintText: 'Search Ingredients...',
+                          hintStyle: TextStyle(color: Colors.grey[400]),
+                          filled: true,
+                          fillColor: Colors.grey[100],
+                          prefixIcon: Icon(Icons.search, color: Colors.grey[600]),
+                          suffixIcon: IconButton(
+                            icon: Icon(Icons.add_circle, color: primaryGreen),
+                            onPressed: _addCustomIngredient,
+                          ),
+                          border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(8),
+                            borderSide: BorderSide.none,
+                          ),
+                          contentPadding: const EdgeInsets.symmetric(
+                            horizontal: 16,
+                            vertical: 12,
+                          ),
+                        ),
+                        onSubmitted: (_) => _addCustomIngredient(),
+                      ),
+                      const SizedBox(height: 16),
+                      
+                      // Category boxes
+                      ...categoryIngredients.keys.map((category) {
+                        return _buildCategoryBox(category);
+                      }),
+                    ],
+                  ),
                 ),
-                child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                  const Text('Select Your Available Ingredients:',
-                      style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: Color(0xFF424242))),
-                  const SizedBox(height: 12),
-                  // Search hint (not implemented complexity - just UI)
-                  TextField(
-                    decoration: InputDecoration(
-                      hintText: 'Search ingredients...',
-                      filled: true,
-                      fillColor: const Color(0xFFF5F5F5),
-                      prefixIcon: Icon(Icons.search, color: Colors.grey[600]),
-                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
-                      contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                
+                const SizedBox(height: 16),
+                
+                // Find Recipes Button (outside the white box)
+                SizedBox(
+                  width: double.infinity,
+                  child: ElevatedButton(
+                    onPressed: isLoading ? null : _findRecipes,
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: primaryGreen,
+                      foregroundColor: Colors.white,
+                      padding: const EdgeInsets.symmetric(vertical: 14),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(25),
+                      ),
                     ),
+                    child: isLoading
+                        ? const SizedBox(
+                            height: 20,
+                            width: 20,
+                            child: CircularProgressIndicator(
+                              color: Colors.white,
+                              strokeWidth: 2,
+                            ),
+                          )
+                        : Text(
+                            'Find Recipes (${selectedIngredients.length} selected)',
+                            style: const TextStyle(
+                              fontSize: 15,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
                   ),
-                  const SizedBox(height: 12),
-
-                  // Input fields (multiple per field separated by commas)
-                  _buildInputField('Protein / Meat', 'e.g. chicken, pork, beef', _proteinController),
-                  _buildInputField('Vegetables', 'e.g. onion, garlic, tomato', _vegController),
-                  _buildInputField('Grains & Carbs', 'e.g. rice, noodles, pasta', _grainsController),
-                  _buildInputField('Sauces & Condiments', 'e.g. soy sauce, vinegar', _saucesController),
-                  _buildInputField('Dairy & Eggs', 'e.g. eggs, milk, cheese', _dairyController),
-                  _buildInputField('Spices & Herbs', 'e.g. salt, pepper, bay leaf', _spicesController),
-                ]),
-              ),
-
-              const SizedBox(height: 18),
-
-              // Find Recipes button
-              SizedBox(
-                width: double.infinity,
-                child: ElevatedButton.icon(
-                  icon: isLoading ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2)) : const Icon(Icons.search),
-                  label: Text(isLoading ? 'Searching...' : 'Find Recipes (${_collectIngredients().length} selected)'),
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: primaryGreen,
-                    foregroundColor: Colors.white,
-                    padding: const EdgeInsets.symmetric(vertical: 16),
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(30)),
-                  ),
-                  onPressed: isLoading ? null : _findRecipes,
                 ),
-              ),
-
-              // Results (same screen)
-              if (showResults) ...[
-                const SizedBox(height: 20),
-                if (completeRecipes.isNotEmpty) ...[
-                  const Text('✅ Complete Matches', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
-                  const SizedBox(height: 12),
-                  SizedBox(
-                    height: 220,
-                    child: ListView.builder(
-                      scrollDirection: Axis.horizontal,
-                      itemCount: completeRecipes.length,
-                      itemBuilder: (context, index) {
-                        final r = completeRecipes[index];
-                        return GestureDetector(
-                          onTap: () {
-                            // navigate to details
-                            Navigator.push(
-                              context,
-                              MaterialPageRoute(
-                                builder: (context) => RecipeDetailsScreen(recipeId: r['id']),
-                              ),
-                            );
-                          },
-                          child: _buildRecipeCard(r, isPartial: false),
-                        );
-                      },
-                    ),
-                  ),
-                ] else
-                  const SizedBox.shrink(),
-
-                const SizedBox(height: 20),
-
-                if (partialRecipes.isNotEmpty) ...[
-                  const Text('⚠️ Partial Matches', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
-                  const SizedBox(height: 12),
-                  SizedBox(
-                    height: 220,
-                    child: ListView.builder(
-                      scrollDirection: Axis.horizontal,
-                      itemCount: partialRecipes.length,
-                      itemBuilder: (context, index) {
-                        final r = partialRecipes[index];
-                        return GestureDetector(
-                          onTap: () {
-                            Navigator.push(
-                              context,
-                              MaterialPageRoute(
-                                builder: (context) => RecipeDetailsScreen(recipeId: r['id']),
-                              ),
-                            );
-                          },
-                          child: _buildRecipeCard(r, isPartial: true),
-                        );
-                      },
-                    ),
-                  ),
-                ] else
-                  const SizedBox.shrink(),
               ],
-
-              const SizedBox(height: 40)
+              
+              // Results page
+              if (showResults) ...[
+                Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.all(16),
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          const Text(
+                            'Available Ingredients',
+                            style: TextStyle(
+                              fontSize: 16,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                          OutlinedButton(
+                            onPressed: () => setState(() => showResults = false),
+                            style: OutlinedButton.styleFrom(
+                              foregroundColor: primaryGreen,
+                              side: BorderSide(color: primaryGreen),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(20),
+                              ),
+                            ),
+                            child: const Text('Edit'),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 12),
+                      Wrap(
+                        spacing: 8,
+                        runSpacing: 8,
+                        children: selectedIngredients.map((ing) {
+                          return Chip(
+                            label: Text(ing),
+                            deleteIcon: const Icon(Icons.close, size: 16),
+                            onDeleted: () {
+                              _removeIngredient(ing);
+                              _findRecipes();
+                            },
+                            backgroundColor: const Color(0xFFD7F7C4),
+                          );
+                        }).toList(),
+                      ),
+                    ],
+                  ),
+                ),
+                
+                const SizedBox(height: 20),
+                
+                if (completeRecipes.isNotEmpty) ...[
+                  const Row(
+                    children: [
+                      Icon(Icons.check_circle, color: Colors.green),
+                      SizedBox(width: 8),
+                      Text(
+                        'Complete Matches',
+                        style: TextStyle(
+                          fontSize: 18,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 12),
+                  ...completeRecipes.map((recipe) => _buildRecipeCard(recipe)),
+                ],
+                
+                if (partialRecipes.isNotEmpty) ...[
+                  const Row(
+                    children: [
+                      Icon(Icons.warning, color: Colors.orange),
+                      SizedBox(width: 8),
+                      Text(
+                        'Partial Matches',
+                        style: TextStyle(
+                          fontSize: 18,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 12),
+                  ...partialRecipes.map((recipe) => _buildRecipeCard(recipe, isPartial: true)),
+                ],
+                
+                if (completeRecipes.isEmpty && partialRecipes.isEmpty)
+                  const Center(
+                    child: Padding(
+                      padding: EdgeInsets.all(40),
+                      child: Text(
+                        'No recipes found',
+                        style: TextStyle(fontSize: 16, color: Colors.grey),
+                      ),
+                    ),
+                  ),
+              ],
             ],
           ),
         ),
