@@ -51,13 +51,14 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 ),
               ),
               const SizedBox(height: 12),
+              
+              // 1️⃣ Edit Profile
               _buildSettingItem(
                 icon: Icons.person,
                 iconColor: const Color(0xFF4CAF50),
                 title: 'Edit Profile',
                 subtitle: 'Update your personal profile',
                 onTap: () async {
-                  // ✅ Wait for Edit Profile to return and check if profile was updated
                   final result = await Navigator.push(
                     context,
                     MaterialPageRoute(
@@ -65,16 +66,31 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     ),
                   );
 
-                  // If profile was updated (Edit Profile returns true),
                   if (result == true && mounted) {
-                    Navigator.pop(
-                      context,
-                      true,
-                    ); // Return to Profile with refresh signal
+                    Navigator.pop(context, true);
                   }
                 },
               ),
               const SizedBox(height: 8),
+              
+              // 2️⃣ Change Password (MOVED UP)
+              _buildSettingItem(
+                icon: Icons.lock,
+                iconColor: Colors.orange,
+                title: 'Change Password',
+                subtitle: 'Update your password',
+                onTap: () {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (context) => const ChangePasswordScreen(),
+                    ),
+                  );
+                },
+              ),
+              const SizedBox(height: 8),
+              
+              // 3️⃣ Modify Goals (MOVED DOWN)
               _buildSettingItem(
                 icon: Icons.track_changes,
                 iconColor: Colors.pink,
@@ -90,6 +106,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 },
               ),
               const SizedBox(height: 8),
+              
+              // 4️⃣ Weight (STAYS AT BOTTOM)
               _buildSettingItem(
                 icon: Icons.monitor_weight,
                 iconColor: Colors.blue,
@@ -104,22 +122,10 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   );
                 },
               ),
-              const SizedBox(height: 8),
-              _buildSettingItem(
-                icon: Icons.lock,
-                iconColor: Colors.orange,
-                title: 'Change Password',
-                subtitle: 'Update your password',
-                onTap: () {
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                      builder: (context) => const ChangePasswordScreen(),
-                    ),
-                  );
-                },
-              ),
+              
               const SizedBox(height: 24),
+              
+              // Support Section (unchanged)
               const Text(
                 'Support',
                 style: TextStyle(
@@ -1838,6 +1844,7 @@ class _WeightScreenState extends State<WeightScreen> {
                         style: TextStyle(
                           fontSize: 16,
                           fontWeight: FontWeight.bold,
+                          color: Colors.white,
                         ),
                       ),
                     ),

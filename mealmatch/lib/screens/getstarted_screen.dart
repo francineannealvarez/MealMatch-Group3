@@ -111,56 +111,29 @@ class _GetStartedScreenState extends State<GetStartedScreen> {
     setState(() => isLoading = true);
 
     try {
-      if (widget.isGoogleUser) {
-        // 🌐 Google user — no need to create an account, just save data
-        await firebase_service.saveUserData(
-          email: widget.email,
-          name: name,
-          avatar: selectedAvatar, // ✅ Save avatar
-          goals: goals,
-          activityLevel: activityLevel,
-          gender: gender,
-          age: int.tryParse(age) ?? 0,
-          height: double.tryParse(height) ?? 0,
-          weight: double.tryParse(weight) ?? 0,
-          goalWeight: double.tryParse(goalWeight) ?? 0,
-        );
+      // ✅ Both Google users and email users just save their profile
+      // (Firebase Auth account already exists at this point)
+      final success = await firebase_service.saveUserProfile(
+        name: name,
+        avatar: selectedAvatar,
+        goals: goals,
+        activityLevel: activityLevel,
+        gender: gender,
+        age: int.tryParse(age) ?? 0,
+        height: double.tryParse(height) ?? 0,
+        weight: double.tryParse(weight) ?? 0,
+        goalWeight: double.tryParse(goalWeight) ?? 0,
+      );
 
-        // ✅ Navigate to Home (stay signed in)
-        Navigator.pushReplacementNamed(context, '/home');
-      } else {
-        // 🔒 Regular email/password sign-up
-        final result = await firebase_service.signUpUser(
-          email: widget.email,
-          password: widget.password ?? '',
-          name: name,
-          avatar: selectedAvatar, // Save avatar
-          goals: goals,
-          activityLevel: activityLevel,
-          gender: gender,
-          age: int.tryParse(age) ?? 0,
-          height: double.tryParse(height) ?? 0,
-          weight: double.tryParse(weight) ?? 0,
-          goalWeight: double.tryParse(goalWeight) ?? 0,
-        );
-
-        if (result != null) {
-          // ✅ Account created successfully → go to Home (keep signed in)
-          if (mounted) {
-            final prefs = await SharedPreferences.getInstance();
-            await prefs.setString('remembered_email', widget.email);
-            //await prefs.remove('remembered_email');
-            Navigator.pushReplacementNamed(context, '/home');
-          }
-        } else {
-          // ❌ Failed signup
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('Signup failed'),
-              backgroundColor: Colors.red,
-            ),
-          );
+      if (success) {
+        // ✅ Navigate to Home
+        if (mounted) {
+          final prefs = await SharedPreferences.getInstance();
+          await prefs.setString('remembered_email', widget.email);
+          Navigator.pushReplacementNamed(context, '/home');
         }
+      } else {
+        throw Exception('Failed to save user profile');
       }
     } catch (e, stack) {
       print('🔥 SIGNUP ERROR: $e');
@@ -169,9 +142,12 @@ class _GetStartedScreenState extends State<GetStartedScreen> {
         SnackBar(content: Text('Error: $e'), backgroundColor: Colors.red),
       );
     } finally {
-      setState(() => isLoading = false);
+      if (mounted) {
+        setState(() => isLoading = false);
+      }
     }
   }
+
 
   @override
   Widget build(BuildContext context) {

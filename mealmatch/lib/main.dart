@@ -1,7 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:mealmatch/models/fooditem.dart';
-import 'package:mealmatch/services/recipe_services.dart';
+import 'package:mealmatch/screens/recipes_screen.dart';
+//import 'package:mealmatch/services/recipe_services.dart';
 
 import 'screens/splash_screen.dart';
 import 'screens/signup_screen.dart';
@@ -54,7 +55,7 @@ class MyApp extends StatelessWidget {
             preselectedMeal: args['preselectedMeal'] as String?,
           );
         },
-        '/recipes': (context) => const RecipesPage(),
+        '/recipes': (context) => const RecipesScreen(),
         '/terms': (context) => const TermsConditionScreen(),
         '/privacy': (context) => const PrivacyPolicyScreen(),
         '/history': (context) => const LogHistoryPage(),

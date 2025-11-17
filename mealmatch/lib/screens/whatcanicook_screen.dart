@@ -2,7 +2,7 @@
 import 'package:flutter/material.dart';
 import 'package:mealmatch/services/themealdb_service.dart';
 import 'package:mealmatch/screens/recipe_details_screen.dart';
-import 'dart:math'; // <-- 1. IMPORT ADDED
+//import 'dart:math'; // <-- 1. IMPORT ADDED
 
 class WhatCanICookScreen extends StatefulWidget {
   const WhatCanICookScreen({super.key});

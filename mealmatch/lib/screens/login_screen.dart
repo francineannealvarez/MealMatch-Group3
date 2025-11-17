@@ -1,7 +1,9 @@
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
+import 'package:mealmatch/screens/getstarted_screen.dart';
 import 'package:mealmatch/screens/homepage_screen.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import '../services/firebase_service.dart';
 import '../services/auth_service.dart';
 
@@ -30,7 +32,7 @@ class _LoginScreenState extends State<LoginScreen> {
     _initializeLogin();
   }
 
-  // ✅ UPDATED: Initialize login check
+  // Initialize login check
   Future<void> _initializeLogin() async {
     final prefs = await SharedPreferences.getInstance();
     final isRemembered = prefs.getBool('remember_me') ?? false;
@@ -73,6 +75,24 @@ class _LoginScreenState extends State<LoginScreen> {
         // If still within grace period, show dialog on home screen
       }
 
+      // ✅ NEW: Check email verification
+      if (!currentUser.emailVerified) {
+        await _firebaseService.signOut();
+        await prefs.setBool('remember_me', false);
+        
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(
+                content: Text('Please verify your email before logging in'),
+                backgroundColor: Colors.orange,
+              ),
+            );
+          }
+        });
+        return;
+      }
+
       // Navigate to home
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (mounted) {
@@ -80,14 +100,9 @@ class _LoginScreenState extends State<LoginScreen> {
         }
       });
     }
-
-    // ✅ Navigate to home (HomePage will show dialog if scheduled)
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      Navigator.pushReplacementNamed(context, '/home');
-    });
   }
 
-  // ✅ UPDATED: Handle login using FirebaseService
+  // ✅ UPDATED: Handle login with verification check
   Future<void> _handleLogin() async {
     if (!_formKey.currentState!.validate()) return;
 
@@ -101,6 +116,47 @@ class _LoginScreenState extends State<LoginScreen> {
       );
 
       if (result['success'] == true) {
+        final user = result['user'] as User?;
+
+        // ✅ NEW: Check if email is verified
+        if (user != null && !user.emailVerified) {
+          await _firebaseService.signOut();
+          
+          if (mounted) {
+            _showVerificationRequiredDialog(user);
+          }
+          return;
+        }
+
+        // ✅ NEW: Check if user completed onboarding (has data in Firestore)
+        final userData = await FirebaseFirestore.instance
+            .collection('users')
+            .doc(user?.uid)
+            .get();
+
+        if (!userData.exists) {
+          // User verified email but didn't complete GetStarted
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(
+                content: Text('Please complete your profile setup'),
+                backgroundColor: Colors.orange,
+              ),
+            );
+
+            Navigator.pushReplacement(
+              context,
+              MaterialPageRoute(
+                builder: (_) => GetStartedScreen(
+                  email: user!.email!,
+                  password: null, // Already authenticated
+                ),
+              ),
+            );
+          }
+          return;
+        }
+
         // ✅ Save remember me preference
         final prefs = await SharedPreferences.getInstance();
         await prefs.setBool('remember_me', _rememberMe);
@@ -142,6 +198,73 @@ class _LoginScreenState extends State<LoginScreen> {
         setState(() => _isLoading = false);
       }
     }
+  }
+
+  // ✅ NEW: Show verification required dialog
+  void _showVerificationRequiredDialog(User user) {
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) => AlertDialog(
+        title: Row(
+          children: [
+            Icon(Icons.warning_amber_rounded, color: Colors.orange, size: 28),
+            SizedBox(width: 10),
+            Text('Email Not Verified'),
+          ],
+        ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              'Your email address has not been verified yet.',
+              style: TextStyle(fontSize: 15),
+            ),
+            SizedBox(height: 12),
+            Text(
+              'Please check your inbox (${user.email}) and click the verification link.',
+              style: TextStyle(fontSize: 14, color: Colors.grey[700]),
+            ),
+            SizedBox(height: 8),
+            Text(
+              'If you didn\'t receive the email, we can resend it.',
+              style: TextStyle(fontSize: 14, color: Colors.grey[700]),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: Text('Cancel', style: TextStyle(color: Colors.grey)),
+          ),
+          TextButton(
+            onPressed: () async {
+              try {
+                await user.sendEmailVerification();
+                Navigator.pop(context);
+                
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(
+                    content: Text('Verification email sent! Check your inbox'),
+                    backgroundColor: Color(0xFF5EA140),
+                  ),
+                );
+              } catch (e) {
+                Navigator.pop(context);
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(content: Text('Error sending email: $e')),
+                );
+              }
+            },
+            child: Text(
+              'Resend Email',
+              style: TextStyle(color: Color(0xFF5EA140), fontWeight: FontWeight.bold),
+            ),
+          ),
+        ],
+      ),
+    );
   }
 
   // ✅ Add these helper methods sa login screen
@@ -224,6 +347,23 @@ class _LoginScreenState extends State<LoginScreen> {
     if (mounted) Navigator.of(context).pop();
 
     if (userCredential != null) {
+      final user = userCredential.user;
+
+      // ✅ Google sign-in emails are auto-verified, but check anyway
+      if (user != null && !user.emailVerified) {
+        await _firebaseService.signOut();
+        
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Please verify your email before logging in'),
+              backgroundColor: Colors.orange,
+            ),
+          );
+        }
+        return;
+      }
+
       // ✅ Check deletion status
       final status = await _firebaseService.checkDeletionStatus();
 
@@ -253,6 +393,27 @@ class _LoginScreenState extends State<LoginScreen> {
           _showCancelDeletionDialog(daysRemaining ?? 0);
           return;
         }
+      }
+
+      // ✅ Check if user data exists (completed onboarding)
+      final userData = await FirebaseFirestore.instance
+          .collection('users')
+          .doc(user?.uid)
+          .get();
+
+      if (!userData.exists) {
+        // New Google user - redirect to GetStarted
+        if (mounted) {
+          Navigator.of(context).pushReplacement(
+            MaterialPageRoute(
+              builder: (_) => GetStartedScreen(
+                email: user!.email!,
+                isGoogleUser: true,
+              ),
+            ),
+          );
+        }
+        return;
       }
 
       // ✅ Navigate to home

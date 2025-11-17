@@ -170,11 +170,9 @@ class FirebaseService {
   }
 
   // Create user with email & password
-  Future<User?> signUpUser({
-    required String email,
-    required String password,
+  Future<bool> saveUserProfile({
     required String name,
-    String? avatar, 
+    String? avatar,
     required List<String> goals,
     required String activityLevel,
     required String gender,
@@ -184,14 +182,14 @@ class FirebaseService {
     required double goalWeight,
   }) async {
     try {
-      final userCredential = await _auth.createUserWithEmailAndPassword(
-        email: email,
-        password: password,
-      );
+      final user = _auth.currentUser;
+      
+      if (user == null) {
+        print('❌ No authenticated user found');
+        return false;
+      }
 
-      final user = userCredential.user;
-
-      // Calculate daily calorie goal automatically
+      // Calculate daily calorie goal
       int dailyCalorieGoal = _calculateDailyCalorieGoal(
         gender: gender,
         age: age,
@@ -201,9 +199,9 @@ class FirebaseService {
         goals: goals,
       );
 
-      // Save user info in Firestore with avatar
+      // Prepare user data
       Map<String, dynamic> userData = {
-        'email': email,
+        'email': user.email,
         'name': name,
         'goals': goals,
         'activityLevel': activityLevel,
@@ -216,17 +214,18 @@ class FirebaseService {
         'createdAt': FieldValue.serverTimestamp(),
       };
 
-      // Add avatar if provided
       if (avatar != null) {
         userData['avatar'] = avatar;
       }
 
-      await _firestore.collection('users').doc(user!.uid).set(userData);
+      // Save to Firestore
+      await _firestore.collection('users').doc(user.uid).set(userData);
 
-      return user;
+      print('✅ User profile saved successfully');
+      return true;
     } catch (e) {
-      print('❌ signUpUser error: $e');
-      return null;
+      print('❌ saveUserProfile error: $e');
+      return false;
     }
   }
 

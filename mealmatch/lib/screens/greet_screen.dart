@@ -8,144 +8,148 @@ class WelcomeScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: Color(0xFF2D5016), // #2d5016
-      body: SafeArea(
-        child: Center(
-          child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 24),
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                // Logo
-                SizedBox(
-                  width: 350,
-                  height: 80,
-                  child: RichText(
-                    text: TextSpan(
-                      style: TextStyle(
-                        fontSize: 48,
-                        fontWeight: FontWeight.bold,
-                        fontFamily: 'MuseoModerno',
-                      ),
-                      children: [
-                        TextSpan(
-                          text: 'Meal',
-                          style: TextStyle(color: Color(0xFFF39321)),
-                        ),
-                        TextSpan(
-                          text: 'Match',
-                          style: TextStyle(color: Color(0xFF9DB88A)),
-                        ),
-                      ],
-                    ),
-                    textAlign: TextAlign.center,
-                  ),
-                ),
+      body: Container(
+        decoration: BoxDecoration(
+          gradient: LinearGradient(
+            begin: Alignment.topCenter,
+            end: Alignment.bottomCenter,
+            colors: [Color(0xFFFFF4E6), Color(0xFFE8F5D8)],
+          ),
+        ),
+        child: SafeArea(
+          child: Center(
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 24),
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  SizedBox(height: 40),
 
-                SizedBox(height: 40),
-
-                Center(
-                  child: Column(
+                  Column(
                     children: [
-                      featureItem(
-                        icon: Icons.restaurant_menu,
-                        bgColor: Colors.white,
-                        fgColor: Color(0xFFF39321),
-                        label: 'Find Recipes',
+                      RichText(
+                        text: TextSpan(
+                          style: TextStyle(
+                            fontSize: 48,
+                            fontWeight: FontWeight.bold,
+                            fontFamily: 'System',
+                          ),
+                          children: [
+                            TextSpan(
+                              text: 'Meal',
+                              style: TextStyle(
+                                fontFamily: 'MuseoModerno',
+                                color: Color(0xFFF39321),
+                              ),
+                            ),
+                            TextSpan(
+                              text: 'Match',
+                              style: TextStyle(
+                                fontFamily: 'MuseoModerno',
+                                color: Color(0xFF7FA85C),
+                              ),
+                            ),
+                          ],
+                        ),
                       ),
-                      SizedBox(height: 16),
-                      featureItem(
-                        icon: Icons.local_fire_department,
-                        bgColor: Colors.white,
-                        fgColor: Color(0xFFF39321),
-                        label: 'Track Calories',
+                      SizedBox(height: 8),
+                      Text(
+                        'Find Recipes. Track Calories.',
+                        style: TextStyle(
+                          fontSize: 14,
+                          color: Color(0xFF8B9D83),
+                          letterSpacing: 0.5,
+                        ),
                       ),
                     ],
                   ),
-                ),
 
-                SizedBox(height: 40),
-
-                // Buttons
-                Column(
-                  children: [
-                    SizedBox(
-                      width: double.infinity,
-                      child: ElevatedButton(
-                        onPressed: () {
-                          Navigator.push(
-                            context,
-                            MaterialPageRoute(builder: (_) => SignUpScreen()),
-                          );
-                        },
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: Color(0xFFF39321),
-                          padding: EdgeInsets.symmetric(vertical: 18),
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(50),
-                          ),
-                        ),
-                        child: Text(
-                          'Sign up',
-                          style: TextStyle(fontSize: 18, color: Colors.white),
-                        ),
+                  Expanded(
+                    child: Center(
+                      child: Image.asset(
+                        'assets/images/greetscreen.png',
+                        height: 280,
+                        fit: BoxFit.contain,
                       ),
                     ),
-                    SizedBox(height: 16),
-                    SizedBox(
-                      width: double.infinity,
-                      child: OutlinedButton(
-                        onPressed: () {
-                          Navigator.push(
-                            context,
-                            MaterialPageRoute(builder: (_) => LoginScreen()),
-                          );
-                        },
-                        style: OutlinedButton.styleFrom(
-                          side: BorderSide(color: Colors.white, width: 2),
-                          padding: EdgeInsets.symmetric(vertical: 18),
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(50),
+                  ),
+
+                  Column(
+                    children: [
+                      Container(
+                        width: double.infinity,
+                        decoration: BoxDecoration(
+                          gradient: LinearGradient(
+                            colors: [Color(0xFFF39321), Color(0xFF7FA85C)],
                           ),
-                          backgroundColor: Colors.transparent,
+                          borderRadius: BorderRadius.circular(50),
                         ),
-                        child: Text(
-                          'Log In',
-                          style: TextStyle(fontSize: 18, color: Colors.white),
+                        child: ElevatedButton(
+                          onPressed: () {
+                            Navigator.push(
+                              context,
+                              MaterialPageRoute(builder: (_) => SignUpScreen()),
+                            );
+                          },
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: Colors.transparent,
+                            shadowColor: Colors.transparent,
+                            padding: EdgeInsets.symmetric(vertical: 16),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(50),
+                            ),
+                          ),
+                          child: Text(
+                            'Sign Up',
+                            style: TextStyle(
+                              fontSize: 18,
+                              color: Colors.white,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
                         ),
                       ),
-                    ),
-                  ],
-                ),
-              ],
+                      SizedBox(height: 12),
+                      SizedBox(
+                        width: double.infinity,
+                        child: OutlinedButton(
+                          onPressed: () {
+                            Navigator.push(
+                              context,
+                              MaterialPageRoute(builder: (_) => LoginScreen()),
+                            );
+                          },
+                          style: OutlinedButton.styleFrom(
+                            side: BorderSide(
+                              color: Color(0xFF8B9D83),
+                              width: 2,
+                            ),
+                            padding: EdgeInsets.symmetric(vertical: 16),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(50),
+                            ),
+                            backgroundColor: Colors.white,
+                          ),
+                          child: Text(
+                            'Login',
+                            style: TextStyle(
+                              fontSize: 18,
+                              color: Color(0xFF8B9D83),
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+
+                  SizedBox(height: 40),
+                ],
+              ),
             ),
           ),
         ),
       ),
-    );
-  }
-
-  Widget featureItem({
-    required IconData icon,
-    required Color bgColor,
-    required Color fgColor,
-    required String label,
-  }) {
-    return Row(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        Container(
-          width: 48,
-          height: 48,
-          decoration: BoxDecoration(
-            color: bgColor,
-            borderRadius: BorderRadius.circular(24),
-          ),
-          child: Icon(icon, color: fgColor, size: 32),
-        ),
-        SizedBox(width: 16),
-        Text(label, style: TextStyle(color: Colors.white, fontSize: 20)),
-      ],
     );
   }
 }

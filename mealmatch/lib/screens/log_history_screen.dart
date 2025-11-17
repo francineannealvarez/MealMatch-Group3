@@ -210,10 +210,21 @@ class _LogHistoryPageState extends State<LogHistoryPage> {
   Future<void> _preloadVisibleDates() async {
     List<DateTime> dates = _getFilteredDates();
 
-    // Load data for all dates in parallel
-    await Future.wait(dates.map((date) => _loadLogsForDate(date)));
+    if (dates.isEmpty) return;
 
-    setState(() {});
+    setState(() => isLoading = true);
+
+    // If it's a date range (This Week or Custom Date), use bulk load
+    if (selectedFilter == 'This Week' || selectedFilter == 'Custom Date') {
+      DateTime start = dates.first;
+      DateTime end = dates.last;
+      await _loadLogsForDateRange(start, end);
+    } else {
+      // For 'Today', just load single date
+      await _loadLogsForDate(dates.first);
+    }
+
+    setState(() => isLoading = false);
   }
 
   void _showCustomDateDialog() {
@@ -1213,8 +1224,9 @@ class _LogHistoryPageState extends State<LogHistoryPage> {
                       setState(() {
                         selectedFilter = value;
                         expandedDate = null;
+                        isLoading = true; // ← Add this
                       });
-                      await _preloadVisibleDates();
+                      await _preloadVisibleDates(); // This will set isLoading = false
                     }
                   },
                   itemBuilder: (BuildContext context) =>
