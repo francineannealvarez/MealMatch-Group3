@@ -11,10 +11,11 @@ class RecipesScreen extends StatefulWidget {
   State<RecipesScreen> createState() => _RecipesScreenState();
 }
 
-class _RecipesScreenState extends State<RecipesScreen> with TickerProviderStateMixin {
+class _RecipesScreenState extends State<RecipesScreen>
+    with TickerProviderStateMixin {
   final TextEditingController _searchController = TextEditingController();
   List<Map<String, dynamic>> recipes = []; // For search results
-  
+
   // Lists for each category
   List<Map<String, dynamic>> popularRecipes = [];
   List<Map<String, dynamic>> highProteinRecipes = [];
@@ -26,23 +27,23 @@ class _RecipesScreenState extends State<RecipesScreen> with TickerProviderStateM
   bool isLoadingProtein = true;
   bool isLoadingVegetarian = true;
   bool isLoadingDesserts = true;
-  
+
   bool isSearching = false;
   bool showSearchResults = false;
 
   // State for Favorites
   List<String> _savedRecipeIds = []; // Stores IDs of saved recipes
-  List<Map<String, dynamic>> _favoriteRecipes = []; // Stores full data for favorites
+  List<Map<String, dynamic>> _favoriteRecipes =
+      []; // Stores full data for favorites
   bool _isLoadingFavorites = false;
 
   final Color primaryGreen = const Color(0xFF4CAF50);
   final Color pageBg = const Color(0xFFFFF6D7);
-  
+
   late TabController _tabController;
-  int _selectedFilterIndex = 0;
   int _bottomNavIndex = 1; // 1 = Recipes (for the bottom bar)
 
- @override
+  @override
   void initState() {
     super.initState();
     _tabController = TabController(length: 2, vsync: this);
@@ -53,7 +54,7 @@ class _RecipesScreenState extends State<RecipesScreen> with TickerProviderStateM
   Future<void> _initializeData() async {
     // 1. Load the user's saved favorites *first*
     await _loadUserFavorites();
-    
+
     // 2. Now that we know what's saved, load the recipe categories
     _loadAllRecipes();
   }
@@ -80,8 +81,16 @@ class _RecipesScreenState extends State<RecipesScreen> with TickerProviderStateM
   Future<void> _loadAllRecipes() async {
     _loadPopularRecipes();
     _loadHighProteinRecipes();
-    _loadCategoryRecipes('Vegetarian', (meals) => vegetarianRecipes = meals, (loading) => isLoadingVegetarian = loading);
-    _loadCategoryRecipes('Dessert', (meals) => dessertRecipes = meals, (loading) => isLoadingDesserts = loading);
+    _loadCategoryRecipes(
+      'Vegetarian',
+      (meals) => vegetarianRecipes = meals,
+      (loading) => isLoadingVegetarian = loading,
+    );
+    _loadCategoryRecipes(
+      'Dessert',
+      (meals) => dessertRecipes = meals,
+      (loading) => isLoadingDesserts = loading,
+    );
   }
 
   Future<void> _loadPopularRecipes() async {
@@ -130,7 +139,10 @@ class _RecipesScreenState extends State<RecipesScreen> with TickerProviderStateM
   ) async {
     setState(() => setLoading(true));
     try {
-      final meals = await TheMealDBService.getMealsByCategory(category, number: 6);
+      final meals = await TheMealDBService.getMealsByCategory(
+        category,
+        number: 6,
+      );
       setState(() {
         setMeals(meals);
         setLoading(false);
@@ -169,8 +181,11 @@ class _RecipesScreenState extends State<RecipesScreen> with TickerProviderStateM
     }
 
     try {
-      final doc = await FirebaseFirestore.instance.collection('users').doc(userId).get();
-      
+      final doc = await FirebaseFirestore.instance
+          .collection('users')
+          .doc(userId)
+          .get();
+
       if (doc.exists) {
         final data = doc.data();
         if (data != null && data.containsKey('favoriteRecipeIds')) {
@@ -183,7 +198,7 @@ class _RecipesScreenState extends State<RecipesScreen> with TickerProviderStateM
       } else {
         // This is the user's first time, so we can create their document
         await FirebaseFirestore.instance.collection('users').doc(userId).set({
-          'favoriteRecipeIds': [] // Start with an empty list
+          'favoriteRecipeIds': [], // Start with an empty list
         });
       }
     } catch (e) {
@@ -196,7 +211,9 @@ class _RecipesScreenState extends State<RecipesScreen> with TickerProviderStateM
     if (userId == null) {
       // Show an error if the user isn't logged in
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('You must be logged in to save favorites')),
+        const SnackBar(
+          content: Text('You must be logged in to save favorites'),
+        ),
       );
       return;
     }
@@ -206,23 +223,22 @@ class _RecipesScreenState extends State<RecipesScreen> with TickerProviderStateM
 
     if (_savedRecipeIds.contains(recipeId)) {
       // --- REMOVE FROM FAVORITES ---
-      
+
       // 1. Update Firebase
       docRef.update({
-        'favoriteRecipeIds': FieldValue.arrayRemove([recipeId])
+        'favoriteRecipeIds': FieldValue.arrayRemove([recipeId]),
       });
-      
+
       // 2. Update local state
       setState(() {
         _savedRecipeIds.remove(recipeId);
       });
-
     } else {
       // --- ADD TO FAVORITES ---
 
       // 1. Update Firebase
       docRef.update({
-        'favoriteRecipeIds': FieldValue.arrayUnion([recipeId])
+        'favoriteRecipeIds': FieldValue.arrayUnion([recipeId]),
       });
 
       // 2. Update local state
@@ -266,15 +282,14 @@ class _RecipesScreenState extends State<RecipesScreen> with TickerProviderStateM
     final int cookTime = recipe['readyInMinutes'] ?? 0;
     final int calories = recipe['nutrition']?['calories'] ?? 0;
     final double rating = recipe['rating']?.toDouble() ?? 4.5;
-    
+
     return GestureDetector(
       onTap: () async {
         await Navigator.push(
           context,
           MaterialPageRoute(
-            builder: (context) => RecipeDetailsScreen(
-              recipeId: recipe['id'].toString(),
-            ),
+            builder: (context) =>
+                RecipeDetailsScreen(recipeId: recipe['id'].toString()),
           ),
         );
 
@@ -307,7 +322,10 @@ class _RecipesScreenState extends State<RecipesScreen> with TickerProviderStateM
                         fit: BoxFit.cover,
                         errorBuilder: (_, __, ___) => Container(
                           color: Colors.grey[200],
-                          child: const Icon(Icons.image_not_supported, size: 40),
+                          child: const Icon(
+                            Icons.image_not_supported,
+                            size: 40,
+                          ),
                         ),
                       )
                     : Container(
@@ -402,7 +420,11 @@ class _RecipesScreenState extends State<RecipesScreen> with TickerProviderStateM
                         ),
                         Row(
                           children: [
-                            const Icon(Icons.star, color: Colors.amber, size: 14),
+                            const Icon(
+                              Icons.star,
+                              color: Colors.amber,
+                              size: 14,
+                            ),
                             const SizedBox(width: 2),
                             Text(
                               rating.toStringAsFixed(1),
@@ -463,9 +485,19 @@ class _RecipesScreenState extends State<RecipesScreen> with TickerProviderStateM
         ),
         const SizedBox(height: 16),
         if (isLoading)
-          const Center(child: Padding(padding: EdgeInsets.all(40), child: CircularProgressIndicator()))
+          const Center(
+            child: Padding(
+              padding: EdgeInsets.all(40),
+              child: CircularProgressIndicator(),
+            ),
+          )
         else if (recipeList.isEmpty)
-          const Center(child: Padding(padding: EdgeInsets.all(20), child: Text('No recipes found.')))
+          const Center(
+            child: Padding(
+              padding: EdgeInsets.all(20),
+              child: Text('No recipes found.'),
+            ),
+          )
         else
           _buildRecipeGrid(recipeList),
         const SizedBox(height: 24),
@@ -478,22 +510,25 @@ class _RecipesScreenState extends State<RecipesScreen> with TickerProviderStateM
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const SizedBox(height: 16), // Add spacing from TabBar
-          
+          const SizedBox(height: 8), // Add spacing from TabBar
+
           if (showSearchResults) ...[
             // --- Search Results ---
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 16),
               child: Container(
                 width: double.infinity,
-                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 16,
+                  vertical: 8,
+                ),
                 decoration: BoxDecoration(
                   color: primaryGreen.withOpacity(0.1),
                   borderRadius: BorderRadius.circular(12),
                 ),
                 child: Center(
                   child: Text(
-                    '${_capitalizeFirstLetter(_searchController.text)} Recipes', 
+                    '${_capitalizeFirstLetter(_searchController.text)} Recipes',
                     style: const TextStyle(
                       fontSize: 18,
                       fontWeight: FontWeight.bold,
@@ -505,7 +540,12 @@ class _RecipesScreenState extends State<RecipesScreen> with TickerProviderStateM
             ),
             const SizedBox(height: 16),
             if (isSearching)
-              const Center(child: Padding(padding: EdgeInsets.all(40), child: CircularProgressIndicator()))
+              const Center(
+                child: Padding(
+                  padding: EdgeInsets.all(40),
+                  child: CircularProgressIndicator(),
+                ),
+              )
             else if (recipes.isEmpty)
               const Center(
                 child: Padding(
@@ -515,7 +555,6 @@ class _RecipesScreenState extends State<RecipesScreen> with TickerProviderStateM
               )
             else
               _buildRecipeGrid(recipes),
-              
           ] else ...[
             // --- Show all category sections ---
             _buildCategorySection(
@@ -545,38 +584,6 @@ class _RecipesScreenState extends State<RecipesScreen> with TickerProviderStateM
     );
   }
 
-  Widget _buildFilterChip(int index, String label) {
-    bool isSelected = _selectedFilterIndex == index;
-    return Padding(
-      padding: const EdgeInsets.only(right: 8.0),
-      child: FilterChip(
-        label: Text(label),
-        selected: isSelected,
-        onSelected: (selected) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('This filter is not supported by the free API.'),
-              backgroundColor: Colors.orange,
-            ),
-          );
-        },
-        backgroundColor: primaryGreen.withOpacity(0.1),
-        selectedColor: primaryGreen.withOpacity(0.3),
-        labelStyle: TextStyle(
-          color: primaryGreen,
-          fontWeight: FontWeight.w600,
-        ),
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(20),
-          side: BorderSide(
-            color: primaryGreen.withOpacity(0.2),
-          ),
-        ),
-        showCheckmark: false,
-      ),
-    );
-  }
-
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -600,7 +607,7 @@ class _RecipesScreenState extends State<RecipesScreen> with TickerProviderStateM
         children: [
           // --- Search Bar ---
           Padding(
-            padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
+            padding: const EdgeInsets.fromLTRB(16, 16, 16, 0),
             child: TextField(
               controller: _searchController,
               decoration: InputDecoration(
@@ -624,22 +631,6 @@ class _RecipesScreenState extends State<RecipesScreen> with TickerProviderStateM
                 ),
               ),
               onSubmitted: _searchRecipes,
-            ),
-          ),
-          
-          // --- Filter Chips ---
-          SizedBox(
-            height: 40,
-            child: ListView(
-              scrollDirection: Axis.horizontal,
-              padding: const EdgeInsets.symmetric(horizontal: 16),
-              children: [
-                _buildFilterChip(0, 'All'),
-                _buildFilterChip(1, 'High-Protein'),
-                _buildFilterChip(2, 'Vegetarian'),
-                _buildFilterChip(3, 'Gluten-Free'),
-                _buildFilterChip(4, 'Low-Carbs'),
-              ],
             ),
           ),
 
@@ -671,30 +662,37 @@ class _RecipesScreenState extends State<RecipesScreen> with TickerProviderStateM
               children: [
                 // --- Discover Tab ---
                 _buildDiscoverTab(),
-                
+
                 // --- Favorites Tab ---
                 _isLoadingFavorites
                     ? const Center(child: CircularProgressIndicator())
                     : _favoriteRecipes.isEmpty
-                        ? const Center(
-                            child: Column(
-                              mainAxisAlignment: MainAxisAlignment.center,
-                              children: [
-                                Icon(Icons.favorite_border, size: 80, color: Colors.grey),
-                                SizedBox(height: 16),
-                                Text(
-                                  'Your saved recipes will appear here.',
-                                  style: TextStyle(fontSize: 16, color: Colors.grey),
-                                ),
-                              ],
+                    ? const Center(
+                        child: Column(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Icon(
+                              Icons.favorite_border,
+                              size: 80,
+                              color: Colors.grey,
                             ),
-                          )
-                        : SingleChildScrollView(
-                            child: Padding(
-                              padding: const EdgeInsets.only(top: 16.0),
-                              child: _buildRecipeGrid(_favoriteRecipes),
+                            SizedBox(height: 16),
+                            Text(
+                              'Your saved recipes will appear here.',
+                              style: TextStyle(
+                                fontSize: 16,
+                                color: Colors.grey,
+                              ),
                             ),
-                          ),
+                          ],
+                        ),
+                      )
+                    : SingleChildScrollView(
+                        child: Padding(
+                          padding: const EdgeInsets.only(top: 16.0),
+                          child: _buildRecipeGrid(_favoriteRecipes),
+                        ),
+                      ),
               ],
             ),
           ),

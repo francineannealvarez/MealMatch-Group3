@@ -45,7 +45,10 @@ class _HomePageState extends State<HomePage> {
       // --- Load all data in parallel ---
       final recipeFutures = Future.wait([
         TheMealDBService.getRandomMeals(5), // For Cook Again
-        TheMealDBService.getMealsByCategory('Chicken', number: 5) // For Discover Protein
+        TheMealDBService.getMealsByCategory(
+          'Chicken',
+          number: 5,
+        ), // For Discover Protein
       ]);
 
       final userDataFuture = _logService.getUserData();
@@ -135,7 +138,6 @@ class _HomePageState extends State<HomePage> {
                   child: Column(
                     children: [
                       _buildHeader(),
-                      _buildSearchBar(),
                       _buildTodayDate(),
                       _buildDailyCaloriesWidget(),
                       _buildActionButtons(),
@@ -197,33 +199,6 @@ class _HomePageState extends State<HomePage> {
     );
   }
 
-  Widget _buildSearchBar() {
-    return Container(
-      margin: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(25),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.grey.withOpacity(0.2),
-            spreadRadius: 1,
-            blurRadius: 4,
-            offset: const Offset(0, 2),
-          ),
-        ],
-      ),
-      child: const TextField(
-        decoration: InputDecoration(
-          hintText: 'Search for recipes with any ingredients',
-          hintStyle: TextStyle(color: Colors.grey, fontSize: 14),
-          border: InputBorder.none,
-          contentPadding: EdgeInsets.symmetric(horizontal: 20, vertical: 14),
-          suffixIcon: Icon(Icons.search, color: Colors.grey),
-        ),
-      ),
-    );
-  }
-
   Widget _buildTodayDate() {
     String formattedDate = DateFormat('EEEE, MMMM d').format(DateTime.now());
     return Container(
@@ -232,7 +207,7 @@ class _HomePageState extends State<HomePage> {
       child: Text(
         formattedDate,
         style: const TextStyle(
-          fontSize: 16,
+          fontSize: 20,
           fontWeight: FontWeight.bold,
           color: Color(0xFF424242),
         ),
@@ -566,7 +541,9 @@ class _HomePageState extends State<HomePage> {
             physics: const BouncingScrollPhysics(),
             itemCount: discoverProteinRecipes.length, // <-- UPDATED
             itemBuilder: (context, index) {
-              return _buildRecipeCard(discoverProteinRecipes[index]); // <-- UPDATED
+              return _buildRecipeCard(
+                discoverProteinRecipes[index],
+              ); // <-- UPDATED
             },
           ),
         ),
@@ -588,9 +565,8 @@ class _HomePageState extends State<HomePage> {
         Navigator.push(
           context,
           MaterialPageRoute(
-            builder: (context) => RecipeDetailsScreen(
-              recipeId: recipe['id'].toString(),
-            ),
+            builder: (context) =>
+                RecipeDetailsScreen(recipeId: recipe['id'].toString()),
           ),
         );
       },
@@ -659,12 +635,19 @@ class _HomePageState extends State<HomePage> {
                     const SizedBox(height: 4),
                     Row(
                       children: [
-                        const Icon(Icons.access_time, size: 12, color: Colors.grey),
+                        const Icon(
+                          Icons.access_time,
+                          size: 12,
+                          color: Colors.grey,
+                        ),
                         const SizedBox(width: 4),
                         Expanded(
                           child: Text(
                             '$cookTime mins',
-                            style: const TextStyle(fontSize: 10, color: Colors.grey),
+                            style: const TextStyle(
+                              fontSize: 10,
+                              color: Colors.grey,
+                            ),
                             overflow: TextOverflow.ellipsis,
                           ),
                         ),
@@ -694,11 +677,18 @@ class _HomePageState extends State<HomePage> {
                         ),
                         Row(
                           children: [
-                            const Icon(Icons.star, color: Colors.amber, size: 14),
+                            const Icon(
+                              Icons.star,
+                              color: Colors.amber,
+                              size: 14,
+                            ),
                             const SizedBox(width: 2),
                             Text(
                               rating.toStringAsFixed(1),
-                              style: const TextStyle(fontSize: 11, color: Colors.grey),
+                              style: const TextStyle(
+                                fontSize: 11,
+                                color: Colors.grey,
+                              ),
                             ),
                           ],
                         ),

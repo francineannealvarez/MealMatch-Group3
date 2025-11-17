@@ -289,9 +289,7 @@ class _UploadRecipesScreenState extends State<UploadRecipesScreen> {
   }
 
   void _showNutrientDialog(String nutrient) {
-    final TextEditingController controller = TextEditingController(
-      text: nutrients[nutrient]!.toStringAsFixed(1),
-    );
+    final TextEditingController controller = TextEditingController();
 
     showDialog(
       context: context,
@@ -305,7 +303,7 @@ class _UploadRecipesScreenState extends State<UploadRecipesScreen> {
             controller: controller,
             keyboardType: TextInputType.number,
             decoration: InputDecoration(
-              hintText: 'Enter grams',
+              hintText: '0.0',
               suffixText: 'g',
               border: OutlineInputBorder(
                 borderRadius: BorderRadius.circular(12),
@@ -365,6 +363,7 @@ class _UploadRecipesScreenState extends State<UploadRecipesScreen> {
           'Upload Recipes',
           style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
         ),
+        centerTitle: true,
       ),
       body: SingleChildScrollView(
         child: Padding(
