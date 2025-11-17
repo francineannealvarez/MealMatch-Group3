@@ -632,7 +632,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
           const SizedBox(height: 16),
           OutlinedButton.icon(
             onPressed: () {
-              Navigator.pushNamed(context, '/add');
+              Navigator.pushNamed(context, '/upload');
             },
             icon: const Icon(Icons.add, color: Color(0xFF4CAF50)),
             label: const Text(
