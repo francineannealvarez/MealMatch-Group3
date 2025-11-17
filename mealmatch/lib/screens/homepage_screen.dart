@@ -1,10 +1,10 @@
-// lib/screens/homepage_screen.dart
-
 import 'package:flutter/material.dart';
 import '../services/calorielog_history_service.dart';
 import '../services/firebase_service.dart';
 //import '../models/meal_log.dart';
 import 'package:intl/intl.dart';
+import 'package:mealmatch/services/themealdb_service.dart'; // <-- ADDED
+import 'package:mealmatch/screens/recipe_details_screen.dart'; // <-- ADDED
 
 class HomePage extends StatefulWidget {
   const HomePage({super.key});
@@ -22,6 +22,10 @@ class _HomePageState extends State<HomePage> {
   int consumedCalories = 0;
   bool isLoading = true;
 
+  // NEW: Recipe lists
+  List<Map<String, dynamic>> cookAgainRecipes = [];
+  List<Map<String, dynamic>> discoverProteinRecipes = [];
+
   // NEW: User stats for metabolism card
   Map<String, dynamic>? userData;
   double? userBMR;
@@ -33,14 +37,31 @@ class _HomePageState extends State<HomePage> {
     _loadTodayData();
   }
 
+  // --- UPDATED: Now loads all page data in parallel ---
   Future<void> _loadTodayData() async {
     setState(() => isLoading = true);
 
     try {
-      // Load user data for metabolism calculations
-      userData = await _logService.getUserData();
+      // --- Load all data in parallel ---
+      final recipeFutures = Future.wait([
+        TheMealDBService.getRandomMeals(5), // For Cook Again
+        TheMealDBService.getMealsByCategory('Chicken', number: 5) // For Discover Protein
+      ]);
 
-      // Calculate BMR and TDEE if we have user data
+      final userDataFuture = _logService.getUserData();
+      final goalFuture = _firebaseService.getUserCalorieGoal();
+      final logsFuture = _logService.getTodayLogs();
+
+      // --- Wait for all futures to complete ---
+      final recipeResults = await recipeFutures;
+      userData = await userDataFuture;
+      final goal = await goalFuture;
+      final logs = await logsFuture;
+
+      // --- Process loaded data ---
+      cookAgainRecipes = recipeResults[0];
+      discoverProteinRecipes = recipeResults[1];
+
       if (userData != null) {
         userBMR = _calculateBMR(
           gender: userData!['gender'],
@@ -52,21 +73,16 @@ class _HomePageState extends State<HomePage> {
         userTDEE =
             userBMR! * _getActivityMultiplier(userData!['activityLevel']);
       }
-
-      // Load user's calorie goal
-      final goal = await _firebaseService.getUserCalorieGoal();
       if (goal != null) {
         userGoalCalories = goal;
       }
-
-      // Load today's logs
-      final logs = await _logService.getTodayLogs();
       consumedCalories = _logService.calculateTotalCalories(logs).toInt();
     } catch (e) {
       print('Error loading today\'s data: $e');
+      // Show an error snackbar?
     }
 
-    setState(() => isLoading = false);
+    setState(() => isLoading = false); // All loading finished
   }
 
   // Calculate BMR using Mifflin-St Jeor equation
@@ -494,6 +510,7 @@ class _HomePageState extends State<HomePage> {
     );
   }
 
+  // --- UPDATED: Now uses real data ---
   Widget _buildCookAgainSection() {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -515,9 +532,9 @@ class _HomePageState extends State<HomePage> {
             scrollDirection: Axis.horizontal,
             padding: const EdgeInsets.symmetric(horizontal: 16),
             physics: const BouncingScrollPhysics(),
-            itemCount: 5,
+            itemCount: cookAgainRecipes.length, // <-- UPDATED
             itemBuilder: (context, index) {
-              return _buildRecipeCard();
+              return _buildRecipeCard(cookAgainRecipes[index]); // <-- UPDATED
             },
           ),
         ),
@@ -525,6 +542,7 @@ class _HomePageState extends State<HomePage> {
     );
   }
 
+  // --- UPDATED: Now uses real data ---
   Widget _buildDiscoverRecipesSection() {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -546,9 +564,9 @@ class _HomePageState extends State<HomePage> {
             scrollDirection: Axis.horizontal,
             padding: const EdgeInsets.symmetric(horizontal: 16),
             physics: const BouncingScrollPhysics(),
-            itemCount: 5,
+            itemCount: discoverProteinRecipes.length, // <-- UPDATED
             itemBuilder: (context, index) {
-              return _buildRecipeCard();
+              return _buildRecipeCard(discoverProteinRecipes[index]); // <-- UPDATED
             },
           ),
         ),
@@ -556,119 +574,142 @@ class _HomePageState extends State<HomePage> {
     );
   }
 
-  Widget _buildRecipeCard() {
-    return Container(
-      width: 160,
-      margin: const EdgeInsets.only(right: 16),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(16),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.grey.withOpacity(0.15),
-            spreadRadius: 1,
-            blurRadius: 6,
-            offset: const Offset(0, 2),
+  // --- NEW: Replaced the old placeholder ---
+  Widget _buildRecipeCard(Map<String, dynamic> recipe) {
+    // Extract fake data from the service
+    final String title = recipe['title'] ?? 'Recipe Name';
+    final String author = recipe['author'] ?? 'Author';
+    final int cookTime = recipe['readyInMinutes'] ?? 0;
+    final int calories = recipe['nutrition']?['calories'] ?? 0;
+    final double rating = recipe['rating']?.toDouble() ?? 4.5;
+
+    return GestureDetector(
+      onTap: () {
+        Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (context) => RecipeDetailsScreen(
+              recipeId: recipe['id'].toString(),
+            ),
           ),
-        ],
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Container(
-            height: 90,
-            decoration: BoxDecoration(
-              color: Colors.grey[200],
+        );
+      },
+      child: Container(
+        width: 160,
+        margin: const EdgeInsets.only(right: 16),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(16),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.grey.withOpacity(0.15),
+              spreadRadius: 1,
+              blurRadius: 6,
+              offset: const Offset(0, 2),
+            ),
+          ],
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            ClipRRect(
               borderRadius: const BorderRadius.only(
                 topLeft: Radius.circular(16),
                 topRight: Radius.circular(16),
               ),
-            ),
-            child: const Center(
-              child: Text(
-                'Insert Picture Here',
-                style: TextStyle(color: Colors.grey, fontSize: 12),
+              child: Image.network(
+                recipe['image'] ?? '',
+                height: 90,
+                width: 160,
+                fit: BoxFit.cover,
+                errorBuilder: (_, __, ___) => Container(
+                  height: 90,
+                  width: 160,
+                  color: Colors.grey[200],
+                  child: const Center(
+                    child: Icon(Icons.restaurant, color: Colors.grey),
+                  ),
+                ),
               ),
             ),
-          ),
-          Expanded(
-            child: Padding(
-              padding: const EdgeInsets.all(10),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  const Text(
-                    'Recipe Name',
-                    style: TextStyle(
-                      fontSize: 14,
-                      fontWeight: FontWeight.bold,
-                      color: Color(0xFF424242),
+            Expanded(
+              child: Padding(
+                padding: const EdgeInsets.all(10),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(
+                      title,
+                      style: const TextStyle(
+                        fontSize: 14,
+                        fontWeight: FontWeight.bold,
+                        color: Color(0xFF424242),
+                      ),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
                     ),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                  const SizedBox(height: 2),
-                  const Text(
-                    'Author',
-                    style: TextStyle(fontSize: 11, color: Colors.grey),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                  const SizedBox(height: 4),
-                  Row(
-                    children: const [
-                      Icon(Icons.access_time, size: 12, color: Colors.grey),
-                      SizedBox(width: 4),
-                      Expanded(
-                        child: Text(
-                          'Cooking time - Food Type',
-                          style: TextStyle(fontSize: 10, color: Colors.grey),
-                          overflow: TextOverflow.ellipsis,
+                    const SizedBox(height: 2),
+                    Text(
+                      author,
+                      style: const TextStyle(fontSize: 11, color: Colors.grey),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                    const SizedBox(height: 4),
+                    Row(
+                      children: [
+                        const Icon(Icons.access_time, size: 12, color: Colors.grey),
+                        const SizedBox(width: 4),
+                        Expanded(
+                          child: Text(
+                            '$cookTime mins',
+                            style: const TextStyle(fontSize: 10, color: Colors.grey),
+                            overflow: TextOverflow.ellipsis,
+                          ),
                         ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 3),
-                  const Text(
-                    'Must Have Ingredients:',
-                    style: TextStyle(fontSize: 10, color: Colors.grey),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                  const Spacer(),
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      Row(
-                        children: const [
-                          Icon(
-                            Icons.local_fire_department,
-                            size: 14,
-                            color: Color(0xFFFF9800),
-                          ),
-                          SizedBox(width: 2),
-                          Text(
-                            'kcal',
-                            style: TextStyle(
-                              fontSize: 11,
-                              color: Color(0xFF424242),
-                              fontWeight: FontWeight.w500,
+                      ],
+                    ),
+                    const Spacer(), // Pushes the bottom row down
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Row(
+                          children: [
+                            const Icon(
+                              Icons.local_fire_department,
+                              size: 14,
+                              color: Color(0xFFFF9800),
                             ),
-                          ),
-                        ],
-                      ),
-                      const Text(
-                        'Ratings',
-                        style: TextStyle(fontSize: 10, color: Colors.grey),
-                      ),
-                    ],
-                  ),
-                ],
+                            const SizedBox(width: 2),
+                            Text(
+                              '$calories kcal',
+                              style: const TextStyle(
+                                fontSize: 11,
+                                color: Color(0xFF424242),
+                                fontWeight: FontWeight.w500,
+                              ),
+                            ),
+                          ],
+                        ),
+                        Row(
+                          children: [
+                            const Icon(Icons.star, color: Colors.amber, size: 14),
+                            const SizedBox(width: 2),
+                            Text(
+                              rating.toStringAsFixed(1),
+                              style: const TextStyle(fontSize: 11, color: Colors.grey),
+                            ),
+                          ],
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
               ),
             ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }
