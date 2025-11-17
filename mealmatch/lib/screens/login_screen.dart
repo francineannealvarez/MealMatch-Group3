@@ -30,7 +30,6 @@ class _LoginScreenState extends State<LoginScreen> {
     _initializeLogin();
   }
 
-  
   // ✅ UPDATED: Initialize login check
   Future<void> _initializeLogin() async {
     final prefs = await SharedPreferences.getInstance();
@@ -46,20 +45,22 @@ class _LoginScreenState extends State<LoginScreen> {
     if (currentUser != null) {
       // Check deletion status
       final status = await _firebaseService.checkDeletionStatus();
-      
+
       if (status != null && status['isScheduled'] == true) {
         final daysRemaining = status['daysRemaining'] as int?;
-        
+
         // If expired, delete and show message
         if (daysRemaining != null && daysRemaining <= 0) {
           await _firebaseService.permanentlyDeleteAccount();
           await prefs.setBool('remember_me', false);
-          
+
           WidgetsBinding.instance.addPostFrameCallback((_) {
             if (mounted) {
               ScaffoldMessenger.of(context).showSnackBar(
                 const SnackBar(
-                  content: Text('Your account has been permanently deleted. Please create a new account.'),
+                  content: Text(
+                    'Your account has been permanently deleted. Please create a new account.',
+                  ),
                   backgroundColor: Colors.red,
                   duration: Duration(seconds: 5),
                 ),
@@ -68,10 +69,10 @@ class _LoginScreenState extends State<LoginScreen> {
           });
           return;
         }
-        
+
         // If still within grace period, show dialog on home screen
       }
-      
+
       // Navigate to home
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (mounted) {
@@ -79,12 +80,12 @@ class _LoginScreenState extends State<LoginScreen> {
         }
       });
     }
-      
-      // ✅ Navigate to home (HomePage will show dialog if scheduled)
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        Navigator.pushReplacementNamed(context, '/home');
-      });
-    }
+
+    // ✅ Navigate to home (HomePage will show dialog if scheduled)
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      Navigator.pushReplacementNamed(context, '/home');
+    });
+  }
 
   // ✅ UPDATED: Handle login using FirebaseService
   Future<void> _handleLogin() async {
@@ -132,9 +133,9 @@ class _LoginScreenState extends State<LoginScreen> {
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('An error occurred: $e')),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('An error occurred: $e')));
       }
     } finally {
       if (mounted) {
@@ -176,12 +177,14 @@ class _LoginScreenState extends State<LoginScreen> {
               // Cancel deletion
               final result = await _firebaseService.cancelAccountDeletion();
               Navigator.pop(context);
-              
+
               if (result['success'] == true) {
                 // Account restored - go to home
                 if (mounted) {
                   ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(content: Text('Account restored successfully!')),
+                    const SnackBar(
+                      content: Text('Account restored successfully!'),
+                    ),
                   );
                   Navigator.pushReplacementNamed(context, '/home');
                 }
@@ -207,7 +210,7 @@ class _LoginScreenState extends State<LoginScreen> {
   }
 
   void handleGoogleLogin(BuildContext context) async {
-  // Show loading indicator
+    // Show loading indicator
     showDialog(
       context: context,
       barrierDismissible: false,
@@ -223,18 +226,20 @@ class _LoginScreenState extends State<LoginScreen> {
     if (userCredential != null) {
       // ✅ Check deletion status
       final status = await _firebaseService.checkDeletionStatus();
-      
+
       if (status != null && status['isScheduled'] == true) {
         final daysRemaining = status['daysRemaining'] as int?;
-        
+
         // If expired, delete account
         if (daysRemaining != null && daysRemaining <= 0) {
           await _firebaseService.permanentlyDeleteAccount();
-          
+
           if (mounted) {
             ScaffoldMessenger.of(context).showSnackBar(
               const SnackBar(
-                content: Text('Your account has been permanently deleted. Please create a new account.'),
+                content: Text(
+                  'Your account has been permanently deleted. Please create a new account.',
+                ),
                 backgroundColor: Colors.red,
                 duration: Duration(seconds: 5),
               ),
@@ -242,7 +247,7 @@ class _LoginScreenState extends State<LoginScreen> {
           }
           return;
         }
-        
+
         // If within grace period, show dialog
         if (mounted) {
           _showCancelDeletionDialog(daysRemaining ?? 0);
@@ -252,9 +257,9 @@ class _LoginScreenState extends State<LoginScreen> {
 
       // ✅ Navigate to home
       if (mounted) {
-        Navigator.of(context).pushReplacement(
-          MaterialPageRoute(builder: (_) => const HomePage()),
-        );
+        Navigator.of(
+          context,
+        ).pushReplacement(MaterialPageRoute(builder: (_) => const HomePage()));
       }
     } else {
       // Sign-in failed
@@ -343,7 +348,7 @@ class _LoginScreenState extends State<LoginScreen> {
                       child: Text(
                         'Login',
                         style: TextStyle(
-                          fontSize: 30,
+                          fontSize: 28,
                           fontWeight: FontWeight.bold,
                           color: Colors.green[400],
                         ),
@@ -373,7 +378,7 @@ class _LoginScreenState extends State<LoginScreen> {
                                   style: TextStyle(
                                     fontSize: 40,
                                     fontWeight: FontWeight.bold,
-                                    fontFamily: 'museomoderno',
+                                    fontFamily: 'MuseoModerno',
                                     letterSpacing: -1,
                                   ),
                                   children: [
@@ -497,12 +502,16 @@ class _LoginScreenState extends State<LoginScreen> {
                                         ),
                                         suffixIcon: IconButton(
                                           icon: Icon(
-                                            _isPasswordVisible ? Icons.visibility : Icons.visibility_off,
+                                            _isPasswordVisible
+                                                ? Icons.visibility
+                                                : Icons.visibility_off,
                                             color: Colors.grey.shade600,
+                                            size: 15,
                                           ),
                                           onPressed: () {
                                             setState(() {
-                                              _isPasswordVisible = !_isPasswordVisible;
+                                              _isPasswordVisible =
+                                                  !_isPasswordVisible;
                                             });
                                           },
                                         ),
@@ -601,7 +610,8 @@ class _LoginScreenState extends State<LoginScreen> {
                                       child: SizedBox(
                                         width: double.infinity,
                                         child: OutlinedButton(
-                                          onPressed: () => handleGoogleLogin(context),
+                                          onPressed: () =>
+                                              handleGoogleLogin(context),
                                           style: OutlinedButton.styleFrom(
                                             backgroundColor: Colors.white,
                                             side: BorderSide(
@@ -698,7 +708,7 @@ class _LoginScreenState extends State<LoginScreen> {
 
   String? _validateEmail(String? value) {
     if (value == null || value.isEmpty) return 'Email is required';
-    if (!RegExp(r'^[\w-\.]+@([\w-]+\.)+[\w-]{2,4} ?$').hasMatch(value)) {
+    if (!RegExp(r'^[\w-\.]+@([\w-]+\.)+[\w-]{2,4}?$').hasMatch(value)) {
       // Fallback simple validation if pattern above fails
     }
     final simpleEmail = RegExp(r'^[^@\s]+@[^@\s]+\.[^@\s]+$');
