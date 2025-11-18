@@ -251,4 +251,40 @@ class LogService {
   double calculateTotalFat(List<MealLog> logs) {
     return logs.fold(0.0, (sum, log) => sum + log.fats);
   }
+
+  // Get logs within a date range
+  Future<List<Map<String, dynamic>>> getLogsForDateRange(
+    DateTime startDate,
+    DateTime endDate,
+  ) async {
+    try {
+      final user = _auth.currentUser;
+      if (user == null) return [];
+
+      // Set time to start and end of day
+      final start = DateTime(startDate.year, startDate.month, startDate.day);
+      final end = DateTime(endDate.year, endDate.month, endDate.day, 23, 59, 59);
+
+      final snapshot = await _firestore
+          .collection('users')
+          .doc(user.uid)
+          .collection('meal_logs')
+          .where('date', isGreaterThanOrEqualTo: Timestamp.fromDate(start))
+          .where('date', isLessThanOrEqualTo: Timestamp.fromDate(end))
+          .orderBy('date', descending: true)
+          .get();
+
+      return snapshot.docs.map((doc) {
+        final data = doc.data();
+        return {
+          'id': doc.id,
+          ...data,
+        };
+      }).toList();
+    } catch (e) {
+      print('❌ getLogsForDateRange error: $e');
+      return [];
+    }
+  }
+  
 }

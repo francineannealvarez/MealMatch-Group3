@@ -1,10 +1,10 @@
 import 'package:flutter/material.dart';
 import '../services/calorielog_history_service.dart';
 import '../services/firebase_service.dart';
-//import '../models/meal_log.dart';
 import 'package:intl/intl.dart';
-import 'package:mealmatch/services/themealdb_service.dart'; // <-- ADDED
-import 'package:mealmatch/screens/recipe_details_screen.dart'; // <-- ADDED
+import 'package:mealmatch/services/themealdb_service.dart'; 
+import 'package:mealmatch/services/cooked_recipes_service.dart';
+import 'package:mealmatch/screens/recipe_details_screen.dart'; 
 
 class HomePage extends StatefulWidget {
   const HomePage({super.key});
@@ -16,20 +16,25 @@ class HomePage extends StatefulWidget {
 class _HomePageState extends State<HomePage> {
   final LogService _logService = LogService();
   final FirebaseService _firebaseService = FirebaseService();
+  final CookedRecipesService _cookedService = CookedRecipesService();
   int _selectedIndex = 0;
 
   int userGoalCalories = 2000;
   int consumedCalories = 0;
   bool isLoading = true;
 
-  // NEW: Recipe lists
+  // Recipe lists
   List<Map<String, dynamic>> cookAgainRecipes = [];
   List<Map<String, dynamic>> discoverProteinRecipes = [];
 
-  // NEW: User stats for metabolism card
+  // User stats for metabolism card
   Map<String, dynamic>? userData;
   double? userBMR;
   double? userTDEE;
+
+  // Track if user has meal history
+  bool hasLoggedMeals = false;
+  bool hasCookedRecipes = false;
 
   @override
   void initState() {
@@ -37,34 +42,22 @@ class _HomePageState extends State<HomePage> {
     _loadTodayData();
   }
 
-  // --- UPDATED: Now loads all page data in parallel ---
+  // ✅ OPTIMIZED: Load data more efficiently
   Future<void> _loadTodayData() async {
     setState(() => isLoading = true);
 
     try {
-      // --- Load all data in parallel ---
-      final recipeFutures = Future.wait([
-        TheMealDBService.getRandomMeals(5), // For Cook Again
-        TheMealDBService.getMealsByCategory(
-          'Chicken',
-          number: 5,
-        ), // For Discover Protein
-      ]);
-
+      // --- Phase 1: Load critical data first (fast) ---
       final userDataFuture = _logService.getUserData();
       final goalFuture = _firebaseService.getUserCalorieGoal();
       final logsFuture = _logService.getTodayLogs();
-
-      // --- Wait for all futures to complete ---
-      final recipeResults = await recipeFutures;
+      
+      // Wait for critical data
       userData = await userDataFuture;
       final goal = await goalFuture;
       final logs = await logsFuture;
-
-      // --- Process loaded data ---
-      cookAgainRecipes = recipeResults[0];
-      discoverProteinRecipes = recipeResults[1];
-
+      
+      // Process critical data
       if (userData != null) {
         userBMR = _calculateBMR(
           gender: userData!['gender'],
@@ -72,20 +65,180 @@ class _HomePageState extends State<HomePage> {
           height: userData!['height'].toDouble(),
           weight: userData!['weight'].toDouble(),
         );
-
-        userTDEE =
-            userBMR! * _getActivityMultiplier(userData!['activityLevel']);
+        userTDEE = userBMR! * _getActivityMultiplier(userData!['activityLevel']);
       }
+      
       if (goal != null) {
         userGoalCalories = goal;
       }
+      
       consumedCalories = _logService.calculateTotalCalories(logs).toInt();
+      
+      // Check if user has meal history
+      hasLoggedMeals = await _checkUserHasMealHistory();
+
+      // Check if user has cooked recipes
+      hasCookedRecipes = await _checkUserHasCookedRecipes();
+      
+      // Update UI with critical data first
+      setState(() => isLoading = false);
+      
+      // --- Phase 2: Load recipes in background (slower) ---
+      _loadRecipesInBackground();
+      
     } catch (e) {
       print('Error loading today\'s data: $e');
-      // Show an error snackbar?
+      setState(() => isLoading = false);
     }
+  }
 
-    setState(() => isLoading = false); // All loading finished
+  // Check if user has logged any meals before
+  Future<bool> _checkUserHasMealHistory() async {
+    try {
+      // Check last 30 days for any meal logs
+      final logs = await _logService.getLogsForDateRange(
+        DateTime.now().subtract(const Duration(days: 30)),
+        DateTime.now(),
+      );
+      return logs.isNotEmpty;
+    } catch (e) {
+      print('Error checking meal history: $e');
+      return false;
+    }
+  }
+
+  // Check if user has cooked any recipes
+  Future<bool> _checkUserHasCookedRecipes() async {
+    try {
+      final cookedRecipes = await _cookedService.getUserCookedRecipes(limit: 1);
+      return cookedRecipes.isNotEmpty;
+    } catch (e) {
+      print('Error checking cooked recipes: $e');
+      return false;
+    }
+  }
+
+  Future<void> _loadRecipesInBackground() async {
+    try {
+      if (hasCookedRecipes) {
+        // Load recipes based on what user has actually cooked
+        cookAgainRecipes = await _getMostCookedRecipes();
+      } else if (hasLoggedMeals) {
+        // Fallback to meal log history
+        cookAgainRecipes = await _getUserFavoriteRecipes();
+      } else {
+        // Load suggested recipes for new users
+        cookAgainRecipes = await TheMealDBService.getRandomMeals(5);
+      }
+      
+      // Load protein recipes with variety
+      discoverProteinRecipes = await _getVariedProteinRecipes();
+      
+      // Update UI with recipes
+      if (mounted) setState(() {});
+      
+    } catch (e) {
+      print('Error loading recipes: $e');
+    }
+  }
+
+  // Get user's most cooked recipes
+  Future<List<Map<String, dynamic>>> _getMostCookedRecipes() async {
+    try {
+      final mostCooked = await _cookedService.getMostCookedRecipes(limit: 5);
+      
+      List<Map<String, dynamic>> recipes = [];
+      
+      for (var cookedRecipe in mostCooked) {
+        final recipeId = cookedRecipe['recipeId'] as String;
+        final details = await TheMealDBService.getMealDetails(recipeId);
+        if (details != null) {
+          recipes.add(details);
+        }
+      }
+      
+      // If not enough recipes, fill with random ones
+      if (recipes.length < 5) {
+        final randomMeals = await TheMealDBService.getRandomMeals(5 - recipes.length);
+        recipes.addAll(randomMeals);
+      }
+      
+      return recipes;
+      
+    } catch (e) {
+      print('Error getting most cooked recipes: $e');
+      return await TheMealDBService.getRandomMeals(5);
+    }
+  }
+
+
+  // Get user's favorite/frequently logged meals
+  Future<List<Map<String, dynamic>>> _getUserFavoriteRecipes() async {
+    try {
+      // Get last 60 days of logs
+      final logs = await _logService.getLogsForDateRange(
+        DateTime.now().subtract(const Duration(days: 60)),
+        DateTime.now(),
+      );
+      
+      // Count meal frequencies
+      Map<String, int> mealFrequency = {};
+      Map<String, String> mealIds = {}; // Store meal IDs
+      
+      for (var log in logs) {
+        final mealName = log['name'] as String?;
+        final mealId = log['recipeId'] as String?;
+        
+        if (mealName != null && mealId != null) {
+          mealFrequency[mealName] = (mealFrequency[mealName] ?? 0) + 1;
+          mealIds[mealName] = mealId;
+        }
+      }
+      
+      // Get top 5 most frequent meals
+      var sortedMeals = mealFrequency.entries.toList()
+        ..sort((a, b) => b.value.compareTo(a.value));
+      
+      List<Map<String, dynamic>> recipes = [];
+      
+      for (var entry in sortedMeals.take(5)) {
+        final mealId = mealIds[entry.key];
+        if (mealId != null) {
+          final details = await TheMealDBService.getMealDetails(mealId);
+          if (details != null) {
+            recipes.add(details);
+          }
+        }
+      }
+      
+      // If not enough recipes, fill with random ones
+      if (recipes.length < 5) {
+        final randomMeals = await TheMealDBService.getRandomMeals(5 - recipes.length);
+        recipes.addAll(randomMeals);
+      }
+      
+      return recipes;
+      
+    } catch (e) {
+      print('Error getting favorite recipes: $e');
+      // Fallback to random meals
+      return await TheMealDBService.getRandomMeals(5);
+    }
+  }
+
+  // Get varied high-protein recipes
+  Future<List<Map<String, dynamic>>> _getVariedProteinRecipes() async {
+    try {
+      // Rotate through different protein categories
+      final proteinCategories = ['Chicken', 'Beef', 'Seafood', 'Pork'];
+      final selectedCategory = proteinCategories[DateTime.now().day % proteinCategories.length];
+      
+      return await TheMealDBService.getMealsByCategory(selectedCategory, number: 5);
+      
+    } catch (e) {
+      print('Error getting protein recipes: $e');
+      return [];
+    }
   }
 
   // Calculate BMR using Mifflin-St Jeor equation
@@ -485,16 +638,26 @@ class _HomePageState extends State<HomePage> {
     );
   }
 
-  // --- UPDATED: Now uses real data ---
+  // Smart title based on user history
   Widget _buildCookAgainSection() {
+    // Show different titles based on what data we have
+    String sectionTitle;
+    if (hasCookedRecipes) {
+      sectionTitle = 'Cook Again'; // User has cooked recipes
+    } else if (hasLoggedMeals) {
+      sectionTitle = 'Based on Your Logs'; // User has meal logs
+    } else {
+      sectionTitle = 'Try These Recipes'; // New user
+    }
+    
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        const Padding(
-          padding: EdgeInsets.fromLTRB(16, 16, 16, 8),
+        Padding(
+          padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
           child: Text(
-            'Cook Again',
-            style: TextStyle(
+            sectionTitle,
+            style: const TextStyle(
               fontSize: 18,
               fontWeight: FontWeight.bold,
               color: Color(0xFF424242),
@@ -503,15 +666,25 @@ class _HomePageState extends State<HomePage> {
         ),
         SizedBox(
           height: 210,
-          child: ListView.builder(
-            scrollDirection: Axis.horizontal,
-            padding: const EdgeInsets.symmetric(horizontal: 16),
-            physics: const BouncingScrollPhysics(),
-            itemCount: cookAgainRecipes.length, // <-- UPDATED
-            itemBuilder: (context, index) {
-              return _buildRecipeCard(cookAgainRecipes[index]); // <-- UPDATED
-            },
-          ),
+          child: cookAgainRecipes.isEmpty
+              ? Center(
+                  child: Padding(
+                    padding: const EdgeInsets.all(16),
+                    child: Text(
+                      'Loading recipes...',
+                      style: TextStyle(color: Colors.grey[600]),
+                    ),
+                  ),
+                )
+              : ListView.builder(
+                  scrollDirection: Axis.horizontal,
+                  padding: const EdgeInsets.symmetric(horizontal: 16),
+                  physics: const BouncingScrollPhysics(),
+                  itemCount: cookAgainRecipes.length,
+                  itemBuilder: (context, index) {
+                    return _buildRecipeCard(cookAgainRecipes[index]);
+                  },
+                ),
         ),
       ],
     );
@@ -568,7 +741,10 @@ class _HomePageState extends State<HomePage> {
             builder: (context) =>
                 RecipeDetailsScreen(recipeId: recipe['id'].toString()),
           ),
-        );
+        ).then((_) {
+          // Refresh when coming back from recipe details
+          _loadTodayData();
+        });
       },
       child: Container(
         width: 160,

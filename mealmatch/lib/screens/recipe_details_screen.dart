@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:mealmatch/services/themealdb_service.dart';
+import 'package:mealmatch/services/cooked_recipes_service.dart';
 import 'dart:async';
 
 // --- 1. FIREBASE IMPORTS ADDED ---
@@ -40,6 +41,11 @@ class _RecipeDetailsScreenState extends State<RecipeDetailsScreen> {
   String? _userId;
   // ------------------------------------------
 
+  // Cooked recipes tracking
+  bool _hasCooked = false;
+  final CookedRecipesService _cookedService = CookedRecipesService();
+  bool _isMarkingCooked = false;
+
   @override
   void initState() {
     super.initState();
@@ -74,6 +80,11 @@ class _RecipeDetailsScreenState extends State<RecipeDetailsScreen> {
     }
   }
 
+  // NEW: Check if user has cooked this recipe
+  Future<bool> _checkCookedStatus() async {
+    return await _cookedService.hasUserCookedRecipe(widget.recipeId);
+  }
+
   // --- 4. UPDATED TO LOAD FAVORITE STATUS ---
   Future<void> _loadRecipeDetails() async {
     setState(() => loading = true);
@@ -81,9 +92,11 @@ class _RecipeDetailsScreenState extends State<RecipeDetailsScreen> {
       // Load details and check status at the same time
       final detailsFuture = TheMealDBService.getMealDetails(widget.recipeId);
       final isFavFuture = _checkFavoriteStatus();
+      final hasCookedFuture = _checkCookedStatus();
 
       final details = await detailsFuture;
       final isFav = await isFavFuture; // Get the boolean result
+      final hasCooked = await hasCookedFuture;
 
       if (details != null) {
         // --- Nutrition Parsing ---
@@ -123,7 +136,8 @@ class _RecipeDetailsScreenState extends State<RecipeDetailsScreen> {
 
       setState(() {
         data = details;
-        _isFavorite = isFav; // Set the state variable
+        _isFavorite = isFav; 
+        _hasCooked = hasCooked;
         loading = false;
       });
     } catch (e, stackTrace) {
@@ -244,6 +258,68 @@ class _RecipeDetailsScreenState extends State<RecipeDetailsScreen> {
       setState(() {
         _isFavorite = true;
       });
+    }
+  }
+
+  // Mark recipe as cooked
+  Future<void> _markAsCooked() async {
+    if (_userId == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('You must be logged in to track cooked recipes'),
+        ),
+      );
+      return;
+    }
+
+    if (data == null) return;
+
+    setState(() => _isMarkingCooked = true);
+
+    final success = await _cookedService.markRecipeAsCooked(
+      recipeId: widget.recipeId,
+      recipeTitle: data!['title'] ?? 'Unknown Recipe',
+      recipeImage: data!['image'] ?? '',
+      category: data!['category'],
+      area: data!['area'],
+      nutrition: data!['nutrition'],
+    );
+
+    setState(() => _isMarkingCooked = false);
+
+    if (success) {
+      setState(() => _hasCooked = true);
+      
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Row(
+              children: [
+                Icon(Icons.check_circle, color: Colors.white),
+                SizedBox(width: 12),
+                Expanded(
+                  child: Text(
+                    'Great job! Recipe added to your cooking history 🎉',
+                    style: TextStyle(fontWeight: FontWeight.w500),
+                  ),
+                ),
+              ],
+            ),
+            backgroundColor: primaryGreen,
+            behavior: SnackBarBehavior.floating,
+            duration: Duration(seconds: 3),
+          ),
+        );
+      }
+    } else {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Failed to mark recipe as cooked. Try again.'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
     }
   }
   // -------------------------------------------
@@ -396,6 +472,81 @@ class _RecipeDetailsScreenState extends State<RecipeDetailsScreen> {
                         ),
 
                         const SizedBox(height: 16),
+                        // NEW: "I Cooked This" Button
+                        if (!_hasCooked)
+                          Container(
+                            width: double.infinity,
+                            margin: const EdgeInsets.only(bottom: 16),
+                            child: ElevatedButton.icon(
+                              onPressed: _isMarkingCooked ? null : _markAsCooked,
+                              icon: _isMarkingCooked
+                                  ? SizedBox(
+                                      width: 20,
+                                      height: 20,
+                                      child: CircularProgressIndicator(
+                                        strokeWidth: 2,
+                                        valueColor: AlwaysStoppedAnimation<Color>(
+                                          Colors.white,
+                                        ),
+                                      ),
+                                    )
+                                  : const Icon(Icons.restaurant_menu, size: 22),
+                              label: Text(
+                                _isMarkingCooked ? 'Saving...' : 'I Cooked This!',
+                                style: const TextStyle(
+                                  fontSize: 16,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              ),
+                              style: ElevatedButton.styleFrom(
+                                backgroundColor: primaryGreen,
+                                foregroundColor: Colors.white,
+                                padding: const EdgeInsets.symmetric(vertical: 14),
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(12),
+                                ),
+                                elevation: 2,
+                              ),
+                            ),
+                          ),
+
+                        // Show badge if already cooked
+                        if (_hasCooked)
+                          Container(
+                            width: double.infinity,
+                            padding: const EdgeInsets.symmetric(
+                              vertical: 12,
+                              horizontal: 16,
+                            ),
+                            margin: const EdgeInsets.only(bottom: 16),
+                            decoration: BoxDecoration(
+                              color: primaryGreen.withOpacity(0.1),
+                              borderRadius: BorderRadius.circular(12),
+                              border: Border.all(
+                                color: primaryGreen.withOpacity(0.3),
+                              ),
+                            ),
+                            child: Row(
+                              children: [
+                                Icon(
+                                  Icons.check_circle,
+                                  color: primaryGreen,
+                                  size: 24,
+                                ),
+                                const SizedBox(width: 12),
+                                Expanded(
+                                  child: Text(
+                                    'You\'ve cooked this recipe! 🎉',
+                                    style: TextStyle(
+                                      color: primaryGreen,
+                                      fontWeight: FontWeight.bold,
+                                      fontSize: 15,
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
 
                         // Info Cards Row
                         Row(
