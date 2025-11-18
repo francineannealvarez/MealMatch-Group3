@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:mealmatch/services/firebase_service.dart';
 import '../widgets/avatar_picker.dart';
 import 'package:intl/intl.dart';
+import '../services/email_verification_service.dart';
 
 class SettingsScreen extends StatefulWidget {
   const SettingsScreen({super.key});
@@ -51,7 +52,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 ),
               ),
               const SizedBox(height: 12),
-              
+
               // 1️⃣ Edit Profile
               _buildSettingItem(
                 icon: Icons.person,
@@ -72,7 +73,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 },
               ),
               const SizedBox(height: 8),
-              
+
               // 2️⃣ Change Password (MOVED UP)
               _buildSettingItem(
                 icon: Icons.lock,
@@ -89,7 +90,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 },
               ),
               const SizedBox(height: 8),
-              
+
               // 3️⃣ Modify Goals (MOVED DOWN)
               _buildSettingItem(
                 icon: Icons.track_changes,
@@ -106,7 +107,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 },
               ),
               const SizedBox(height: 8),
-              
+
               // 4️⃣ Weight (STAYS AT BOTTOM)
               _buildSettingItem(
                 icon: Icons.monitor_weight,
@@ -122,9 +123,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   );
                 },
               ),
-              
+
               const SizedBox(height: 24),
-              
+
               // Support Section (unchanged)
               const Text(
                 'Support',
@@ -529,6 +530,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
   final _formKey = GlobalKey<FormState>();
   final _nameController = TextEditingController();
   final _emailController = TextEditingController();
+  final _passwordController = TextEditingController(); // For re-authentication
   final _firebaseService = FirebaseService();
   final _firestore = FirebaseFirestore.instance;
 
@@ -536,8 +538,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
   bool _isLoading = true;
   bool _isSaving = false;
   String? _originalEmail;
-  // ignore: unused_field
-  String? _userId;
+  String? _pendingEmail; // NEW: Track pending email
 
   @override
   void initState() {
@@ -549,6 +550,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
   void dispose() {
     _nameController.dispose();
     _emailController.dispose();
+    _passwordController.dispose();
     super.dispose();
   }
 
@@ -558,15 +560,13 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
     try {
       final user = FirebaseAuth.instance.currentUser;
       if (user == null) {
-        if (mounted) {
-          Navigator.pop(context);
-        }
+        if (mounted) Navigator.pop(context);
         return;
       }
 
-      _userId = user.uid;
+      // Check for pending email change
+      _pendingEmail = await EmailVerificationHandler.getPendingEmailChange();
 
-      // Use the getUserData method from FirebaseService
       final userData = await _firebaseService.getUserData();
 
       if (mounted && userData != null) {
@@ -577,6 +577,11 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
           _selectedAvatar = userData['avatar'];
           _isLoading = false;
         });
+
+        // Show pending email notification if exists
+        if (_pendingEmail != null) {
+          _showPendingEmailDialog();
+        }
       } else {
         setState(() => _isLoading = false);
       }
@@ -584,133 +589,535 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
       print('Error loading profile: $e');
       if (mounted) {
         setState(() => _isLoading = false);
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Row(
-              children: [
-                const Icon(Icons.error_outline, color: Colors.white),
-                const SizedBox(width: 12),
-                Expanded(child: Text('Failed to load profile: $e')),
-              ],
-            ),
-            backgroundColor: Colors.red,
-            behavior: SnackBarBehavior.floating,
-          ),
-        );
+        _showErrorSnackBar('Failed to load profile: $e');
       }
+    }
+  }
+
+  void _showPendingEmailDialog() {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      showDialog(
+        context: context,
+        barrierDismissible: false,
+        builder: (context) => AlertDialog(
+          backgroundColor: const Color(0xFFFFF5CF),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(20),
+            side: const BorderSide(color: Colors.orange, width: 2),
+          ),
+          title: Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  color: Colors.orange.shade100,
+                  shape: BoxShape.circle,
+                ),
+                child: const Icon(
+                  Icons.email_outlined,
+                  color: Colors.orange,
+                  size: 24,
+                ),
+              ),
+              const SizedBox(width: 12),
+              const Expanded(
+                child: Text(
+                  'Pending Email Change',
+                  style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                ),
+              ),
+            ],
+          ),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text(
+                'You have a pending email change request:',
+                style: TextStyle(fontSize: 14),
+              ),
+              const SizedBox(height: 12),
+              Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: Colors.orange.shade50,
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(color: Colors.orange.shade200),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        const Text(
+                          'Current: ',
+                          style: TextStyle(fontWeight: FontWeight.w600),
+                        ),
+                        Text(_originalEmail ?? 'N/A'),
+                      ],
+                    ),
+                    const SizedBox(height: 4),
+                    Row(
+                      children: [
+                        const Icon(Icons.arrow_downward, size: 16),
+                        const SizedBox(width: 4),
+                        const Text(
+                          'New: ',
+                          style: TextStyle(fontWeight: FontWeight.w600),
+                        ),
+                        Expanded(
+                          child: Text(
+                            _pendingEmail ?? 'N/A',
+                            style: const TextStyle(
+                              color: Colors.orange,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 12),
+              const Text(
+                'Please check your email and click the verification link to complete the change.',
+                style: TextStyle(fontSize: 13, color: Colors.black87),
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () async {
+                final confirmed = await showDialog<bool>(
+                  context: context,
+                  builder: (context) => AlertDialog(
+                    title: const Text('Cancel Email Change?'),
+                    content: const Text(
+                      'Are you sure you want to cancel this email change request?',
+                    ),
+                    actions: [
+                      TextButton(
+                        onPressed: () => Navigator.pop(context, false),
+                        child: const Text('No'),
+                      ),
+                      ElevatedButton(
+                        onPressed: () => Navigator.pop(context, true),
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: Colors.red,
+                        ),
+                        child: const Text('Yes, Cancel'),
+                      ),
+                    ],
+                  ),
+                );
+
+                if (confirmed == true) {
+                  await EmailVerificationHandler.cancelPendingEmailChange();
+                  setState(() => _pendingEmail = null);
+                  if (mounted) Navigator.pop(context);
+                }
+              },
+              child: const Text(
+                'Cancel Request',
+                style: TextStyle(color: Colors.red),
+              ),
+            ),
+            ElevatedButton(
+              onPressed: () async {
+                Navigator.pop(context);
+                await _checkEmailVerification();
+              },
+              style: ElevatedButton.styleFrom(backgroundColor: Colors.orange),
+              child: const Text('Check Verification'),
+            ),
+          ],
+          actionsPadding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+        ),
+      );
+    });
+  }
+
+  Future<void> _checkEmailVerification() async {
+    setState(() => _isSaving = true);
+
+    final result = await EmailVerificationHandler.checkAndCompleteEmailChange();
+
+    setState(() => _isSaving = false);
+
+    if (!mounted) return;
+
+    if (result['success']) {
+      _showSuccessSnackBar(result['message']);
+      setState(() {
+        _pendingEmail = null;
+        _originalEmail = _emailController.text;
+      });
+    } else {
+      _showErrorSnackBar(result['message']);
     }
   }
 
   Future<void> _saveProfile() async {
     if (!_formKey.currentState!.validate()) return;
 
-    setState(() => _isSaving = true);
+    final newEmail = _emailController.text.trim();
+    final emailChanged = newEmail != _originalEmail;
 
-    try {
-      final user = FirebaseAuth.instance.currentUser;
-      if (user == null) throw Exception('User not logged in');
+    // If email changed, show password dialog
+    if (emailChanged) {
+      final password = await _showPasswordDialog();
+      if (password == null) return; // User cancelled
 
-      // Prepare update data
-      Map<String, dynamic> updateData = {'name': _nameController.text.trim()};
+      setState(() => _isSaving = true);
 
-      // Add avatar if selected
-      if (_selectedAvatar != null) {
-        updateData['avatar'] = _selectedAvatar;
-      }
-
-      // Update profile in Firestore
-      await _firestore.collection('users').doc(user.uid).update(updateData);
-
-      // Update display name in Firebase Auth
-      await user.updateDisplayName(_nameController.text.trim());
-
-      // Check if email changed
-      final newEmail = _emailController.text.trim();
-      bool emailChanged = false;
-
-      if (newEmail != _originalEmail) {
-        try {
-          // Update email in Firebase Auth
-          await user.verifyBeforeUpdateEmail(newEmail);
-          emailChanged = true;
-        } catch (e) {
-          // Handle email update errors
-          if (e.toString().contains('requires-recent-login')) {
-            throw Exception('Please log in again to change your email');
-          } else if (e.toString().contains('email-already-in-use')) {
-            throw Exception('This email is already in use');
-          } else if (e.toString().contains('invalid-email')) {
-            throw Exception('Invalid email address');
-          }
-          rethrow;
-        }
-      }
+      // Request email change with verification
+      final result = await EmailVerificationHandler.requestEmailChange(
+        currentPassword: password,
+        newEmail: newEmail,
+      );
 
       setState(() => _isSaving = false);
 
-      if (mounted) {
-        if (emailChanged) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Row(
-                children: [
-                  Icon(Icons.email, color: Colors.white),
-                  SizedBox(width: 12),
-                  Expanded(
-                    child: Text(
-                      'Profile updated! Verification email sent. Please check your inbox.',
-                    ),
-                  ),
-                ],
-              ),
-              backgroundColor: Colors.orange,
-              behavior: SnackBarBehavior.floating,
-              duration: Duration(seconds: 4),
-            ),
-          );
-        } else {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Row(
-                children: [
-                  Icon(Icons.check_circle, color: Colors.white),
-                  SizedBox(width: 12),
-                  Text('Profile updated successfully!'),
-                ],
-              ),
-              backgroundColor: Color(0xFF4CAF50),
-              behavior: SnackBarBehavior.floating,
-            ),
-          );
-        }
+      if (!mounted) return;
 
-        // Wait a moment then pop
+      if (result['success']) {
+        setState(() => _pendingEmail = newEmail);
+
+        // Update name and avatar (but not email yet)
+        await _updateNameAndAvatar();
+
+        _showEmailVerificationDialog(newEmail);
+      } else {
+        _showErrorSnackBar(result['message']);
+        if (result['requiresRelogin'] == true) {
+          _showReloginDialog();
+        }
+      }
+    } else {
+      // Just update name and avatar
+      setState(() => _isSaving = true);
+      await _updateNameAndAvatar();
+      setState(() => _isSaving = false);
+
+      if (mounted) {
+        _showSuccessSnackBar('Profile updated successfully!');
         Future.delayed(const Duration(milliseconds: 500), () {
           if (mounted) Navigator.pop(context, true);
         });
       }
-    } catch (e) {
-      setState(() => _isSaving = false);
-
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Row(
-              children: [
-                const Icon(Icons.error_outline, color: Colors.white),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: Text(e.toString().replaceAll('Exception: ', '')),
-                ),
-              ],
-            ),
-            backgroundColor: Colors.red,
-            behavior: SnackBarBehavior.floating,
-            duration: const Duration(seconds: 3),
-          ),
-        );
-      }
     }
+  }
+
+  Future<void> _updateNameAndAvatar() async {
+    try {
+      final user = FirebaseAuth.instance.currentUser;
+      if (user == null) throw Exception('User not logged in');
+
+      Map<String, dynamic> updateData = {'name': _nameController.text.trim()};
+
+      if (_selectedAvatar != null) {
+        updateData['avatar'] = _selectedAvatar;
+      }
+
+      await _firestore.collection('users').doc(user.uid).update(updateData);
+      await user.updateDisplayName(_nameController.text.trim());
+    } catch (e) {
+      print('Error updating name/avatar: $e');
+      throw e;
+    }
+  }
+
+  Future<String?> _showPasswordDialog() async {
+    final passwordController = TextEditingController();
+    bool obscurePassword = true;
+
+    return showDialog<String>(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) => StatefulBuilder(
+        builder: (context, setDialogState) => AlertDialog(
+          backgroundColor: const Color(0xFFFFF5CF),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(20),
+            side: const BorderSide(color: Color(0xFF4CAF50), width: 2),
+          ),
+          title: const Row(
+            children: [
+              Icon(Icons.lock_outline, color: Color(0xFF4CAF50)),
+              SizedBox(width: 12),
+              Text(
+                'Verify Password',
+                style: TextStyle(fontWeight: FontWeight.bold),
+              ),
+            ],
+          ),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text(
+                'Please enter your current password to change your email:',
+                style: TextStyle(fontSize: 14),
+              ),
+              const SizedBox(height: 16),
+              TextField(
+                controller: passwordController,
+                obscureText: obscurePassword,
+                decoration: InputDecoration(
+                  hintText: 'Current password',
+                  prefixIcon: const Icon(
+                    Icons.lock_outline,
+                    color: Color(0xFF4CAF50),
+                  ),
+                  suffixIcon: IconButton(
+                    icon: Icon(
+                      obscurePassword ? Icons.visibility_off : Icons.visibility,
+                      color: Colors.grey,
+                    ),
+                    onPressed: () {
+                      setDialogState(() {
+                        obscurePassword = !obscurePassword;
+                      });
+                    },
+                  ),
+                  filled: true,
+                  fillColor: Colors.white,
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(12),
+                    borderSide: BorderSide.none,
+                  ),
+                  enabledBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(12),
+                    borderSide: BorderSide(color: Colors.grey[300]!),
+                  ),
+                  focusedBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(12),
+                    borderSide: const BorderSide(
+                      color: Color(0xFF4CAF50),
+                      width: 2,
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context, null),
+              child: const Text('Cancel', style: TextStyle(color: Colors.grey)),
+            ),
+            ElevatedButton(
+              onPressed: () {
+                if (passwordController.text.isEmpty) {
+                  return;
+                }
+                Navigator.pop(context, passwordController.text);
+              },
+              style: ElevatedButton.styleFrom(
+                backgroundColor: const Color(0xFF4CAF50),
+              ),
+              child: const Text('Confirm'),
+            ),
+          ],
+          actionsPadding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+        ),
+      ),
+    );
+  }
+
+  void _showEmailVerificationDialog(String newEmail) {
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) => AlertDialog(
+        backgroundColor: const Color(0xFFFFF5CF),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(20),
+          side: const BorderSide(color: Colors.orange, width: 2),
+        ),
+        title: Row(
+          children: [
+            Container(
+              padding: const EdgeInsets.all(8),
+              decoration: BoxDecoration(
+                color: Colors.orange.shade100,
+                shape: BoxShape.circle,
+              ),
+              child: const Icon(
+                Icons.mark_email_unread,
+                color: Colors.orange,
+                size: 28,
+              ),
+            ),
+            const SizedBox(width: 12),
+            const Expanded(
+              child: Text(
+                'Verify Your Email',
+                style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+              ),
+            ),
+          ],
+        ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text(
+              "We've sent a verification link to:",
+              style: TextStyle(fontSize: 15, color: Colors.black87),
+            ),
+            const SizedBox(height: 12),
+            Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: Colors.orange.shade50,
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(color: Colors.orange.shade200),
+              ),
+              child: Row(
+                children: [
+                  const Icon(Icons.email, color: Colors.orange, size: 20),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      newEmail,
+                      style: const TextStyle(
+                        fontWeight: FontWeight.bold,
+                        fontSize: 15,
+                        color: Colors.orange,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 16),
+            Container(
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: const Color(0xFFFFB74D)),
+              ),
+              child: const Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    "📧 Check your email inbox",
+                    style: TextStyle(fontSize: 15),
+                  ),
+                  SizedBox(height: 8),
+                  Text(
+                    "Click the verification link in the email",
+                    style: TextStyle(fontSize: 15),
+                  ),
+                  SizedBox(height: 8),
+                  Text(
+                    "Return to the app - your email will update automatically",
+                    style: TextStyle(fontSize: 15),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 12),
+            Text(
+              "⏰ This link expires in 24 hours",
+              style: TextStyle(fontSize: 13, color: Colors.grey[600]),
+            ),
+          ],
+        ),
+        actions: [
+          Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              ElevatedButton(
+                onPressed: () {
+                  Navigator.pop(context); // Close dialog
+                  Navigator.pop(context, true); // Go back to settings
+                },
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: const Color(0xFF4CAF50),
+                  padding: const EdgeInsets.symmetric(vertical: 14),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                ),
+                child: const Text(
+                  'Got it!',
+                  style: TextStyle(
+                    fontWeight: FontWeight.bold,
+                    fontSize: 16,
+                    color: Colors.white,
+                  ),
+                ),
+              ),
+              const SizedBox(height: 8),
+              Text(
+                "Didn't receive the email? Check your spam folder",
+                style: TextStyle(fontSize: 12, color: Colors.grey[600]),
+                textAlign: TextAlign.center,
+              ),
+            ],
+          ),
+        ],
+        actionsPadding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+      ),
+    );
+  }
+
+  void _showReloginDialog() {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Re-login Required'),
+        content: const Text(
+          'For security reasons, please log out and log back in before changing your email.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('OK'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _showSuccessSnackBar(String message) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Row(
+          children: [
+            const Icon(Icons.check_circle, color: Colors.white),
+            const SizedBox(width: 12),
+            Expanded(child: Text(message)),
+          ],
+        ),
+        backgroundColor: const Color(0xFF4CAF50),
+        behavior: SnackBarBehavior.floating,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+      ),
+    );
+  }
+
+  void _showErrorSnackBar(String message) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Row(
+          children: [
+            const Icon(Icons.error_outline, color: Colors.white),
+            const SizedBox(width: 12),
+            Expanded(child: Text(message)),
+          ],
+        ),
+        backgroundColor: Colors.red,
+        behavior: SnackBarBehavior.floating,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+        duration: const Duration(seconds: 4),
+      ),
+    );
   }
 
   @override
@@ -744,6 +1151,56 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
+                          // Show pending email banner
+                          if (_pendingEmail != null)
+                            Container(
+                              margin: const EdgeInsets.only(bottom: 16),
+                              padding: const EdgeInsets.all(12),
+                              decoration: BoxDecoration(
+                                color: Colors.orange.shade50,
+                                borderRadius: BorderRadius.circular(12),
+                                border: Border.all(
+                                  color: Colors.orange.shade300,
+                                  width: 2,
+                                ),
+                              ),
+                              child: Row(
+                                children: [
+                                  Icon(
+                                    Icons.pending_outlined,
+                                    color: Colors.orange[700],
+                                  ),
+                                  const SizedBox(width: 12),
+                                  Expanded(
+                                    child: Column(
+                                      crossAxisAlignment:
+                                          CrossAxisAlignment.start,
+                                      children: [
+                                        const Text(
+                                          'Email verification pending',
+                                          style: TextStyle(
+                                            fontWeight: FontWeight.bold,
+                                            fontSize: 13,
+                                          ),
+                                        ),
+                                        Text(
+                                          'Check $_pendingEmail',
+                                          style: TextStyle(
+                                            fontSize: 12,
+                                            color: Colors.grey[700],
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                  TextButton(
+                                    onPressed: _checkEmailVerification,
+                                    child: const Text('Check'),
+                                  ),
+                                ],
+                              ),
+                            ),
+
                           const Text(
                             'Profile Picture',
                             style: TextStyle(
@@ -804,7 +1261,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                                 const SizedBox(width: 12),
                                 Expanded(
                                   child: Text(
-                                    'Changing your email will require verification. Please check your inbox.',
+                                    'Changing your email requires verification. We\'ll send a link to your new email.',
                                     style: TextStyle(
                                       color: Colors.blue[900],
                                       fontSize: 12,
@@ -884,7 +1341,6 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
               style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
             ),
             const SizedBox(height: 16),
-            // ✅ USE THE NEW REUSABLE WIDGET
             AvatarPicker(
               selectedAvatar: _selectedAvatar,
               onAvatarSelected: (avatar) {
@@ -893,8 +1349,8 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                 });
                 Navigator.pop(context);
               },
-              showSkipOption: false, // No skip option in Settings
-              isGridView: false, // 4 columns for modal
+              showSkipOption: false,
+              isGridView: false,
             ),
             const SizedBox(height: 16),
           ],
