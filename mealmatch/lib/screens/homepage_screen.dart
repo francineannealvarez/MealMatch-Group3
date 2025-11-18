@@ -126,12 +126,10 @@ class _HomePageState extends State<HomePage> {
       } else if (hasLoggedMeals) {
         // Fallback to meal log history
         cookAgainRecipes = await _getUserFavoriteRecipes();
-      } else {
-        // Load suggested recipes for new users
-        cookAgainRecipes = await TheMealDBService.getRandomMeals(5);
       }
+      // If new user (no cooked & no logs), cookAgainRecipes stays empty
       
-      // Load protein recipes with variety
+      // Load protein recipes with variety - ALWAYS load this
       discoverProteinRecipes = await _getVariedProteinRecipes();
       
       // Update UI with recipes
@@ -147,27 +145,29 @@ class _HomePageState extends State<HomePage> {
     try {
       final mostCooked = await _cookedService.getMostCookedRecipes(limit: 5);
       
+      if (mostCooked.isEmpty) {
+        // Return empty list if no cooked recipes
+        return [];
+      }
+      
       List<Map<String, dynamic>> recipes = [];
       
       for (var cookedRecipe in mostCooked) {
         final recipeId = cookedRecipe['recipeId'] as String;
         final details = await TheMealDBService.getMealDetails(recipeId);
+        
+        // Only add if details exist
         if (details != null) {
           recipes.add(details);
         }
       }
       
-      // If not enough recipes, fill with random ones
-      if (recipes.length < 5) {
-        final randomMeals = await TheMealDBService.getRandomMeals(5 - recipes.length);
-        recipes.addAll(randomMeals);
-      }
-      
+      // Return only what we have - don't fill with random meals
       return recipes;
       
     } catch (e) {
       print('Error getting most cooked recipes: $e');
-      return await TheMealDBService.getRandomMeals(5);
+      return []; // Return empty list on error
     }
   }
 
@@ -209,12 +209,6 @@ class _HomePageState extends State<HomePage> {
             recipes.add(details);
           }
         }
-      }
-      
-      // If not enough recipes, fill with random ones
-      if (recipes.length < 5) {
-        final randomMeals = await TheMealDBService.getRandomMeals(5 - recipes.length);
-        recipes.addAll(randomMeals);
       }
       
       return recipes;
@@ -295,6 +289,7 @@ class _HomePageState extends State<HomePage> {
                       _buildDailyCaloriesWidget(),
                       _buildActionButtons(),
                       _buildCookAgainSection(),
+                      _buildTryTheseRecipesSection(),
                       _buildDiscoverRecipesSection(),
                       const SizedBox(height: 100),
                     ],
@@ -640,14 +635,17 @@ class _HomePageState extends State<HomePage> {
 
   // Smart title based on user history
   Widget _buildCookAgainSection() {
+    // Only show this section if user has cooked recipes or meal logs
+    if (!hasCookedRecipes && !hasLoggedMeals) {
+      return const SizedBox.shrink(); // Don't show anything
+    }
+    
     // Show different titles based on what data we have
     String sectionTitle;
     if (hasCookedRecipes) {
       sectionTitle = 'Cook Again'; // User has cooked recipes
-    } else if (hasLoggedMeals) {
-      sectionTitle = 'Based on Your Logs'; // User has meal logs
     } else {
-      sectionTitle = 'Try These Recipes'; // New user
+      sectionTitle = 'Based on Your Logs'; // User has meal logs
     }
     
     return Column(
@@ -667,13 +665,10 @@ class _HomePageState extends State<HomePage> {
         SizedBox(
           height: 210,
           child: cookAgainRecipes.isEmpty
-              ? Center(
+              ? const Center(
                   child: Padding(
-                    padding: const EdgeInsets.all(16),
-                    child: Text(
-                      'Loading recipes...',
-                      style: TextStyle(color: Colors.grey[600]),
-                    ),
+                    padding: EdgeInsets.all(16),
+                    child: CircularProgressIndicator(color: Color(0xFF4CAF50)),
                   ),
                 )
               : ListView.builder(
@@ -685,6 +680,53 @@ class _HomePageState extends State<HomePage> {
                     return _buildRecipeCard(cookAgainRecipes[index]);
                   },
                 ),
+        ),
+      ],
+    );
+  }
+  // Try These Recipes section - shows random meals
+  Widget _buildTryTheseRecipesSection() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const Padding(
+          padding: EdgeInsets.fromLTRB(16, 16, 16, 8),
+          child: Text(
+            'Try These Recipes',
+            style: TextStyle(
+              fontSize: 18,
+              fontWeight: FontWeight.bold,
+              color: Color(0xFF424242),
+            ),
+          ),
+        ),
+        FutureBuilder<List<Map<String, dynamic>>>(
+          future: TheMealDBService.getRandomMeals(5),
+          builder: (context, snapshot) {
+            if (!snapshot.hasData) {
+              return const SizedBox(
+                height: 210,
+                child: Center(
+                  child: CircularProgressIndicator(color: Color(0xFF4CAF50)),
+                ),
+              );
+            }
+            
+            final recipes = snapshot.data!;
+            
+            return SizedBox(
+              height: 210,
+              child: ListView.builder(
+                scrollDirection: Axis.horizontal,
+                padding: const EdgeInsets.symmetric(horizontal: 16),
+                physics: const BouncingScrollPhysics(),
+                itemCount: recipes.length,
+                itemBuilder: (context, index) {
+                  return _buildRecipeCard(recipes[index]);
+                },
+              ),
+            );
+          },
         ),
       ],
     );
