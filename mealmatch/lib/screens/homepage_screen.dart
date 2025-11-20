@@ -23,8 +23,9 @@ class _HomePageState extends State<HomePage> {
   int consumedCalories = 0;
   bool isLoading = true;
 
-  // Recipe lists
+  // Recipe lists - INITIALIZE WITH EMPTY LISTS
   List<Map<String, dynamic>> cookAgainRecipes = [];
+  List<Map<String, dynamic>> tryTheseRecipes = [];
   List<Map<String, dynamic>> discoverProteinRecipes = [];
 
   // User stats for metabolism card
@@ -36,13 +37,16 @@ class _HomePageState extends State<HomePage> {
   bool hasLoggedMeals = false;
   bool hasCookedRecipes = false;
 
+  // PREVENT DOUBLE LOADING
+  bool _isLoadingRecipes = false;
+
   @override
   void initState() {
     super.initState();
     _loadTodayData();
   }
 
-  // ✅ OPTIMIZED: Load data more efficiently
+  // Load data more efficiently
   Future<void> _loadTodayData() async {
     setState(() => isLoading = true);
 
@@ -83,12 +87,88 @@ class _HomePageState extends State<HomePage> {
       // Update UI with critical data first
       setState(() => isLoading = false);
       
-      // --- Phase 2: Load recipes in background (slower) ---
-      _loadRecipesInBackground();
+      // --- Phase 2: Load all recipes in parallel (faster) ---
+      _loadRecipesInParallel();
       
     } catch (e) {
-      print('Error loading today\'s data: $e');
+      print('❌ Error loading today\'s data: $e');
       setState(() => isLoading = false);
+    }
+  }
+
+  // ✅ FIX: Reset lists to empty before loading (shows spinners)
+  Future<void> _loadRecipesInParallel() async {
+    // Don't load if already loading
+    if (_isLoadingRecipes) {
+      print('⚠️ Recipes already loading, skipping...');
+      return;
+    }
+    
+    _isLoadingRecipes = true;
+    
+    // ✅ FIX: Clear all lists so spinners show
+    setState(() {
+      cookAgainRecipes = [];
+      tryTheseRecipes = [];
+      discoverProteinRecipes = [];
+    });
+    
+    try {
+      print('🔄 Starting parallel recipe loading...');
+      
+      // Start all recipe loading in parallel
+      final cookAgainFuture = _loadCookAgainRecipes();
+      final discoverFuture = _getVariedProteinRecipes();
+      final tryTheseFuture = TheMealDBService.getRandomMeals(5);
+      
+      // Wait for all three at the same time with timeout
+      final results = await Future.wait(
+        [
+          cookAgainFuture,
+          discoverFuture,
+          tryTheseFuture,
+        ],
+        eagerError: true,
+      ).timeout(
+        const Duration(seconds: 30),
+        onTimeout: () {
+          print('⏱️ Recipe loading timeout');
+          return [[], [], []]; // Return empty lists on timeout
+        },
+      );
+      
+      // Assign results safely
+      cookAgainRecipes = (results[0] as List).cast<Map<String, dynamic>>();
+      discoverProteinRecipes = (results[1] as List).cast<Map<String, dynamic>>();
+      tryTheseRecipes = (results[2] as List).cast<Map<String, dynamic>>();
+      
+      print('✅ All recipes loaded successfully');
+      print('   - Cook Again: ${cookAgainRecipes.length}');
+      print('   - Discover: ${discoverProteinRecipes.length}');
+      print('   - Try These: ${tryTheseRecipes.length}');
+      
+      // Update UI once with all recipes loaded
+      if (mounted) setState(() {});
+      
+    } catch (e) {
+      print('❌ Error loading recipes in parallel: $e');
+      // Recipes stay as empty lists - UI will show loading spinners
+    } finally {
+      _isLoadingRecipes = false;
+    }
+  }
+
+  Future<List<Map<String, dynamic>>> _loadCookAgainRecipes() async {
+    try {
+      if (hasCookedRecipes) {
+        return await _getMostCookedRecipes();
+      } else if (hasLoggedMeals) {
+        return await _getUserFavoriteRecipes();
+      }
+      return [];
+    } catch (e) {
+      print('❌ Error loading cook again recipes: $e');
+      return [];
     }
   }
 
@@ -115,28 +195,6 @@ class _HomePageState extends State<HomePage> {
     } catch (e) {
       print('Error checking cooked recipes: $e');
       return false;
-    }
-  }
-
-  Future<void> _loadRecipesInBackground() async {
-    try {
-      if (hasCookedRecipes) {
-        // Load recipes based on what user has actually cooked
-        cookAgainRecipes = await _getMostCookedRecipes();
-      } else if (hasLoggedMeals) {
-        // Fallback to meal log history
-        cookAgainRecipes = await _getUserFavoriteRecipes();
-      }
-      // If new user (no cooked & no logs), cookAgainRecipes stays empty
-      
-      // Load protein recipes with variety - ALWAYS load this
-      discoverProteinRecipes = await _getVariedProteinRecipes();
-      
-      // Update UI with recipes
-      if (mounted) setState(() {});
-      
-    } catch (e) {
-      print('Error loading recipes: $e');
     }
   }
 
@@ -171,19 +229,16 @@ class _HomePageState extends State<HomePage> {
     }
   }
 
-
   // Get user's favorite/frequently logged meals
   Future<List<Map<String, dynamic>>> _getUserFavoriteRecipes() async {
     try {
-      // Get last 60 days of logs
       final logs = await _logService.getLogsForDateRange(
         DateTime.now().subtract(const Duration(days: 60)),
         DateTime.now(),
       );
       
-      // Count meal frequencies
       Map<String, int> mealFrequency = {};
-      Map<String, String> mealIds = {}; // Store meal IDs
+      Map<String, String> mealIds = {};
       
       for (var log in logs) {
         final mealName = log['name'] as String?;
@@ -195,7 +250,6 @@ class _HomePageState extends State<HomePage> {
         }
       }
       
-      // Get top 5 most frequent meals
       var sortedMeals = mealFrequency.entries.toList()
         ..sort((a, b) => b.value.compareTo(a.value));
       
@@ -214,8 +268,7 @@ class _HomePageState extends State<HomePage> {
       return recipes;
       
     } catch (e) {
-      print('Error getting favorite recipes: $e');
-      // Fallback to random meals
+      print('❌ Error getting favorite recipes: $e');
       return await TheMealDBService.getRandomMeals(5);
     }
   }
@@ -223,14 +276,17 @@ class _HomePageState extends State<HomePage> {
   // Get varied high-protein recipes
   Future<List<Map<String, dynamic>>> _getVariedProteinRecipes() async {
     try {
-      // Rotate through different protein categories
+      // Rotate through different protein categories DAILY
       final proteinCategories = ['Chicken', 'Beef', 'Seafood', 'Pork'];
-      final selectedCategory = proteinCategories[DateTime.now().day % proteinCategories.length];
+      final dayOfYear = DateTime.now().difference(DateTime(DateTime.now().year, 1, 1)).inDays;
+      final selectedCategory = proteinCategories[dayOfYear % proteinCategories.length];
+      
+      print('🍖 Loading protein recipes: $selectedCategory (Day: $dayOfYear)');
       
       return await TheMealDBService.getMealsByCategory(selectedCategory, number: 5);
       
     } catch (e) {
-      print('Error getting protein recipes: $e');
+      print('❌ Error getting protein recipes: $e');
       return [];
     }
   }
@@ -684,6 +740,7 @@ class _HomePageState extends State<HomePage> {
       ],
     );
   }
+
   // Try These Recipes section - shows random meals
   Widget _buildTryTheseRecipesSection() {
     return Column(
@@ -700,39 +757,26 @@ class _HomePageState extends State<HomePage> {
             ),
           ),
         ),
-        FutureBuilder<List<Map<String, dynamic>>>(
-          future: TheMealDBService.getRandomMeals(5),
-          builder: (context, snapshot) {
-            if (!snapshot.hasData) {
-              return const SizedBox(
-                height: 210,
-                child: Center(
+        SizedBox(
+          height: 210,
+          child: tryTheseRecipes.isEmpty
+              ? const Center(
                   child: CircularProgressIndicator(color: Color(0xFF4CAF50)),
+                )
+              : ListView.builder(
+                  scrollDirection: Axis.horizontal,
+                  padding: const EdgeInsets.symmetric(horizontal: 16),
+                  physics: const BouncingScrollPhysics(),
+                  itemCount: tryTheseRecipes.length,
+                  itemBuilder: (context, index) {
+                    return _buildRecipeCard(tryTheseRecipes[index]);
+                  },
                 ),
-              );
-            }
-            
-            final recipes = snapshot.data!;
-            
-            return SizedBox(
-              height: 210,
-              child: ListView.builder(
-                scrollDirection: Axis.horizontal,
-                padding: const EdgeInsets.symmetric(horizontal: 16),
-                physics: const BouncingScrollPhysics(),
-                itemCount: recipes.length,
-                itemBuilder: (context, index) {
-                  return _buildRecipeCard(recipes[index]);
-                },
-              ),
-            );
-          },
         ),
       ],
     );
   }
 
-  // --- UPDATED: Now uses real data ---
   Widget _buildDiscoverRecipesSection() {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -750,25 +794,26 @@ class _HomePageState extends State<HomePage> {
         ),
         SizedBox(
           height: 210,
-          child: ListView.builder(
-            scrollDirection: Axis.horizontal,
-            padding: const EdgeInsets.symmetric(horizontal: 16),
-            physics: const BouncingScrollPhysics(),
-            itemCount: discoverProteinRecipes.length, // <-- UPDATED
-            itemBuilder: (context, index) {
-              return _buildRecipeCard(
-                discoverProteinRecipes[index],
-              ); // <-- UPDATED
-            },
-          ),
+          child: discoverProteinRecipes.isEmpty
+              ? const Center(
+                  child: CircularProgressIndicator(color: Color(0xFF4CAF50)),
+                )
+              : ListView.builder(
+                  scrollDirection: Axis.horizontal,
+                  padding: const EdgeInsets.symmetric(horizontal: 16),
+                  physics: const BouncingScrollPhysics(),
+                  itemCount: discoverProteinRecipes.length,
+                  itemBuilder: (context, index) {
+                    return _buildRecipeCard(discoverProteinRecipes[index]);
+                  },
+                ),
         ),
       ],
     );
   }
 
-  // --- NEW: Replaced the old placeholder ---
   Widget _buildRecipeCard(Map<String, dynamic> recipe) {
-    // Extract fake data from the service
+    // Extract data from the service
     final String title = recipe['title'] ?? 'Recipe Name';
     final String author = recipe['author'] ?? 'Author';
     final int cookTime = recipe['readyInMinutes'] ?? 0;

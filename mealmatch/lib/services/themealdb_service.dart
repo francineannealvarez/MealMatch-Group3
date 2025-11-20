@@ -8,7 +8,7 @@ class TheMealDBService {
   static int _generateCookingTime(String mealName, Random random) {
     final name = mealName.toLowerCase();
     
-    int rawTime; // We'll store the un-rounded time here
+    int rawTime; // store the un-rounded time here
 
     if (name.contains('sandwich') || name.contains('salad') || 
         name.contains('toast') || name.contains('smoothie')) {
@@ -32,7 +32,7 @@ class TheMealDBService {
     return _roundToNearestFive(rawTime);
   }
 
-  static int _generateServings(Random random) { // <-- Added 'random' param
+  static int _generateServings(Random random) { 
     return 2 + random.nextInt(5); // <-- Use local 'random'
   }
 
@@ -93,7 +93,6 @@ class TheMealDBService {
     };
   }
 
-  // --- FIXED: This code was outside a method ---
   static Future<List<Map<String, dynamic>>> findByIngredients(List<String> ingredients, {int number = 10}) async {
     if (ingredients.isEmpty) return [];
 
@@ -257,22 +256,30 @@ class TheMealDBService {
     }
   }
 
-  // In lib/services/themealdb_service.dart
-
+  // ✅ FIX: Now loads meals in parallel for faster performance
   static Future<List<Map<String, dynamic>>> getRandomMeals(int count) async {
-    final meals = <Map<String, dynamic>>[];
-    
     try {
-      for (int i = 0; i < count; i++) {
-        final url = Uri.parse('$baseUrl/random.php');
-        final response = await http.get(url).timeout(const Duration(seconds: 10));
-
+      print('🎲 Loading $count random meals in parallel...');
+      
+      // Create multiple API requests at once
+      final requests = List.generate(
+        count,
+        (_) => http.get(Uri.parse('$baseUrl/random.php')).timeout(
+          const Duration(seconds: 10),
+        ),
+      );
+      
+      // Wait for all requests to complete together
+      final responses = await Future.wait(requests);
+      
+      final meals = <Map<String, dynamic>>[];
+      
+      for (final response in responses) {
         if (response.statusCode == 200) {
           final data = json.decode(response.body);
           if (data['meals'] != null && (data['meals'] as List).isNotEmpty) {
             final meal = data['meals'][0];
             final mealName = meal['strMeal'] ?? 'Unknown Recipe';
-            
             final random = Random(meal['idMeal'].hashCode);
 
             meals.add({
@@ -281,22 +288,23 @@ class TheMealDBService {
               'category': meal['strCategory'] ?? '',
               'area': meal['strArea'] ?? '',
               'image': meal['strMealThumb'],
-              
               'readyInMinutes': _generateCookingTime(mealName, random),
               'servings': _generateServings(random),
-              'rating': 4.0 + random.nextDouble(), // Add missing rating
-              'author': ['Foodista', 'Tasty', 'AllRecipes'][random.nextInt(3)], // Add missing author
-              'nutrition': _generateNutrition(mealName, random), // <-- THIS ADDS KCAL
+              'rating': 4.0 + random.nextDouble(),
+              'author': ['Foodista', 'Tasty', 'AllRecipes'][random.nextInt(3)],
+              'nutrition': _generateNutrition(mealName, random),
             });
           }
         }
       }
-      print('✅ Loaded ${meals.length} random meals');
+      
+      print('✅ Loaded ${meals.length} random meals in parallel');
+      return meals;
+      
     } catch (e) {
       print('❌ Error getting random meals: $e');
+      return [];
     }
-    
-    return meals;
   }
 
   /// Rounds an integer to the nearest multiple of 5
@@ -307,7 +315,7 @@ class TheMealDBService {
 
   static Future<List<Map<String, dynamic>>> getMealsByCategory(
     String category, {
-    int number = 6, // Get 6 meals by default
+    int number = 6,
   }) async {
     try {
       final url = Uri.parse('$baseUrl/filter.php?c=${Uri.encodeComponent(category)}');
@@ -325,16 +333,18 @@ class TheMealDBService {
         final meals = (data['meals'] as List).cast<Map<String, dynamic>>();
         print('✅ Found ${meals.length} meals from API for $category');
 
-        // We take the first 'number' of meals and get their full details
-        // so we can show fake data like cook time, calories, etc.
-        final detailedMeals = <Map<String, dynamic>>[];
+        // ✅ FIX: Get details in parallel for faster loading
+        final detailRequests = meals
+            .take(number)
+            .map((meal) => getMealDetails(meal['idMeal']))
+            .toList();
         
-        for (var meal in meals.take(number)) {
-          final details = await getMealDetails(meal['idMeal']);
-          if (details != null) {
-            detailedMeals.add(details);
-          }
-        }
+        final detailsResults = await Future.wait(detailRequests);
+        
+        final detailedMeals = detailsResults
+            .where((details) => details != null)
+            .cast<Map<String, dynamic>>()
+            .toList();
         
         print('✅ Returning ${detailedMeals.length} detailed meals');
         return detailedMeals;
