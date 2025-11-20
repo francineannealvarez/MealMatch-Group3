@@ -2167,7 +2167,263 @@ class WeightScreen extends StatefulWidget {
 
 class _WeightScreenState extends State<WeightScreen> {
   final _weightController = TextEditingController();
+  final _firestore = FirebaseFirestore.instance;
+  final _auth = FirebaseAuth.instance;
+  final _firebaseService = FirebaseService();
+
   String _selectedUnit = 'kg';
+  bool _isLoading = true;
+  bool _isSaving = false;
+
+  // User data
+  double _currentWeight = 0.0;
+  double _startingWeight = 0.0;
+  double _goalWeight = 0.0;
+  List<Map<String, dynamic>> _weightHistory = [];
+  int _currentCalorieGoal = 2000;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadWeightData();
+  }
+
+  @override
+  void dispose() {
+    _weightController.dispose();
+    super.dispose();
+  }
+
+  Future<void> _loadWeightData() async {
+    setState(() => _isLoading = true);
+
+    try {
+      final user = _auth.currentUser;
+      if (user == null) {
+        if (mounted) Navigator.pop(context);
+        return;
+      }
+
+      // Load user data
+      final doc = await _firestore.collection('users').doc(user.uid).get();
+
+      if (doc.exists && doc.data() != null) {
+        final data = doc.data()!;
+
+        setState(() {
+          _currentWeight = (data['weight'] ?? 0.0).toDouble();
+          _startingWeight = (data['startingWeight'] ?? data['weight'] ?? 0.0)
+              .toDouble();
+          _goalWeight = (data['goalWeight'] ?? 0.0).toDouble();
+          _currentCalorieGoal = data['dailyCalorieGoal'] ?? 2000;
+
+          // Format created date
+          final createdAt = data['createdAt'] as Timestamp?;
+          if (createdAt != null) {}
+        });
+
+        // If no starting weight saved, save current weight as starting weight
+        if (!data.containsKey('startingWeight')) {
+          await _firestore.collection('users').doc(user.uid).update({
+            'startingWeight': _currentWeight,
+          });
+          setState(() => _startingWeight = _currentWeight);
+        }
+      }
+
+      // Load weight history
+      await _loadWeightHistory();
+
+      setState(() => _isLoading = false);
+    } catch (e) {
+      print('Error loading weight data: $e');
+      if (mounted) {
+        setState(() => _isLoading = false);
+        _showErrorSnackBar('Failed to load data: $e');
+      }
+    }
+  }
+
+  Future<void> _loadWeightHistory() async {
+    try {
+      final user = _auth.currentUser;
+      if (user == null) return;
+
+      final snapshot = await _firestore
+          .collection('users')
+          .doc(user.uid)
+          .collection('weight_history')
+          .orderBy('date', descending: true)
+          .limit(10)
+          .get();
+
+      setState(() {
+        _weightHistory = snapshot.docs.map((doc) {
+          final data = doc.data();
+          return {
+            'id': doc.id,
+            'weight': (data['weight'] ?? 0.0).toDouble(),
+            'date': (data['date'] as Timestamp).toDate(),
+            'calorieGoal': data['calorieGoal'] ?? 2000,
+          };
+        }).toList();
+      });
+    } catch (e) {
+      print('Error loading weight history: $e');
+    }
+  }
+
+  Future<void> _updateWeight() async {
+    if (_weightController.text.isEmpty) {
+      _showErrorSnackBar('Please enter your weight');
+      return;
+    }
+
+    final enteredWeight = double.tryParse(_weightController.text);
+    if (enteredWeight == null || enteredWeight <= 0) {
+      _showErrorSnackBar('Please enter a valid weight');
+      return;
+    }
+
+    // Convert to kg if needed
+    double weightInKg = enteredWeight;
+    if (_selectedUnit == 'lbs') {
+      weightInKg = enteredWeight * 0.453592; // lbs to kg
+    }
+
+    // Validate reasonable weight range (20-500 kg)
+    if (weightInKg < 20 || weightInKg > 500) {
+      _showErrorSnackBar('Please enter a realistic weight');
+      return;
+    }
+
+    setState(() => _isSaving = true);
+
+    try {
+      final user = _auth.currentUser;
+      if (user == null) throw Exception('User not logged in');
+
+      // Get user data for recalculation
+      final userData = await _firebaseService.getUserData();
+      if (userData == null) throw Exception('User data not found');
+
+      // Recalculate calorie goal with new weight
+      final newCalorieGoal = _calculateDailyCalorieGoal(
+        gender: userData['gender'],
+        age: userData['age'],
+        height: userData['height'].toDouble(),
+        weight: weightInKg,
+        activityLevel: userData['activityLevel'],
+        goals: List<String>.from(userData['goals']),
+      );
+
+      // Update user document
+      await _firestore.collection('users').doc(user.uid).update({
+        'weight': weightInKg,
+        'dailyCalorieGoal': newCalorieGoal,
+        'lastWeightUpdate': FieldValue.serverTimestamp(),
+        'lastUpdated': FieldValue.serverTimestamp(),
+      });
+
+      // Save to weight history
+      await _firestore
+          .collection('users')
+          .doc(user.uid)
+          .collection('weight_history')
+          .add({
+            'weight': weightInKg,
+            'date': FieldValue.serverTimestamp(),
+            'calorieGoal': newCalorieGoal,
+          });
+
+      setState(() => _isSaving = false);
+
+      if (mounted) {
+        // Reload data
+        await _loadWeightData();
+        _weightController.clear();
+
+        _showSuccessSnackBar(
+          'Weight updated! New calorie goal: $newCalorieGoal cal/day',
+        );
+      }
+    } catch (e) {
+      setState(() => _isSaving = false);
+      if (mounted) {
+        _showErrorSnackBar('Failed to update weight: $e');
+      }
+    }
+  }
+
+  int _calculateDailyCalorieGoal({
+    required String gender,
+    required int age,
+    required double height,
+    required double weight,
+    required String activityLevel,
+    required List<String> goals,
+  }) {
+    // Calculate BMR
+    double bmr;
+    if (gender.toLowerCase() == 'male') {
+      bmr = (10 * weight) + (6.25 * height) - (5 * age) + 5;
+    } else {
+      bmr = (10 * weight) + (6.25 * height) - (5 * age) - 161;
+    }
+
+    // Get activity multiplier
+    double multiplier;
+    switch (activityLevel.toLowerCase()) {
+      case 'sedentary':
+        multiplier = 1.2;
+        break;
+      case 'lightly active':
+        multiplier = 1.375;
+        break;
+      case 'moderately active':
+        multiplier = 1.55;
+        break;
+      case 'extremely active':
+        multiplier = 1.9;
+        break;
+      default:
+        multiplier = 1.2;
+    }
+
+    // Calculate TDEE
+    double tdee = bmr * multiplier;
+
+    // Adjust based on goals
+    bool hasLoseWeight = goals.any(
+      (g) =>
+          g.toLowerCase().contains('lose') ||
+          g.toLowerCase().contains('weight loss'),
+    );
+    bool hasGainWeight = goals.any(
+      (g) =>
+          g.toLowerCase().contains('gain') ||
+          g.toLowerCase().contains('muscle'),
+    );
+
+    if (hasLoseWeight) {
+      return (tdee - 500).round();
+    } else if (hasGainWeight) {
+      return (tdee + 400).round();
+    } else {
+      return tdee.round();
+    }
+  }
+
+  double _getWeightChange() {
+    return _currentWeight - _startingWeight;
+  }
+
+  double _getProgressPercentage() {
+    if (_goalWeight == _startingWeight) return 0;
+    final totalNeeded = _goalWeight - _startingWeight;
+    final achieved = _currentWeight - _startingWeight;
+    return (achieved / totalNeeded * 100).clamp(0, 100);
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -2181,187 +2437,655 @@ class _WeightScreenState extends State<WeightScreen> {
           onPressed: () => Navigator.pop(context),
         ),
         title: const Text(
-          'Weight',
+          'Weight Progress',
           style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
         ),
         centerTitle: true,
       ),
-      body: Padding(
-        padding: const EdgeInsets.all(16.0),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Container(
-              padding: const EdgeInsets.all(20),
-              decoration: BoxDecoration(
-                color: Colors.white,
-                borderRadius: BorderRadius.circular(16),
-                boxShadow: [
-                  BoxShadow(
-                    color: Colors.grey.withOpacity(0.2),
-                    blurRadius: 8,
-                    offset: const Offset(0, 2),
-                  ),
-                ],
-              ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  const Text(
-                    'Current Weight',
-                    style: TextStyle(
-                      fontSize: 16,
-                      fontWeight: FontWeight.bold,
-                      color: Colors.black,
-                    ),
-                  ),
-                  const SizedBox(height: 16),
-                  Row(
-                    children: [
-                      Expanded(
-                        child: TextField(
-                          controller: _weightController,
-                          keyboardType: TextInputType.number,
-                          decoration: InputDecoration(
-                            hintText: 'Enter weight',
-                            filled: true,
-                            fillColor: Colors.grey[100],
-                            border: OutlineInputBorder(
-                              borderRadius: BorderRadius.circular(12),
-                              borderSide: BorderSide.none,
-                            ),
-                            prefixIcon: const Icon(
-                              Icons.monitor_weight,
-                              color: Color(0xFF4CAF50),
-                            ),
-                          ),
-                        ),
-                      ),
-                      const SizedBox(width: 12),
-                      Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 12),
-                        decoration: BoxDecoration(
-                          color: const Color(0xFF4CAF50),
-                          borderRadius: BorderRadius.circular(12),
-                        ),
-                        child: DropdownButton<String>(
-                          value: _selectedUnit,
-                          underline: const SizedBox(),
-                          dropdownColor: const Color(0xFF4CAF50),
-                          icon: const Icon(
-                            Icons.arrow_drop_down,
-                            color: Colors.white,
-                          ),
-                          style: const TextStyle(
-                            color: Colors.white,
+      body: _isLoading
+          ? const Center(
+              child: CircularProgressIndicator(color: Color(0xFF4CAF50)),
+            )
+          : Stack(
+              children: [
+                SingleChildScrollView(
+                  child: Padding(
+                    padding: const EdgeInsets.all(16.0),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        // Progress Overview Card
+                        _buildProgressOverviewCard(),
+                        const SizedBox(height: 16),
+
+                        // Current Weight Card
+                        _buildCurrentWeightCard(),
+                        const SizedBox(height: 16),
+
+                        // Update Weight Section
+                        _buildUpdateWeightCard(),
+                        const SizedBox(height: 24),
+
+                        // Weight History
+                        const Text(
+                          'Weight History',
+                          style: TextStyle(
+                            fontSize: 18,
                             fontWeight: FontWeight.bold,
-                            fontSize: 16,
+                            color: Colors.black,
                           ),
-                          items: ['kg', 'lbs'].map((String unit) {
-                            return DropdownMenuItem<String>(
-                              value: unit,
-                              child: Text(unit),
-                            );
-                          }).toList(),
-                          onChanged: (String? newValue) {
-                            if (newValue != null) {
-                              setState(() => _selectedUnit = newValue);
-                            }
-                          },
                         ),
-                      ),
-                    ],
+                        const SizedBox(height: 12),
+                        _buildWeightHistory(),
+                      ],
+                    ),
                   ),
-                  const SizedBox(height: 24),
-                  SizedBox(
-                    width: double.infinity,
-                    child: ElevatedButton(
-                      onPressed: () {
-                        if (_weightController.text.isNotEmpty) {
-                          // SAVE WEIGHT LOGIC HERE
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            const SnackBar(
-                              content: Text('Weight updated successfully!'),
-                              backgroundColor: Color(0xFF4CAF50),
-                            ),
-                          );
-                          Navigator.pop(context);
-                        }
-                      },
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: const Color(0xFF4CAF50),
-                        padding: const EdgeInsets.symmetric(vertical: 16),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(12),
-                        ),
-                      ),
-                      child: const Text(
-                        'Update Weight',
-                        style: TextStyle(
-                          fontSize: 16,
-                          fontWeight: FontWeight.bold,
-                          color: Colors.white,
-                        ),
+                ),
+                if (_isSaving)
+                  Container(
+                    color: Colors.black26,
+                    child: const Center(
+                      child: CircularProgressIndicator(
+                        color: Color(0xFF4CAF50),
                       ),
                     ),
                   ),
-                ],
-              ),
+              ],
             ),
-            const SizedBox(height: 24),
-            const Text(
-              'Weight History',
-              style: TextStyle(
-                fontSize: 16,
-                fontWeight: FontWeight.bold,
-                color: Colors.black,
+    );
+  }
+
+  Widget _buildProgressOverviewCard() {
+    final weightChange = _getWeightChange();
+    final progressPercentage = _getProgressPercentage();
+    final isLosingWeight = _goalWeight < _startingWeight;
+
+    return Container(
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          colors: [
+            const Color(0xFF4CAF50).withOpacity(0.8),
+            const Color(0xFF81C784),
+          ],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
+        borderRadius: BorderRadius.circular(20),
+        boxShadow: [
+          BoxShadow(
+            color: const Color(0xFF4CAF50).withOpacity(0.3),
+            blurRadius: 12,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      child: Column(
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              const Text(
+                'Your Journey',
+                style: TextStyle(
+                  fontSize: 20,
+                  fontWeight: FontWeight.bold,
+                  color: Colors.white,
+                ),
               ),
-            ),
-            const SizedBox(height: 12),
-            Expanded(
-              child: Container(
-                padding: const EdgeInsets.all(20),
+              Container(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 12,
+                  vertical: 6,
+                ),
                 decoration: BoxDecoration(
                   color: Colors.white,
-                  borderRadius: BorderRadius.circular(16),
-                  boxShadow: [
-                    BoxShadow(
-                      color: Colors.grey.withOpacity(0.2),
-                      blurRadius: 8,
-                      offset: const Offset(0, 2),
+                  borderRadius: BorderRadius.circular(20),
+                ),
+                child: Text(
+                  '${progressPercentage.toStringAsFixed(1)}%',
+                  style: const TextStyle(
+                    fontSize: 14,
+                    fontWeight: FontWeight.bold,
+                    color: Color(0xFF4CAF50),
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 20),
+
+          // Progress Bar
+          ClipRRect(
+            borderRadius: BorderRadius.circular(10),
+            child: LinearProgressIndicator(
+              value: progressPercentage / 100,
+              minHeight: 12,
+              backgroundColor: Colors.white.withOpacity(0.3),
+              valueColor: const AlwaysStoppedAnimation<Color>(Colors.white),
+            ),
+          ),
+          const SizedBox(height: 20),
+
+          // Stats Row
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceAround,
+            children: [
+              _buildJourneyStatWhite(
+                'Start',
+                '${_startingWeight.toStringAsFixed(1)} kg',
+              ),
+              Container(
+                width: 2,
+                height: 40,
+                color: Colors.white.withOpacity(0.3),
+              ),
+              _buildJourneyStatWhite(
+                'Current',
+                '${_currentWeight.toStringAsFixed(1)} kg',
+              ),
+              Container(
+                width: 2,
+                height: 40,
+                color: Colors.white.withOpacity(0.3),
+              ),
+              _buildJourneyStatWhite(
+                'Goal',
+                '${_goalWeight.toStringAsFixed(1)} kg',
+              ),
+            ],
+          ),
+          const SizedBox(height: 16),
+
+          // Weight Change Indicator
+          Container(
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              color: Colors.white.withOpacity(0.2),
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Icon(
+                  weightChange < 0 ? Icons.trending_down : Icons.trending_up,
+                  color: Colors.white,
+                  size: 24,
+                ),
+                const SizedBox(width: 8),
+                Text(
+                  '${weightChange >= 0 ? '+' : ''}${weightChange.toStringAsFixed(1)} kg',
+                  style: const TextStyle(
+                    fontSize: 18,
+                    fontWeight: FontWeight.bold,
+                    color: Colors.white,
+                  ),
+                ),
+                const SizedBox(width: 8),
+                Text(
+                  isLosingWeight
+                      ? (weightChange < 0 ? 'lost' : 'gained')
+                      : (weightChange > 0 ? 'gained' : 'lost'),
+                  style: TextStyle(
+                    fontSize: 14,
+                    color: Colors.white.withOpacity(0.9),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildJourneyStatWhite(String label, String value) {
+    return Column(
+      children: [
+        Text(
+          value,
+          style: const TextStyle(
+            fontSize: 16,
+            fontWeight: FontWeight.bold,
+            color: Colors.white,
+          ),
+        ),
+        const SizedBox(height: 4),
+        Text(
+          label,
+          style: TextStyle(fontSize: 12, color: Colors.white.withOpacity(0.9)),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildCurrentWeightCard() {
+    return Container(
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: const Color(0xFF4CAF50), width: 2),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.grey.withOpacity(0.2),
+            blurRadius: 8,
+            offset: const Offset(0, 2),
+          ),
+        ],
+      ),
+      child: Column(
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              const Text(
+                'Current Status',
+                style: TextStyle(
+                  fontSize: 16,
+                  fontWeight: FontWeight.bold,
+                  color: Colors.black,
+                ),
+              ),
+              Container(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 12,
+                  vertical: 6,
+                ),
+                decoration: BoxDecoration(
+                  color: const Color(0xFF4CAF50).withOpacity(0.1),
+                  borderRadius: BorderRadius.circular(20),
+                ),
+                child: Row(
+                  children: [
+                    const Icon(
+                      Icons.local_fire_department,
+                      size: 16,
+                      color: Color(0xFF4CAF50),
+                    ),
+                    const SizedBox(width: 4),
+                    Text(
+                      '$_currentCalorieGoal cal/day',
+                      style: const TextStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.bold,
+                        color: Color(0xFF4CAF50),
+                      ),
                     ),
                   ],
                 ),
-                child: Center(
-                  child: Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      Icon(
-                        Icons.trending_up,
-                        size: 64,
-                        color: Colors.grey[400],
-                      ),
-                      const SizedBox(height: 16),
-                      Text(
-                        'No weight history yet',
-                        style: TextStyle(
-                          fontSize: 16,
-                          color: Colors.grey[600],
-                          fontWeight: FontWeight.w600,
-                        ),
-                      ),
-                      const SizedBox(height: 8),
-                      Text(
-                        'Start tracking your weight progress',
-                        style: TextStyle(fontSize: 14, color: Colors.grey[500]),
-                      ),
-                    ],
+              ),
+            ],
+          ),
+          const SizedBox(height: 16),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceAround,
+            children: [
+              _buildStatColumn(
+                'Weight',
+                '${_currentWeight.toStringAsFixed(1)} kg',
+                Colors.blue,
+              ),
+              _buildStatColumn(
+                'To Goal',
+                '${(_goalWeight - _currentWeight).abs().toStringAsFixed(1)} kg',
+                Colors.orange,
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildStatColumn(String label, String value, Color color) {
+    return Column(
+      children: [
+        Text(
+          value,
+          style: TextStyle(
+            fontSize: 24,
+            fontWeight: FontWeight.bold,
+            color: color,
+          ),
+        ),
+        const SizedBox(height: 4),
+        Text(label, style: TextStyle(fontSize: 12, color: Colors.grey[600])),
+      ],
+    );
+  }
+
+  Widget _buildUpdateWeightCard() {
+    return Container(
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.grey.withOpacity(0.2),
+            blurRadius: 8,
+            offset: const Offset(0, 2),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text(
+            'Update Weight',
+            style: TextStyle(
+              fontSize: 16,
+              fontWeight: FontWeight.bold,
+              color: Colors.black,
+            ),
+          ),
+          const SizedBox(height: 16),
+          Row(
+            children: [
+              Expanded(
+                child: TextField(
+                  controller: _weightController,
+                  keyboardType: TextInputType.number,
+                  enabled: !_isSaving,
+                  decoration: InputDecoration(
+                    hintText: 'Enter weight',
+                    filled: true,
+                    fillColor: Colors.grey[100],
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(12),
+                      borderSide: BorderSide.none,
+                    ),
+                    prefixIcon: const Icon(
+                      Icons.monitor_weight,
+                      color: Color(0xFF4CAF50),
+                    ),
                   ),
                 ),
               ),
+              const SizedBox(width: 12),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 12),
+                decoration: BoxDecoration(
+                  color: const Color(0xFF4CAF50),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: DropdownButton<String>(
+                  value: _selectedUnit,
+                  underline: const SizedBox(),
+                  dropdownColor: const Color(0xFF4CAF50),
+                  icon: const Icon(Icons.arrow_drop_down, color: Colors.white),
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontWeight: FontWeight.bold,
+                    fontSize: 16,
+                  ),
+                  items: ['kg', 'lbs'].map((String unit) {
+                    return DropdownMenuItem<String>(
+                      value: unit,
+                      child: Text(unit),
+                    );
+                  }).toList(),
+                  onChanged: _isSaving
+                      ? null
+                      : (String? newValue) {
+                          if (newValue != null) {
+                            setState(() => _selectedUnit = newValue);
+                          }
+                        },
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 16),
+          Container(
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              color: Colors.blue[50],
+              borderRadius: BorderRadius.circular(8),
+              border: Border.all(color: Colors.blue[200]!),
+            ),
+            child: Row(
+              children: [
+                Icon(Icons.info_outline, color: Colors.blue[700], size: 20),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    'Your daily calorie goal will be automatically adjusted based on your new weight.',
+                    style: TextStyle(color: Colors.blue[900], fontSize: 12),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 16),
+          SizedBox(
+            width: double.infinity,
+            child: ElevatedButton(
+              onPressed: _isSaving ? null : _updateWeight,
+              style: ElevatedButton.styleFrom(
+                backgroundColor: const Color(0xFF4CAF50),
+                padding: const EdgeInsets.symmetric(vertical: 16),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                disabledBackgroundColor: Colors.grey,
+              ),
+              child: _isSaving
+                  ? const SizedBox(
+                      height: 20,
+                      width: 20,
+                      child: CircularProgressIndicator(
+                        color: Colors.white,
+                        strokeWidth: 2,
+                      ),
+                    )
+                  : const Text(
+                      'Update Weight',
+                      style: TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.bold,
+                        color: Colors.white,
+                      ),
+                    ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildWeightHistory() {
+    if (_weightHistory.isEmpty) {
+      return Container(
+        padding: const EdgeInsets.all(40),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(16),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.grey.withOpacity(0.2),
+              blurRadius: 8,
+              offset: const Offset(0, 2),
             ),
           ],
         ),
+        child: Center(
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Icon(Icons.trending_up, size: 64, color: Colors.grey[400]),
+              const SizedBox(height: 16),
+              Text(
+                'No weight history yet',
+                style: TextStyle(
+                  fontSize: 16,
+                  color: Colors.grey[600],
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+              const SizedBox(height: 8),
+              Text(
+                'Update your weight to start tracking',
+                style: TextStyle(fontSize: 14, color: Colors.grey[500]),
+              ),
+            ],
+          ),
+        ),
+      );
+    }
+
+    return Container(
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.grey.withOpacity(0.2),
+            blurRadius: 8,
+            offset: const Offset(0, 2),
+          ),
+        ],
+      ),
+      child: ListView.separated(
+        shrinkWrap: true,
+        physics: const NeverScrollableScrollPhysics(),
+        itemCount: _weightHistory.length,
+        separatorBuilder: (context, index) =>
+            Divider(height: 1, color: Colors.grey[200]),
+        itemBuilder: (context, index) {
+          final entry = _weightHistory[index];
+          final weight = entry['weight'] as double;
+          final date = entry['date'] as DateTime;
+          final calorieGoal = entry['calorieGoal'] as int;
+
+          // Calculate change from previous
+          String changeText = '';
+          Color changeColor = Colors.grey;
+          if (index < _weightHistory.length - 1) {
+            final prevWeight = _weightHistory[index + 1]['weight'] as double;
+            final change = weight - prevWeight;
+            if (change != 0) {
+              changeText =
+                  '${change > 0 ? '+' : ''}${change.toStringAsFixed(1)} kg';
+              changeColor = change > 0 ? Colors.orange : Colors.green;
+            }
+          }
+
+          return ListTile(
+            contentPadding: const EdgeInsets.symmetric(
+              horizontal: 20,
+              vertical: 8,
+            ),
+            leading: Container(
+              padding: const EdgeInsets.all(10),
+              decoration: BoxDecoration(
+                color: const Color(0xFF4CAF50).withOpacity(0.1),
+                shape: BoxShape.circle,
+              ),
+              child: const Icon(
+                Icons.monitor_weight,
+                color: Color(0xFF4CAF50),
+                size: 24,
+              ),
+            ),
+            title: Row(
+              children: [
+                Text(
+                  '${weight.toStringAsFixed(1)} kg',
+                  style: const TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+                if (changeText.isNotEmpty) ...[
+                  const SizedBox(width: 8),
+                  Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 8,
+                      vertical: 2,
+                    ),
+                    decoration: BoxDecoration(
+                      color: changeColor.withOpacity(0.1),
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: Text(
+                      changeText,
+                      style: TextStyle(
+                        fontSize: 11,
+                        fontWeight: FontWeight.bold,
+                        color: changeColor,
+                      ),
+                    ),
+                  ),
+                ],
+              ],
+            ),
+            subtitle: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  DateFormat('MMM dd, yyyy • h:mm a').format(date),
+                  style: TextStyle(fontSize: 12, color: Colors.grey[600]),
+                ),
+                const SizedBox(height: 4),
+                Row(
+                  children: [
+                    const Icon(
+                      Icons.local_fire_department,
+                      size: 12,
+                      color: Colors.orange,
+                    ),
+                    const SizedBox(width: 4),
+                    Text(
+                      '$calorieGoal cal/day',
+                      style: const TextStyle(
+                        fontSize: 11,
+                        color: Colors.orange,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          );
+        },
+      ),
+    );
+  }
+
+  void _showSuccessSnackBar(String message) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Row(
+          children: [
+            const Icon(Icons.check_circle, color: Colors.white),
+            const SizedBox(width: 12),
+            Expanded(child: Text(message)),
+          ],
+        ),
+        backgroundColor: const Color(0xFF4CAF50),
+        behavior: SnackBarBehavior.floating,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+        duration: const Duration(seconds: 3),
+      ),
+    );
+  }
+
+  void _showErrorSnackBar(String message) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Row(
+          children: [
+            const Icon(Icons.error_outline, color: Colors.white),
+            const SizedBox(width: 12),
+            Expanded(child: Text(message)),
+          ],
+        ),
+        backgroundColor: Colors.red,
+        behavior: SnackBarBehavior.floating,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
       ),
     );
   }
