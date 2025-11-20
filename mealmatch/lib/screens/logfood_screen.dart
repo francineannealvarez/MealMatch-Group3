@@ -6,6 +6,8 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import '../services/food_api_service.dart';
 import '../models/fooditem.dart';
 import 'modifyfood_screen.dart';
+import '../services/favorites_service.dart';
+import '../services/themealdb_service.dart';
 
 class LogFood extends StatelessWidget {
   const LogFood({super.key});
@@ -1177,7 +1179,7 @@ class _SelectMealScreenState extends State<SelectMealScreen> {
 }
 
 // === Favorites Tab ===
-class FavoritesTab extends StatelessWidget {
+class FavoritesTab extends StatefulWidget {
   final String userId;
   final String? selectedMeal;
 
@@ -1187,15 +1189,61 @@ class FavoritesTab extends StatelessWidget {
     required this.selectedMeal,
   });
 
+  @override
+  State<FavoritesTab> createState() => _FavoritesTabState();
+}
+
+class _FavoritesTabState extends State<FavoritesTab> {
+  List<Map<String, dynamic>> _favoriteRecipes = [];
+  bool _isLoading = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadFavorites();
+  }
+
+  Future<void> _loadFavorites() async {
+    setState(() => _isLoading = true);
+
+    try {
+      // Get favorite recipe IDs
+      final favoriteIds = await FavoritesService.loadFavoriteIds();
+
+      // Fetch full recipe data for each ID
+      final recipes = <Map<String, dynamic>>[];
+      for (String id in favoriteIds) {
+        final details = await TheMealDBService.getMealDetails(id);
+        if (details != null) {
+          recipes.add(details);
+        }
+      }
+
+      setState(() {
+        _favoriteRecipes = recipes;
+        _isLoading = false;
+      });
+    } catch (e) {
+      print('Error loading favorites: $e');
+      setState(() => _isLoading = false);
+    }
+  }
+
   Future<void> _addRecipeToMeal(
-    BuildContext context,
+    String recipeId,
     String recipeName,
+    int calories,
     String? meal,
   ) async {
     if (meal == null) {
       await showDialog(
         context: context,
         builder: (_) => AlertDialog(
+          backgroundColor: const Color(0xFFFFF9E6),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(20),
+            side: const BorderSide(color: Colors.orange, width: 2),
+          ),
           title: const Text('Select Meal'),
           content: const Text(
             'Please select a meal category before adding food.',
@@ -1203,7 +1251,7 @@ class FavoritesTab extends StatelessWidget {
           actions: [
             TextButton(
               onPressed: () => Navigator.pop(context),
-              child: const Text('OK'),
+              child: const Text('OK', style: TextStyle(color: Colors.orange)),
             ),
           ],
         ),
@@ -1211,124 +1259,229 @@ class FavoritesTab extends StatelessWidget {
       return;
     }
 
-    final user = FirebaseAuth.instance.currentUser;
-    await FirebaseFirestore.instance
-        .collection('users')
-        .doc(user!.uid)
-        .collection('meal_logs')
-        .add({
-          'userId': user.uid,
-          'category': meal,
-          'foodName': recipeName,
-          'timestamp': FieldValue.serverTimestamp(),
-        });
+    try {
+      final user = FirebaseAuth.instance.currentUser;
+      if (user == null) return;
 
-    if (context.mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          backgroundColor: Colors.green.shade600,
-          content: Text('$recipeName added to $meal!'),
-        ),
-      );
-    }
-  }
+      final now = DateTime.now();
+      final dateStr =
+          '${now.year}-${now.month.toString().padLeft(2, '0')}-${now.day.toString().padLeft(2, '0')}';
 
-  @override
-  Widget build(BuildContext context) {
-    return StreamBuilder<QuerySnapshot>(
-      stream: FirebaseFirestore.instance
-          .collection('favorites')
-          .where('userId', isEqualTo: userId)
-          .snapshots(),
-      builder: (context, snapshot) {
-        if (!snapshot.hasData) {
-          return const Center(child: CircularProgressIndicator());
-        }
-        final docs = snapshot.data!.docs;
-        if (docs.isEmpty) {
-          // ✨ NEW: Empty state with button to discover recipes
-          return Center(
-            child: Padding(
-              padding: const EdgeInsets.all(32.0),
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
+      await FirebaseFirestore.instance
+          .collection('users')
+          .doc(user.uid)
+          .collection('meal_logs')
+          .add({
+            'userId': user.uid,
+            'category': meal,
+            'foodName': recipeName,
+            'calories': calories,
+            'timestamp': FieldValue.serverTimestamp(),
+            'date': dateStr,
+            'recipeId': recipeId,
+          });
+
+      if (mounted) {
+        ScaffoldMessenger.of(context)
+          ..hideCurrentSnackBar()
+          ..showSnackBar(
+            SnackBar(
+              behavior: SnackBarBehavior.floating,
+              margin: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(12),
+              ),
+              backgroundColor: Colors.green.shade600,
+              content: Row(
                 children: [
-                  Icon(
-                    Icons.favorite_border,
-                    size: 80,
-                    color: Colors.orange.shade300,
-                  ),
-                  const SizedBox(height: 24),
-                  const Text(
-                    'No Favorites Yet',
-                    style: TextStyle(
-                      fontSize: 22,
-                      fontWeight: FontWeight.bold,
-                      color: Colors.black87,
-                    ),
-                  ),
-                  const SizedBox(height: 12),
-                  Text(
-                    'Start adding your favorite recipes\nto see them here!',
-                    textAlign: TextAlign.center,
-                    style: TextStyle(
-                      fontSize: 16,
-                      color: Colors.grey[600],
-                      height: 1.5,
-                    ),
-                  ),
-                  const SizedBox(height: 32),
-                  ElevatedButton.icon(
-                    onPressed: () {
-                      // Navigate to recipes/discover page
-                      Navigator.pushNamed(context, '/recipes');
-                    },
-                    icon: const Icon(Icons.explore, size: 22),
-                    label: const Text(
-                      'Discover Recipes',
-                      style: TextStyle(
-                        fontSize: 16,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: Colors.orange,
-                      foregroundColor: Colors.white,
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 32,
-                        vertical: 16,
-                      ),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(30),
-                      ),
-                      elevation: 4,
+                  const Icon(Icons.check_circle, color: Colors.white),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Text(
+                      '$recipeName added to $meal!',
+                      style: const TextStyle(fontSize: 15, color: Colors.white),
                     ),
                   ),
                 ],
               ),
             ),
           );
-        }
-        return ListView(
-          children: docs.map((doc) {
-            final data = doc.data() as Map<String, dynamic>;
-            return ListTile(
-              title: Text(data['name'] ?? 'Unnamed'),
-              trailing: IconButton(
-                icon: const Icon(Icons.add_circle, color: Colors.orange),
-                onPressed: () =>
-                    _addRecipeToMeal(context, data['name'], selectedMeal),
-              ),
-            );
-          }).toList(),
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Error adding recipe: $e'),
+            backgroundColor: Colors.red,
+          ),
         );
-      },
+      }
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (_isLoading) {
+      return const Center(
+        child: CircularProgressIndicator(color: Colors.orange),
+      );
+    }
+
+    if (_favoriteRecipes.isEmpty) {
+      return Center(
+        child: Padding(
+          padding: const EdgeInsets.all(32.0),
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Icon(
+                Icons.favorite_border,
+                size: 80,
+                color: Colors.orange.shade300,
+              ),
+              const SizedBox(height: 24),
+              const Text(
+                'No Favorites Yet',
+                style: TextStyle(
+                  fontSize: 22,
+                  fontWeight: FontWeight.bold,
+                  color: Colors.black87,
+                ),
+              ),
+              const SizedBox(height: 12),
+              Text(
+                'Start adding your favorite recipes\nto see them here!',
+                textAlign: TextAlign.center,
+                style: TextStyle(
+                  fontSize: 16,
+                  color: Colors.grey[600],
+                  height: 1.5,
+                ),
+              ),
+              const SizedBox(height: 32),
+              ElevatedButton.icon(
+                onPressed: () {
+                  Navigator.pushNamed(context, '/recipes');
+                },
+                icon: const Icon(Icons.explore, size: 22),
+                label: const Text(
+                  'Discover Recipes',
+                  style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                ),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: Colors.orange,
+                  foregroundColor: Colors.white,
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 32,
+                    vertical: 16,
+                  ),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(30),
+                  ),
+                  elevation: 4,
+                ),
+              ),
+            ],
+          ),
+        ),
+      );
+    }
+
+    return RefreshIndicator(
+      onRefresh: _loadFavorites,
+      color: Colors.orange,
+      child: ListView.builder(
+        padding: const EdgeInsets.symmetric(vertical: 8),
+        itemCount: _favoriteRecipes.length,
+        itemBuilder: (context, index) {
+          final recipe = _favoriteRecipes[index];
+          final recipeId = recipe['id'].toString();
+          final recipeName = recipe['title'] ?? 'Recipe';
+          final calories = recipe['nutrition']?['calories'] ?? 0;
+          final image = recipe['image'] ?? '';
+
+          return Container(
+            margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(15),
+              border: Border.all(color: Colors.orange.shade200, width: 1),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withOpacity(0.05),
+                  blurRadius: 4,
+                  offset: const Offset(0, 2),
+                ),
+              ],
+            ),
+            child: ListTile(
+              contentPadding: const EdgeInsets.symmetric(
+                horizontal: 16,
+                vertical: 8,
+              ),
+              leading: ClipRRect(
+                borderRadius: BorderRadius.circular(8),
+                child: image.isNotEmpty
+                    ? Image.network(
+                        image,
+                        width: 60,
+                        height: 60,
+                        fit: BoxFit.cover,
+                        errorBuilder: (_, __, ___) => Container(
+                          width: 60,
+                          height: 60,
+                          color: Colors.grey[200],
+                          child: const Icon(Icons.restaurant, size: 30),
+                        ),
+                      )
+                    : Container(
+                        width: 60,
+                        height: 60,
+                        color: Colors.grey[200],
+                        child: const Icon(Icons.restaurant, size: 30),
+                      ),
+              ),
+              title: Text(
+                recipeName,
+                style: const TextStyle(
+                  fontWeight: FontWeight.w600,
+                  fontSize: 16,
+                ),
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
+              ),
+              subtitle: Text(
+                '$calories cal',
+                style: TextStyle(color: Colors.grey[600], fontSize: 14),
+              ),
+              trailing: IconButton(
+                icon: Container(
+                  padding: const EdgeInsets.all(8),
+                  decoration: BoxDecoration(
+                    color: Colors.orange,
+                    shape: BoxShape.circle,
+                  ),
+                  child: const Icon(Icons.add, color: Colors.white, size: 20),
+                ),
+                onPressed: () async {
+                  await _addRecipeToMeal(
+                    recipeId,
+                    recipeName,
+                    calories,
+                    widget.selectedMeal,
+                  );
+                },
+              ),
+            ),
+          );
+        },
+      ),
     );
   }
 }
 
 // === My Recipes Tab ===
-class MyRecipesTab extends StatelessWidget {
+class MyRecipesTab extends StatefulWidget {
   final String userId;
   final String? selectedMeal;
 
@@ -1338,15 +1491,75 @@ class MyRecipesTab extends StatelessWidget {
     required this.selectedMeal,
   });
 
+  @override
+  State<MyRecipesTab> createState() => _MyRecipesTabState();
+}
+
+class _MyRecipesTabState extends State<MyRecipesTab> {
+  bool _isLoading = true;
+  List<Map<String, dynamic>> _recipes = [];
+  String? _errorMessage;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadRecipes();
+  }
+
+  Future<void> _loadRecipes() async {
+    setState(() {
+      _isLoading = true;
+      _errorMessage = null;
+    });
+
+    try {
+      // Try to load recipes with a timeout
+      final snapshot = await FirebaseFirestore.instance
+          .collection('recipes')
+          .where('userId', isEqualTo: widget.userId)
+          .get()
+          .timeout(
+            const Duration(seconds: 10),
+            onTimeout: () {
+              throw Exception('Request timed out');
+            },
+          );
+
+      final recipes = snapshot.docs
+          .map((doc) => {'id': doc.id, ...doc.data()})
+          .toList();
+
+      if (mounted) {
+        setState(() {
+          _recipes = recipes;
+          _isLoading = false;
+        });
+      }
+    } catch (e) {
+      print('Error loading recipes: $e');
+      if (mounted) {
+        setState(() {
+          _isLoading = false;
+          _errorMessage = e.toString();
+        });
+      }
+    }
+  }
+
   Future<void> _addRecipeToMeal(
-    BuildContext context,
     String recipeName,
+    int? calories,
     String? meal,
   ) async {
     if (meal == null) {
       await showDialog(
         context: context,
         builder: (_) => AlertDialog(
+          backgroundColor: const Color(0xFFFFF9E6),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(20),
+            side: const BorderSide(color: Colors.orange, width: 2),
+          ),
           title: const Text('Select Meal'),
           content: const Text(
             'Please select a meal category before adding food.',
@@ -1354,7 +1567,7 @@ class MyRecipesTab extends StatelessWidget {
           actions: [
             TextButton(
               onPressed: () => Navigator.pop(context),
-              child: const Text('OK'),
+              child: const Text('OK', style: TextStyle(color: Colors.orange)),
             ),
           ],
         ),
@@ -1362,118 +1575,288 @@ class MyRecipesTab extends StatelessWidget {
       return;
     }
 
-    final user = FirebaseAuth.instance.currentUser;
-    await FirebaseFirestore.instance
-        .collection('users')
-        .doc(user!.uid)
-        .collection('meal_logs')
-        .add({
-          'userId': user.uid,
-          'category': meal,
-          'foodName': recipeName,
-          'timestamp': FieldValue.serverTimestamp(),
-        });
+    try {
+      final user = FirebaseAuth.instance.currentUser;
+      if (user == null) return;
 
-    if (context.mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          backgroundColor: Colors.green.shade600,
-          content: Text('$recipeName added to $meal!'),
-        ),
-      );
-    }
-  }
+      final now = DateTime.now();
+      final dateStr =
+          '${now.year}-${now.month.toString().padLeft(2, '0')}-${now.day.toString().padLeft(2, '0')}';
 
-  @override
-  Widget build(BuildContext context) {
-    return StreamBuilder<QuerySnapshot>(
-      stream: FirebaseFirestore.instance
-          .collection('recipes')
-          .where('userId', isEqualTo: userId)
-          .snapshots(),
-      builder: (context, snapshot) {
-        if (!snapshot.hasData) {
-          return const Center(child: CircularProgressIndicator());
-        }
-        final docs = snapshot.data!.docs;
-        if (docs.isEmpty) {
-          // ✨ NEW: Empty state with "Coming Soon" button
-          return Center(
-            child: Padding(
-              padding: const EdgeInsets.all(32.0),
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
+      await FirebaseFirestore.instance
+          .collection('users')
+          .doc(user.uid)
+          .collection('meal_logs')
+          .add({
+            'userId': user.uid,
+            'category': meal,
+            'foodName': recipeName,
+            'calories': calories ?? 0,
+            'timestamp': FieldValue.serverTimestamp(),
+            'date': dateStr,
+          });
+
+      if (mounted) {
+        ScaffoldMessenger.of(context)
+          ..hideCurrentSnackBar()
+          ..showSnackBar(
+            SnackBar(
+              behavior: SnackBarBehavior.floating,
+              margin: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(12),
+              ),
+              backgroundColor: Colors.green.shade600,
+              content: Row(
                 children: [
-                  Icon(
-                    Icons.menu_book,
-                    size: 80,
-                    color: Colors.orange.shade300,
-                  ),
-                  const SizedBox(height: 24),
-                  const Text(
-                    "Inay's Pansit isn't in the database (yet)",
-                    textAlign: TextAlign.center,
-                    style: TextStyle(
-                      fontSize: 20,
-                      fontWeight: FontWeight.bold,
-                      color: Colors.black87,
-                    ),
-                  ),
-                  const SizedBox(height: 12),
-                  Text(
-                    'Create and save your own custom recipes',
-                    textAlign: TextAlign.center,
-                    style: TextStyle(
-                      fontSize: 16,
-                      color: Colors.grey[600],
-                      height: 1.5,
-                    ),
-                  ),
-                  const SizedBox(height: 32),
-                  ElevatedButton.icon(
-                    onPressed: () {
-                      Navigator.pushNamed(context, '/upload');
-                    },
-                    icon: const Icon(Icons.add_circle_outline, size: 22),
-                    label: const Text(
-                      'Create Recipe',
-                      style: TextStyle(
-                        fontSize: 16,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: Colors.orange,
-                      foregroundColor: Colors.white,
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 32,
-                        vertical: 16,
-                      ),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(30),
-                      ),
-                      elevation: 4,
+                  const Icon(Icons.check_circle, color: Colors.white),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Text(
+                      '$recipeName added to $meal!',
+                      style: const TextStyle(fontSize: 15, color: Colors.white),
                     ),
                   ),
                 ],
               ),
             ),
           );
-        }
-        return ListView(
-          children: docs.map((doc) {
-            final data = doc.data() as Map<String, dynamic>;
-            return ListTile(
-              title: Text(data['name'] ?? 'Unnamed'),
-              trailing: IconButton(
-                icon: const Icon(Icons.add_circle, color: Colors.orange),
-                onPressed: () =>
-                    _addRecipeToMeal(context, data['name'], selectedMeal),
-              ),
-            );
-          }).toList(),
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Error adding recipe: $e'),
+            backgroundColor: Colors.red,
+          ),
         );
-      },
+      }
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    // Loading state
+    if (_isLoading) {
+      return const Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            CircularProgressIndicator(color: Colors.orange),
+            SizedBox(height: 16),
+            Text(
+              'Loading your recipes...',
+              style: TextStyle(color: Colors.grey),
+            ),
+          ],
+        ),
+      );
+    }
+
+    // Error state
+    if (_errorMessage != null) {
+      return Center(
+        child: Padding(
+          padding: const EdgeInsets.all(32.0),
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Icon(
+                Icons.error_outline,
+                size: 80,
+                color: Colors.orange.shade300,
+              ),
+              const SizedBox(height: 24),
+              const Text(
+                'Failed to Load Recipes',
+                style: TextStyle(
+                  fontSize: 20,
+                  fontWeight: FontWeight.bold,
+                  color: Colors.black87,
+                ),
+              ),
+              const SizedBox(height: 12),
+              Text(
+                'Please check your internet connection',
+                textAlign: TextAlign.center,
+                style: TextStyle(fontSize: 16, color: Colors.grey[600]),
+              ),
+              const SizedBox(height: 32),
+              ElevatedButton.icon(
+                onPressed: _loadRecipes,
+                icon: const Icon(Icons.refresh, size: 22),
+                label: const Text(
+                  'Try Again',
+                  style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                ),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: Colors.orange,
+                  foregroundColor: Colors.white,
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 32,
+                    vertical: 16,
+                  ),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(30),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      );
+    }
+
+    // Empty state
+    if (_recipes.isEmpty) {
+      return Center(
+        child: Padding(
+          padding: const EdgeInsets.all(32.0),
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Icon(Icons.menu_book, size: 80, color: Colors.orange.shade300),
+              const SizedBox(height: 24),
+              const Text(
+                "Inay's Pansit isn't in the database (yet)",
+                textAlign: TextAlign.center,
+                style: TextStyle(
+                  fontSize: 20,
+                  fontWeight: FontWeight.bold,
+                  color: Colors.black87,
+                ),
+              ),
+              const SizedBox(height: 12),
+              Text(
+                'Create and save your own custom recipes',
+                textAlign: TextAlign.center,
+                style: TextStyle(
+                  fontSize: 16,
+                  color: Colors.grey[600],
+                  height: 1.5,
+                ),
+              ),
+              const SizedBox(height: 32),
+              ElevatedButton.icon(
+                onPressed: () {
+                  Navigator.pushNamed(context, '/upload');
+                },
+                icon: const Icon(Icons.add_circle_outline, size: 22),
+                label: const Text(
+                  'Create Recipe',
+                  style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                ),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: Colors.orange,
+                  foregroundColor: Colors.white,
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 32,
+                    vertical: 16,
+                  ),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(30),
+                  ),
+                  elevation: 4,
+                ),
+              ),
+            ],
+          ),
+        ),
+      );
+    }
+
+    // List of recipes
+    return RefreshIndicator(
+      onRefresh: _loadRecipes,
+      color: Colors.orange,
+      child: ListView.builder(
+        padding: const EdgeInsets.symmetric(vertical: 8),
+        itemCount: _recipes.length,
+        itemBuilder: (context, index) {
+          final recipe = _recipes[index];
+          final recipeName = recipe['name'] ?? 'Unnamed Recipe';
+          final calories = recipe['calories'] as int?;
+          final image = recipe['image'] as String?;
+
+          return Container(
+            margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(15),
+              border: Border.all(color: Colors.orange.shade200, width: 1),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withOpacity(0.05),
+                  blurRadius: 4,
+                  offset: const Offset(0, 2),
+                ),
+              ],
+            ),
+            child: ListTile(
+              contentPadding: const EdgeInsets.symmetric(
+                horizontal: 16,
+                vertical: 8,
+              ),
+              leading: ClipRRect(
+                borderRadius: BorderRadius.circular(8),
+                child: image != null && image.isNotEmpty
+                    ? Image.network(
+                        image,
+                        width: 60,
+                        height: 60,
+                        fit: BoxFit.cover,
+                        errorBuilder: (_, __, ___) => Container(
+                          width: 60,
+                          height: 60,
+                          color: Colors.grey[200],
+                          child: const Icon(Icons.restaurant, size: 30),
+                        ),
+                      )
+                    : Container(
+                        width: 60,
+                        height: 60,
+                        color: Colors.orange.shade100,
+                        child: Icon(
+                          Icons.restaurant,
+                          size: 30,
+                          color: Colors.orange.shade700,
+                        ),
+                      ),
+              ),
+              title: Text(
+                recipeName,
+                style: const TextStyle(
+                  fontWeight: FontWeight.w600,
+                  fontSize: 16,
+                ),
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
+              ),
+              subtitle: Text(
+                calories != null ? '$calories cal' : 'Custom recipe',
+                style: TextStyle(color: Colors.grey[600], fontSize: 14),
+              ),
+              trailing: IconButton(
+                icon: Container(
+                  padding: const EdgeInsets.all(8),
+                  decoration: const BoxDecoration(
+                    color: Colors.orange,
+                    shape: BoxShape.circle,
+                  ),
+                  child: const Icon(Icons.add, color: Colors.white, size: 20),
+                ),
+                onPressed: () async {
+                  await _addRecipeToMeal(
+                    recipeName,
+                    calories,
+                    widget.selectedMeal,
+                  );
+                },
+              ),
+            ),
+          );
+        },
+      ),
     );
   }
 }
