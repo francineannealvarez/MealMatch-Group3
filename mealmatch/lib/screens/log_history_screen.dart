@@ -1057,28 +1057,6 @@ class _LogHistoryPageState extends State<LogHistoryPage> {
     bool isToday = _isSameDate(currentDate, DateTime.now());
 
     // Show loading indicator while fetching data
-    if (isLoading) {
-      return Scaffold(
-        backgroundColor: const Color(0xFFFFE9B1),
-        appBar: AppBar(
-          backgroundColor: const Color(0xFFFFA726),
-          elevation: 0,
-          centerTitle: true,
-          title: const Text(
-            'Daily Calorie',
-            style: TextStyle(
-              fontWeight: FontWeight.bold,
-              color: Colors.black,
-              fontSize: 18,
-            ),
-          ),
-        ),
-        body: const Center(
-          child: CircularProgressIndicator(color: Color(0xFF4CAF50)),
-        ),
-      );
-    }
-
     return Scaffold(
       backgroundColor: const Color(0xFFFFE9B1),
       appBar: AppBar(
@@ -1086,7 +1064,6 @@ class _LogHistoryPageState extends State<LogHistoryPage> {
         elevation: 0,
         centerTitle: true,
         leading: IconButton(
-          // ← ADD THIS
           icon: const Icon(Icons.arrow_back),
           onPressed: () {
             Navigator.pushReplacementNamed(context, '/home');
@@ -1102,18 +1079,22 @@ class _LogHistoryPageState extends State<LogHistoryPage> {
         ),
       ),
       bottomNavigationBar: _buildBottomNavigationBar(),
-      body: Column(
-        children: [
-          if (!showSummaryList || expandedDate != null) ...[
-            Container(
-              color: const Color(0xFFFFA726),
-              padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 16),
-              child: Column(
-                children: [
-                  _buildCalorieProgressBar(
-                    _getTotalCalories(currentDate),
-                    userGoalCalories,
-                  ),
+      body: isLoading  // ✅ CHECK isLoading HERE instead!
+          ? const Center(
+              child: CircularProgressIndicator(color: Color(0xFF4CAF50)),
+            )
+          : Column(  // ✅ Rest of your body content
+              children: [
+                if (!showSummaryList || expandedDate != null) ...[
+                  Container(
+                    color: const Color(0xFFFFA726),
+                    padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 16),
+                    child: Column(
+                      children: [
+                        _buildCalorieProgressBar(
+                          _getTotalCalories(currentDate),
+                          userGoalCalories,
+                        ),
                   const SizedBox(height: 12),
                   Row(
                     mainAxisAlignment: MainAxisAlignment.spaceEvenly,

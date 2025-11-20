@@ -1,3 +1,5 @@
+import 'dart:math';
+
 import 'package:flutter/material.dart';
 import '../services/calorielog_history_service.dart';
 import '../services/firebase_service.dart';
@@ -276,14 +278,23 @@ class _HomePageState extends State<HomePage> {
   // Get varied high-protein recipes
   Future<List<Map<String, dynamic>>> _getVariedProteinRecipes() async {
     try {
-      // Rotate through different protein categories DAILY
       final proteinCategories = ['Chicken', 'Beef', 'Seafood', 'Pork'];
-      final dayOfYear = DateTime.now().difference(DateTime(DateTime.now().year, 1, 1)).inDays;
-      final selectedCategory = proteinCategories[dayOfYear % proteinCategories.length];
       
-      print('🍖 Loading protein recipes: $selectedCategory (Day: $dayOfYear)');
+      // ✅ Rotate category every 6 hours instead of daily
+      final hoursSinceEpoch = DateTime.now().millisecondsSinceEpoch ~/ (1000 * 60 * 60);
+      final categoryIndex = (hoursSinceEpoch ~/ 6) % proteinCategories.length;
+      final selectedCategory = proteinCategories[categoryIndex];
       
-      return await TheMealDBService.getMealsByCategory(selectedCategory, number: 5);
+      print('🍖 Loading protein recipes: $selectedCategory');
+      
+      final meals = await TheMealDBService.getMealsByCategory(selectedCategory, number: 50);
+      
+      if (meals.isEmpty) return [];
+      
+      // ✅ Shuffle differently each time using current timestamp
+      meals.shuffle(Random(DateTime.now().millisecondsSinceEpoch));
+      
+      return meals.take(5).toList();
       
     } catch (e) {
       print('❌ Error getting protein recipes: $e');
@@ -721,11 +732,11 @@ class _HomePageState extends State<HomePage> {
         SizedBox(
           height: 210,
           child: cookAgainRecipes.isEmpty
-              ? const Center(
-                  child: Padding(
-                    padding: EdgeInsets.all(16),
-                    child: CircularProgressIndicator(color: Color(0xFF4CAF50)),
-                  ),
+              ? ListView.builder(  
+                  padding: const EdgeInsets.symmetric(horizontal: 16),
+                  physics: const NeverScrollableScrollPhysics(),
+                  itemCount: 5, // Show 5 skeleton cards
+                  itemBuilder: (context, index) => _buildSkeletonCard(),
                 )
               : ListView.builder(
                   scrollDirection: Axis.horizontal,
@@ -760,8 +771,12 @@ class _HomePageState extends State<HomePage> {
         SizedBox(
           height: 210,
           child: tryTheseRecipes.isEmpty
-              ? const Center(
-                  child: CircularProgressIndicator(color: Color(0xFF4CAF50)),
+              ? ListView.builder( 
+                  scrollDirection: Axis.horizontal,
+                  padding: const EdgeInsets.symmetric(horizontal: 16),
+                  physics: const NeverScrollableScrollPhysics(),
+                  itemCount: 5,
+                  itemBuilder: (context, index) => _buildSkeletonCard(),
                 )
               : ListView.builder(
                   scrollDirection: Axis.horizontal,
@@ -795,8 +810,12 @@ class _HomePageState extends State<HomePage> {
         SizedBox(
           height: 210,
           child: discoverProteinRecipes.isEmpty
-              ? const Center(
-                  child: CircularProgressIndicator(color: Color(0xFF4CAF50)),
+              ? ListView.builder(  
+                  scrollDirection: Axis.horizontal,
+                  padding: const EdgeInsets.symmetric(horizontal: 16),
+                  physics: const NeverScrollableScrollPhysics(),
+                  itemCount: 5,
+                  itemBuilder: (context, index) => _buildSkeletonCard(),
                 )
               : ListView.builder(
                   scrollDirection: Axis.horizontal,
@@ -811,6 +830,117 @@ class _HomePageState extends State<HomePage> {
       ],
     );
   }
+
+  Widget _buildSkeletonCard() {
+  return Container(
+    width: 160,
+    margin: const EdgeInsets.only(right: 16),
+    decoration: BoxDecoration(
+      color: Colors.white,
+      borderRadius: BorderRadius.circular(16),
+      boxShadow: [
+        BoxShadow(
+          color: Colors.grey.withOpacity(0.15),
+          spreadRadius: 1,
+          blurRadius: 6,
+          offset: const Offset(0, 2),
+        ),
+      ],
+    ),
+    child: Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        // Skeleton Image
+        Container(
+          height: 90,
+          width: 160,
+          decoration: BoxDecoration(
+            color: Colors.grey[300],
+            borderRadius: const BorderRadius.only(
+              topLeft: Radius.circular(16),
+              topRight: Radius.circular(16),
+            ),
+          ),
+        ),
+        Expanded(
+          child: Padding(
+            padding: const EdgeInsets.all(10),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                // Skeleton Title
+                Container(
+                  height: 14,
+                  width: 120,
+                  decoration: BoxDecoration(
+                    color: Colors.grey[300],
+                    borderRadius: BorderRadius.circular(4),
+                  ),
+                ),
+                const SizedBox(height: 6),
+                // Skeleton Author
+                Container(
+                  height: 11,
+                  width: 80,
+                  decoration: BoxDecoration(
+                    color: Colors.grey[300],
+                    borderRadius: BorderRadius.circular(4),
+                  ),
+                ),
+                const SizedBox(height: 8),
+                // Skeleton Cook Time
+                Row(
+                  children: [
+                    Container(
+                      height: 12,
+                      width: 12,
+                      decoration: BoxDecoration(
+                        color: Colors.grey[300],
+                        shape: BoxShape.circle,
+                      ),
+                    ),
+                    const SizedBox(width: 4),
+                    Container(
+                      height: 10,
+                      width: 60,
+                      decoration: BoxDecoration(
+                        color: Colors.grey[300],
+                        borderRadius: BorderRadius.circular(4),
+                      ),
+                    ),
+                  ],
+                ),
+                const Spacer(),
+                // Skeleton Bottom Row
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Container(
+                      height: 11,
+                      width: 60,
+                      decoration: BoxDecoration(
+                        color: Colors.grey[300],
+                        borderRadius: BorderRadius.circular(4),
+                      ),
+                    ),
+                    Container(
+                      height: 11,
+                      width: 40,
+                      decoration: BoxDecoration(
+                        color: Colors.grey[300],
+                        borderRadius: BorderRadius.circular(4),
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+        ),
+      ],
+    ),
+  );
+}
 
   Widget _buildRecipeCard(Map<String, dynamic> recipe) {
     // Extract data from the service
