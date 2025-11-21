@@ -1,22 +1,27 @@
-// lib/screens/upload_recipes_screen.dart
-
 import 'package:flutter/material.dart';
+import 'package:firebase_auth/firebase_auth.dart';
+import 'package:image_picker/image_picker.dart';
+import 'dart:io';
 import 'dart:math' as math;
+import '../models/user_recipe.dart';
+import '../services/firebase_service.dart';
 
-class UploadRecipesScreen extends StatefulWidget {
-  const UploadRecipesScreen({super.key});
+class UploadRecipeScreen extends StatefulWidget {
+  const UploadRecipeScreen({super.key});
 
   @override
-  State<UploadRecipesScreen> createState() => _UploadRecipesScreenState();
+  State<UploadRecipeScreen> createState() => _UploadRecipeScreenState();
 }
 
-class _UploadRecipesScreenState extends State<UploadRecipesScreen> {
+class _UploadRecipeScreenState extends State<UploadRecipeScreen> {
+  final FirebaseService _firebaseService = FirebaseService();
   final TextEditingController _recipeNameController = TextEditingController();
-  final TextEditingController _servingsController = TextEditingController();
+  final TextEditingController _servingsController = TextEditingController(text: '4');
 
   String prepTime = '00:00';
   String cookTime = '00:00';
 
+  List<String> ingredients = [];
   List<InstructionStep> instructions = [
     InstructionStep(stepNumber: 1, text: '', timer: null),
   ];
@@ -39,6 +44,85 @@ class _UploadRecipesScreenState extends State<UploadRecipesScreen> {
     'Sodium': const Color(0xFF9C27B0),
   };
 
+  File? _selectedImage;
+  bool _isUploading = false;
+
+  @override
+  void dispose() {
+    _recipeNameController.dispose();
+    _servingsController.dispose();
+    super.dispose();
+  }
+
+  Future<void> _pickImage() async {
+    try {
+      final ImagePicker picker = ImagePicker();
+      final XFile? image = await picker.pickImage(
+        source: ImageSource.gallery,
+        maxWidth: 1024,
+        maxHeight: 1024,
+        imageQuality: 85,
+      );
+
+      if (image != null) {
+        setState(() {
+          _selectedImage = File(image.path);
+        });
+      }
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Error picking image: $e')),
+      );
+    }
+  }
+
+  void _showIngredientsDialog() {
+    final TextEditingController ingredientController = TextEditingController();
+
+    showDialog(
+      context: context,
+      builder: (BuildContext context) {
+        return AlertDialog(
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(20),
+          ),
+          title: const Text('Add Ingredient'),
+          content: TextField(
+            controller: ingredientController,
+            autofocus: true,
+            decoration: InputDecoration(
+              hintText: 'e.g., 2 cups flour',
+              border: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(12),
+              ),
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: const Text('Cancel'),
+            ),
+            ElevatedButton(
+              style: ElevatedButton.styleFrom(
+                backgroundColor: const Color(0xFF8BC34A),
+                foregroundColor: Colors.white,
+              ),
+              onPressed: () {
+                if (ingredientController.text.trim().isNotEmpty) {
+                  setState(() {
+                    ingredients.add(ingredientController.text.trim());
+                  });
+                  Navigator.pop(context);
+                }
+              },
+              child: const Text('Add'),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
   void _addInstructionStep() {
     setState(() {
       instructions.add(
@@ -58,36 +142,6 @@ class _UploadRecipesScreenState extends State<UploadRecipesScreen> {
         instructions[i].stepNumber = i + 1;
       }
     });
-  }
-
-  void _showIngredientsDialog() {
-    showDialog(
-      context: context,
-      builder: (BuildContext context) {
-        return AlertDialog(
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(20),
-          ),
-          title: const Text('Add Ingredients'),
-          content: Container(
-            width: double.maxFinite,
-            height: 300,
-            child: const Center(
-              child: Text(
-                'Ingredients list will be added here',
-                style: TextStyle(color: Colors.grey),
-              ),
-            ),
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(context),
-              child: const Text('Close'),
-            ),
-          ],
-        );
-      },
-    );
   }
 
   void _showTimePicker(BuildContext context, String type, {int? stepIndex}) {
@@ -137,13 +191,12 @@ class _UploadRecipesScreenState extends State<UploadRecipesScreen> {
                     Row(
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
+                        // MINUTES
                         Column(
                           children: [
                             IconButton(
                               onPressed: () {
-                                setDialogState(() {
-                                  minutes = (minutes + 1) % 60;
-                                });
+                                setDialogState(() => minutes = (minutes + 1) % 60);
                               },
                               icon: const Icon(Icons.arrow_drop_up, size: 32),
                             ),
@@ -186,13 +239,12 @@ class _UploadRecipesScreenState extends State<UploadRecipesScreen> {
                             ),
                           ),
                         ),
+                        // SECONDS
                         Column(
                           children: [
                             IconButton(
                               onPressed: () {
-                                setDialogState(() {
-                                  seconds = (seconds + 1) % 60;
-                                });
+                                setDialogState(() => seconds = (seconds + 1) % 60);
                               },
                               icon: const Icon(Icons.arrow_drop_up, size: 32),
                             ),
@@ -289,7 +341,9 @@ class _UploadRecipesScreenState extends State<UploadRecipesScreen> {
   }
 
   void _showNutrientDialog(String nutrient) {
-    final TextEditingController controller = TextEditingController();
+    final TextEditingController controller = TextEditingController(
+      text: nutrients[nutrient]!.toStringAsFixed(1),
+    );
 
     showDialog(
       context: context,
@@ -303,7 +357,7 @@ class _UploadRecipesScreenState extends State<UploadRecipesScreen> {
             controller: controller,
             keyboardType: TextInputType.number,
             decoration: InputDecoration(
-              hintText: '0.0',
+              hintText: 'Enter grams',
               suffixText: 'g',
               border: OutlineInputBorder(
                 borderRadius: BorderRadius.circular(12),
@@ -334,18 +388,108 @@ class _UploadRecipesScreenState extends State<UploadRecipesScreen> {
     );
   }
 
-  // Calculate total calories based on macronutrients
-  // Formula:
-  // - Protein: 4 calories per gram
-  // - Carbohydrates: 4 calories per gram
-  // - Fat: 9 calories per gram
-  // - Fiber, Sugar, Sodium: These are already counted in Carbs/other macros,
-  //   so they don't add additional calories to avoid double counting
   int get totalCalories {
-    return ((nutrients['Protein']! * 4) + // Protein contribution
-            (nutrients['Carbs']! * 4) + // Carbohydrate contribution
-            (nutrients['Fat']! * 9)) // Fat contribution
+    return ((nutrients['Protein']! * 4) +
+            (nutrients['Carbs']! * 4) +
+            (nutrients['Fat']! * 9))
         .round();
+  }
+
+  // --- SAVE TO FIREBASE LOGIC ---
+  Future<void> _uploadRecipe() async {
+    // Validation
+    if (_recipeNameController.text.trim().isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Please enter recipe name')),
+      );
+      return;
+    }
+
+    if (ingredients.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Please add at least one ingredient')),
+      );
+      return;
+    }
+
+    if (instructions.any((step) => step.text.trim().isEmpty)) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Please fill in all instruction steps')),
+      );
+      return;
+    }
+
+    setState(() {
+      _isUploading = true;
+    });
+
+    try {
+      final user = FirebaseAuth.instance.currentUser;
+      if (user == null) {
+        throw Exception('User not logged in');
+      }
+
+      // Prepare model
+      final newRecipe = UserRecipe(
+        userId: user.uid,
+        name: _recipeNameController.text.trim(),
+        servings: int.tryParse(_servingsController.text) ?? 1,
+        prepTime: prepTime,
+        cookTime: cookTime,
+        ingredients: ingredients,
+        instructions: instructions
+            .map((step) => InstructionStepModel(
+                  stepNumber: step.stepNumber,
+                  text: step.text,
+                  timer: step.timer,
+                ))
+            .toList(),
+        nutrients: nutrients,
+        localImagePath: _selectedImage?.path, // Added this
+        createdAt: DateTime.now(),
+      );
+
+      // Call Service
+      await _firebaseService.saveUserRecipe(newRecipe.toMap());
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Recipe uploaded successfully!'),
+            backgroundColor: Color(0xFF8BC34A),
+          ),
+        );
+        
+        // Reset Form
+        _recipeNameController.clear();
+        _servingsController.text = '4';
+        setState(() {
+          prepTime = '00:00';
+          cookTime = '00:00';
+          ingredients = [];
+          instructions = [InstructionStep(stepNumber: 1, text: '', timer: null)];
+          nutrients.updateAll((key, value) => 0);
+          _selectedImage = null;
+        });
+        
+        Navigator.pop(context); // Go back
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Error uploading recipe: $e'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isUploading = false;
+        });
+      }
+    }
   }
 
   @override
@@ -360,10 +504,9 @@ class _UploadRecipesScreenState extends State<UploadRecipesScreen> {
           onPressed: () => Navigator.pop(context),
         ),
         title: const Text(
-          'Upload Recipes',
+          'Upload Recipe',
           style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
         ),
-        centerTitle: true,
       ),
       body: SingleChildScrollView(
         child: Padding(
@@ -371,46 +514,47 @@ class _UploadRecipesScreenState extends State<UploadRecipesScreen> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              // UPLOAD IMAGE LOGIC HERE
+              // IMAGE UPLOAD
               Center(
-                child: Container(
-                  width: double.infinity,
-                  height: 120,
-                  decoration: BoxDecoration(
-                    color: Colors.white,
-                    borderRadius: BorderRadius.circular(12),
-                    border: Border.all(color: Colors.grey.shade300),
-                  ),
-                  child: Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      Icon(
-                        Icons.image_outlined,
-                        size: 48,
-                        color: Colors.grey.shade400,
-                      ),
-                      const SizedBox(height: 8),
-                      Text(
-                        'Upload Image',
-                        style: TextStyle(
-                          color: Colors.grey.shade600,
-                          fontSize: 14,
-                        ),
-                      ),
-                    ],
+                child: GestureDetector(
+                  onTap: _pickImage,
+                  child: Container(
+                    width: double.infinity,
+                    height: 150,
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(color: Colors.grey.shade300),
+                      image: _selectedImage != null
+                          ? DecorationImage(
+                              image: FileImage(_selectedImage!),
+                              fit: BoxFit.cover,
+                            )
+                          : null,
+                    ),
+                    child: _selectedImage == null
+                        ? Column(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              Icon(Icons.image_outlined,
+                                  size: 48, color: Colors.grey.shade400),
+                              const SizedBox(height: 8),
+                              Text('Tap to Upload Image',
+                                  style: TextStyle(
+                                      color: Colors.grey.shade600, fontSize: 14)),
+                            ],
+                          )
+                        : null,
                   ),
                 ),
               ),
               const SizedBox(height: 20),
 
-              const Text(
-                'Recipe Name',
-                style: TextStyle(
-                  fontSize: 14,
-                  fontWeight: FontWeight.w600,
-                  color: Color(0xFF6B5F3B),
-                ),
-              ),
+              const Text('Recipe Name',
+                  style: TextStyle(
+                      fontSize: 14,
+                      fontWeight: FontWeight.w600,
+                      color: Color(0xFF6B5F3B))),
               const SizedBox(height: 8),
               TextField(
                 controller: _recipeNameController,
@@ -418,25 +562,20 @@ class _UploadRecipesScreenState extends State<UploadRecipesScreen> {
                   filled: true,
                   fillColor: Colors.white,
                   border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(12),
-                    borderSide: BorderSide(color: Colors.grey.shade300),
-                  ),
+                      borderRadius: BorderRadius.circular(12),
+                      borderSide: BorderSide(color: Colors.grey.shade300)),
                   enabledBorder: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(12),
-                    borderSide: BorderSide(color: Colors.grey.shade300),
-                  ),
+                      borderRadius: BorderRadius.circular(12),
+                      borderSide: BorderSide(color: Colors.grey.shade300)),
                 ),
               ),
               const SizedBox(height: 20),
 
-              const Text(
-                'Number of Servings',
-                style: TextStyle(
-                  fontSize: 14,
-                  fontWeight: FontWeight.w600,
-                  color: Color(0xFF6B5F3B),
-                ),
-              ),
+              const Text('Number of Servings',
+                  style: TextStyle(
+                      fontSize: 14,
+                      fontWeight: FontWeight.w600,
+                      color: Color(0xFF6B5F3B))),
               const SizedBox(height: 8),
               TextField(
                 controller: _servingsController,
@@ -445,27 +584,31 @@ class _UploadRecipesScreenState extends State<UploadRecipesScreen> {
                   filled: true,
                   fillColor: Colors.white,
                   border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(12),
-                    borderSide: BorderSide(color: Colors.grey.shade300),
-                  ),
+                      borderRadius: BorderRadius.circular(12),
+                      borderSide: BorderSide(color: Colors.grey.shade300)),
                   enabledBorder: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(12),
-                    borderSide: BorderSide(color: Colors.grey.shade300),
-                  ),
+                      borderRadius: BorderRadius.circular(12),
+                      borderSide: BorderSide(color: Colors.grey.shade300)),
                 ),
               ),
               const SizedBox(height: 20),
 
-              const Text(
-                'Ingredients',
-                style: TextStyle(
-                  fontSize: 14,
-                  fontWeight: FontWeight.w600,
-                  color: Color(0xFF6B5F3B),
-                ),
+              // INGREDIENTS HEADER
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  const Text('Ingredients',
+                      style: TextStyle(
+                          fontSize: 14,
+                          fontWeight: FontWeight.w600,
+                          color: Color(0xFF6B5F3B))),
+                  Text('${ingredients.length} added',
+                      style: TextStyle(fontSize: 12, color: Colors.grey[600])),
+                ],
               ),
               const SizedBox(height: 12),
 
+              // ADD BUTTON
               GestureDetector(
                 onTap: _showIngredientsDialog,
                 child: Row(
@@ -474,178 +617,160 @@ class _UploadRecipesScreenState extends State<UploadRecipesScreen> {
                       width: 24,
                       height: 24,
                       decoration: const BoxDecoration(
-                        color: Color(0xFF8BC34A),
-                        shape: BoxShape.circle,
-                      ),
-                      child: const Icon(
-                        Icons.add,
-                        color: Colors.white,
-                        size: 16,
-                      ),
+                          color: Color(0xFF8BC34A), shape: BoxShape.circle),
+                      child: const Icon(Icons.add, color: Colors.white, size: 16),
                     ),
                     const SizedBox(width: 8),
-                    const Text(
-                      'Add Ingredients',
-                      style: TextStyle(
-                        color: Color(0xFF6B5F3B),
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
+                    const Text('Add Ingredient',
+                        style: TextStyle(
+                            color: Color(0xFF6B5F3B), fontWeight: FontWeight.w600)),
                   ],
                 ),
               ),
+              
+              // INGREDIENT LIST
+              if (ingredients.isNotEmpty) ...[
+                const SizedBox(height: 12),
+                ...ingredients.asMap().entries.map((entry) {
+                  return Card(
+                    margin: const EdgeInsets.only(bottom: 8),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                    child: ListTile(
+                      dense: true,
+                      title: Text(entry.value),
+                      trailing: IconButton(
+                        icon: const Icon(Icons.delete, color: Colors.red, size: 20),
+                        onPressed: () {
+                          setState(() {
+                            ingredients.removeAt(entry.key);
+                          });
+                        },
+                      ),
+                    ),
+                  );
+                }),
+              ],
+
               const SizedBox(height: 20),
 
               Row(
                 children: [
                   Expanded(
-                    child: _timeCard('Prep Time', prepTime, () {
-                      _showTimePicker(context, 'prep');
-                    }),
+                    child: _timeCard('Prep Time', prepTime,
+                        () => _showTimePicker(context, 'prep')),
                   ),
                   const SizedBox(width: 12),
                   Expanded(
-                    child: _timeCard('Cook Time', cookTime, () {
-                      _showTimePicker(context, 'cook');
-                    }),
+                    child: _timeCard('Cook Time', cookTime,
+                        () => _showTimePicker(context, 'cook')),
                   ),
                 ],
               ),
               const SizedBox(height: 20),
 
-              const Text(
-                'Instructions',
-                style: TextStyle(
-                  fontSize: 14,
-                  fontWeight: FontWeight.w600,
-                  color: Color(0xFF6B5F3B),
-                ),
-              ),
+              const Text('Instructions',
+                  style: TextStyle(
+                      fontSize: 14,
+                      fontWeight: FontWeight.w600,
+                      color: Color(0xFF6B5F3B))),
               const SizedBox(height: 8),
 
               ...instructions.asMap().entries.map((entry) {
                 int index = entry.key;
                 InstructionStep step = entry.value;
-
-                return Column(
-                  children: [
-                    Container(
-                      margin: const EdgeInsets.only(bottom: 12),
-                      padding: const EdgeInsets.all(12),
-                      decoration: BoxDecoration(
-                        color: Colors.white,
-                        borderRadius: BorderRadius.circular(12),
-                        border: Border.all(color: Colors.grey.shade300),
-                      ),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
+                return Container(
+                  margin: const EdgeInsets.only(bottom: 12),
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(color: Colors.grey.shade300),
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
                         children: [
-                          Row(
-                            children: [
-                              Text(
-                                'Step ${step.stepNumber}',
-                                style: const TextStyle(
-                                  fontSize: 14,
-                                  fontWeight: FontWeight.bold,
-                                  color: Color(0xFF6B5F3B),
-                                ),
+                          Text(
+                            'Step ${step.stepNumber}',
+                            style: const TextStyle(
+                                fontSize: 14,
+                                fontWeight: FontWeight.bold,
+                                color: Color(0xFF6B5F3B)),
+                          ),
+                          const Spacer(),
+                          GestureDetector(
+                            onTap: () => _showTimePicker(context, 'step',
+                                stepIndex: index),
+                            child: Container(
+                              padding: const EdgeInsets.symmetric(
+                                  horizontal: 12, vertical: 6),
+                              decoration: BoxDecoration(
+                                color: step.timer != null
+                                    ? const Color(0xFFF59E42)
+                                    : Colors.grey.shade200,
+                                borderRadius: BorderRadius.circular(8),
                               ),
-                              const Spacer(),
-                              GestureDetector(
-                                onTap: () {
-                                  _showTimePicker(
-                                    context,
-                                    'step',
-                                    stepIndex: index,
-                                  );
-                                },
-                                child: Container(
-                                  padding: const EdgeInsets.symmetric(
-                                    horizontal: 12,
-                                    vertical: 6,
-                                  ),
-                                  decoration: BoxDecoration(
-                                    color: step.timer != null
-                                        ? const Color(0xFFF59E42)
-                                        : Colors.grey.shade200,
-                                    borderRadius: BorderRadius.circular(8),
-                                  ),
-                                  child: Row(
-                                    mainAxisSize: MainAxisSize.min,
-                                    children: [
-                                      Icon(
-                                        Icons.timer_outlined,
-                                        size: 16,
+                              child: Row(
+                                children: [
+                                  Icon(Icons.timer_outlined,
+                                      size: 16,
+                                      color: step.timer != null
+                                          ? Colors.white
+                                          : Colors.grey.shade600),
+                                  const SizedBox(width: 4),
+                                  Text(
+                                    step.timer ?? '00:00',
+                                    style: TextStyle(
+                                        fontSize: 12,
+                                        fontWeight: FontWeight.bold,
                                         color: step.timer != null
                                             ? Colors.white
-                                            : Colors.grey.shade600,
-                                      ),
-                                      const SizedBox(width: 4),
-                                      Text(
-                                        step.timer ?? '00:00',
-                                        style: TextStyle(
-                                          fontSize: 12,
-                                          fontWeight: FontWeight.bold,
-                                          color: step.timer != null
-                                              ? Colors.white
-                                              : Colors.grey.shade600,
-                                        ),
-                                      ),
-                                    ],
+                                            : Colors.grey.shade600),
                                   ),
-                                ),
-                              ),
-                              if (instructions.length > 1) ...[
-                                const SizedBox(width: 8),
-                                GestureDetector(
-                                  onTap: () => _deleteInstructionStep(index),
-                                  child: Container(
-                                    padding: const EdgeInsets.all(6),
-                                    decoration: BoxDecoration(
-                                      color: Colors.red.shade400,
-                                      shape: BoxShape.circle,
-                                    ),
-                                    child: const Icon(
-                                      Icons.close,
-                                      size: 16,
-                                      color: Colors.white,
-                                    ),
-                                  ),
-                                ),
-                              ],
-                            ],
-                          ),
-                          const SizedBox(height: 8),
-                          TextField(
-                            maxLines: 3,
-                            onChanged: (value) {
-                              step.text = value;
-                            },
-                            decoration: InputDecoration(
-                              hintText: 'Enter instruction for this step...',
-                              filled: true,
-                              fillColor: Colors.grey.shade50,
-                              contentPadding: const EdgeInsets.all(12),
-                              border: OutlineInputBorder(
-                                borderRadius: BorderRadius.circular(8),
-                                borderSide: BorderSide(
-                                  color: Colors.grey.shade300,
-                                ),
-                              ),
-                              enabledBorder: OutlineInputBorder(
-                                borderRadius: BorderRadius.circular(8),
-                                borderSide: BorderSide(
-                                  color: Colors.grey.shade300,
-                                ),
+                                ],
                               ),
                             ),
                           ),
+                          if (instructions.length > 1) ...[
+                            const SizedBox(width: 8),
+                            GestureDetector(
+                              onTap: () => _deleteInstructionStep(index),
+                              child: Container(
+                                padding: const EdgeInsets.all(6),
+                                decoration: BoxDecoration(
+                                    color: Colors.red.shade400,
+                                    shape: BoxShape.circle),
+                                child: const Icon(Icons.close,
+                                    size: 16, color: Colors.white),
+                              ),
+                            ),
+                          ],
                         ],
                       ),
-                    ),
-                  ],
+                      const SizedBox(height: 8),
+                      TextField(
+                        maxLines: 3,
+                        controller: TextEditingController(text: step.text)
+                          ..selection = TextSelection.fromPosition(
+                              TextPosition(offset: step.text.length)),
+                        onChanged: (value) => step.text = value,
+                        decoration: InputDecoration(
+                          hintText: 'Enter instruction for this step...',
+                          filled: true,
+                          fillColor: Colors.grey.shade50,
+                          border: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(8),
+                              borderSide: BorderSide(color: Colors.grey.shade300)),
+                          enabledBorder: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(8),
+                              borderSide: BorderSide(color: Colors.grey.shade300)),
+                        ),
+                      ),
+                    ],
+                  ),
                 );
-              }).toList(),
+              }),
 
               GestureDetector(
                 onTap: _addInstructionStep,
@@ -655,29 +780,19 @@ class _UploadRecipesScreenState extends State<UploadRecipesScreen> {
                       width: 24,
                       height: 24,
                       decoration: const BoxDecoration(
-                        color: Color(0xFF8BC34A),
-                        shape: BoxShape.circle,
-                      ),
-                      child: const Icon(
-                        Icons.add,
-                        color: Colors.white,
-                        size: 16,
-                      ),
+                          color: Color(0xFF8BC34A), shape: BoxShape.circle),
+                      child: const Icon(Icons.add, color: Colors.white, size: 16),
                     ),
                     const SizedBox(width: 8),
-                    const Text(
-                      'Add Instructions',
-                      style: TextStyle(
-                        color: Color(0xFF6B5F3B),
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
+                    const Text('Add Instruction',
+                        style: TextStyle(
+                            color: Color(0xFF6B5F3B), fontWeight: FontWeight.w600)),
                   ],
                 ),
               ),
               const SizedBox(height: 24),
 
-              // Nutrition Info
+              // Nutrition chart
               Container(
                 padding: const EdgeInsets.all(16),
                 decoration: BoxDecoration(
@@ -688,14 +803,11 @@ class _UploadRecipesScreenState extends State<UploadRecipesScreen> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    const Text(
-                      'Nutrition Info',
-                      style: TextStyle(
-                        fontSize: 16,
-                        fontWeight: FontWeight.bold,
-                        color: Color(0xFF6B5F3B),
-                      ),
-                    ),
+                    const Text('Nutrition Info',
+                        style: TextStyle(
+                            fontSize: 16,
+                            fontWeight: FontWeight.bold,
+                            color: Color(0xFF6B5F3B))),
                     const SizedBox(height: 16),
                     Row(
                       crossAxisAlignment: CrossAxisAlignment.start,
@@ -715,11 +827,8 @@ class _UploadRecipesScreenState extends State<UploadRecipesScreen> {
                         Expanded(
                           child: Column(
                             children: nutrients.keys.map((key) {
-                              return _nutrientRow(
-                                key,
-                                nutrients[key]!,
-                                nutrientColors[key]!,
-                              );
+                              return _nutrientRow(key, nutrients[key]!,
+                                  nutrientColors[key]!);
                             }).toList(),
                           ),
                         ),
@@ -737,22 +846,12 @@ class _UploadRecipesScreenState extends State<UploadRecipesScreen> {
                   color: Colors.white,
                   borderRadius: BorderRadius.circular(12),
                   border: Border.all(color: Colors.grey.shade300, width: 2),
-                  boxShadow: [
-                    BoxShadow(
-                      color: Colors.black.withOpacity(0.05),
-                      blurRadius: 4,
-                      offset: const Offset(0, 2),
-                    ),
-                  ],
                 ),
-                child: Text(
-                  'Calories: $totalCalories',
-                  style: const TextStyle(
-                    fontSize: 18,
-                    fontWeight: FontWeight.bold,
-                    color: Color(0xFF6B5F3B),
-                  ),
-                ),
+                child: Text('Calories: $totalCalories',
+                    style: const TextStyle(
+                        fontSize: 18,
+                        fontWeight: FontWeight.bold,
+                        color: Color(0xFF6B5F3B))),
               ),
               const SizedBox(height: 20),
 
@@ -764,21 +863,19 @@ class _UploadRecipesScreenState extends State<UploadRecipesScreen> {
                     foregroundColor: Colors.white,
                     padding: const EdgeInsets.symmetric(vertical: 16),
                     shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(28),
-                    ),
+                        borderRadius: BorderRadius.circular(28)),
                   ),
-                  onPressed: () {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(
-                        content: Text('No implementation yet'),
-                        backgroundColor: Color(0xFFF59E42),
-                      ),
-                    );
-                  },
-                  child: const Text(
-                    'Upload',
-                    style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
-                  ),
+                  onPressed: _isUploading ? null : _uploadRecipe,
+                  child: _isUploading
+                      ? const SizedBox(
+                          height: 20,
+                          width: 20,
+                          child: CircularProgressIndicator(
+                              color: Colors.white, strokeWidth: 2),
+                        )
+                      : const Text('Upload Recipe',
+                          style: TextStyle(
+                              fontSize: 16, fontWeight: FontWeight.bold)),
                 ),
               ),
               const SizedBox(height: 20),
@@ -801,23 +898,17 @@ class _UploadRecipesScreenState extends State<UploadRecipesScreen> {
         ),
         child: Column(
           children: [
-            Text(
-              label,
-              style: const TextStyle(
-                fontSize: 12,
-                color: Color(0xFF6B5F3B),
-                fontWeight: FontWeight.w600,
-              ),
-            ),
+            Text(label,
+                style: const TextStyle(
+                    fontSize: 12,
+                    color: Color(0xFF6B5F3B),
+                    fontWeight: FontWeight.w600)),
             const SizedBox(height: 8),
-            Text(
-              time,
-              style: const TextStyle(
-                fontSize: 16,
-                fontWeight: FontWeight.bold,
-                color: Color(0xFF6B5F3B),
-              ),
-            ),
+            Text(time,
+                style: const TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.bold,
+                    color: Color(0xFF6B5F3B))),
           ],
         ),
       ),
@@ -830,34 +921,25 @@ class _UploadRecipesScreenState extends State<UploadRecipesScreen> {
       child: Row(
         children: [
           Container(
-            width: 12,
-            height: 12,
-            decoration: BoxDecoration(color: color, shape: BoxShape.circle),
-          ),
+              width: 12,
+              height: 12,
+              decoration: BoxDecoration(color: color, shape: BoxShape.circle)),
           const SizedBox(width: 8),
           Expanded(
-            child: Text(
-              name,
-              style: const TextStyle(fontSize: 13, color: Color(0xFF6B5F3B)),
-            ),
-          ),
-          Text(
-            '${value.toStringAsFixed(1)}g',
-            style: const TextStyle(
-              fontSize: 13,
-              fontWeight: FontWeight.w600,
-              color: Color(0xFF6B5F3B),
-            ),
-          ),
+              child: Text(name,
+                  style: const TextStyle(fontSize: 13, color: Color(0xFF6B5F3B)))),
+          Text('${value.toStringAsFixed(1)}g',
+              style: const TextStyle(
+                  fontSize: 13,
+                  fontWeight: FontWeight.w600,
+                  color: Color(0xFF6B5F3B))),
           const SizedBox(width: 4),
           GestureDetector(
             onTap: () => _showNutrientDialog(name),
             child: Container(
               padding: const EdgeInsets.all(2),
               decoration: const BoxDecoration(
-                color: Color(0xFFEF5350),
-                shape: BoxShape.circle,
-              ),
+                  color: Color(0xFFEF5350), shape: BoxShape.circle),
               child: const Icon(Icons.add, color: Colors.white, size: 14),
             ),
           ),
@@ -867,6 +949,7 @@ class _UploadRecipesScreenState extends State<UploadRecipesScreen> {
   }
 }
 
+// --- Helper Classes ---
 class InstructionStep {
   int stepNumber;
   String text;
@@ -880,18 +963,15 @@ class NutritionChartPainter extends CustomPainter {
   final double carbs;
   final double fat;
 
-  NutritionChartPainter({
-    required this.protein,
-    required this.carbs,
-    required this.fat,
-  });
+  NutritionChartPainter(
+      {required this.protein, required this.carbs, required this.fat});
 
   @override
   void paint(Canvas canvas, Size size) {
     final center = Offset(size.width / 2, size.height / 2);
     final radius = size.width / 2;
-
     final total = protein + carbs + fat;
+
     if (total == 0) {
       final paint = Paint()
         ..color = Colors.grey.shade300
@@ -903,58 +983,23 @@ class NutritionChartPainter extends CustomPainter {
 
     double startAngle = -math.pi / 2;
 
-    // Protein (Yellow)
-    if (protein > 0) {
-      final proteinAngle = (protein / total) * 2 * math.pi;
-      final paint = Paint()
-        ..color = const Color(0xFFFDD835)
-        ..style = PaintingStyle.stroke
-        ..strokeWidth = 20
-        ..strokeCap = StrokeCap.round;
-      canvas.drawArc(
-        Rect.fromCircle(center: center, radius: radius - 10),
-        startAngle,
-        proteinAngle,
-        false,
-        paint,
-      );
-      startAngle += proteinAngle;
+    void drawSection(double value, Color color) {
+      if (value > 0) {
+        final sweepAngle = (value / total) * 2 * math.pi;
+        final paint = Paint()
+          ..color = color
+          ..style = PaintingStyle.stroke
+          ..strokeWidth = 20
+          ..strokeCap = StrokeCap.round;
+        canvas.drawArc(Rect.fromCircle(center: center, radius: radius - 10),
+            startAngle, sweepAngle, false, paint);
+        startAngle += sweepAngle;
+      }
     }
 
-    // Carbs (Orange)
-    if (carbs > 0) {
-      final carbsAngle = (carbs / total) * 2 * math.pi;
-      final paint = Paint()
-        ..color = const Color(0xFFFF9800)
-        ..style = PaintingStyle.stroke
-        ..strokeWidth = 20
-        ..strokeCap = StrokeCap.round;
-      canvas.drawArc(
-        Rect.fromCircle(center: center, radius: radius - 10),
-        startAngle,
-        carbsAngle,
-        false,
-        paint,
-      );
-      startAngle += carbsAngle;
-    }
-
-    // Fat (Red)
-    if (fat > 0) {
-      final fatAngle = (fat / total) * 2 * math.pi;
-      final paint = Paint()
-        ..color = const Color(0xFFEF5350)
-        ..style = PaintingStyle.stroke
-        ..strokeWidth = 20
-        ..strokeCap = StrokeCap.round;
-      canvas.drawArc(
-        Rect.fromCircle(center: center, radius: radius - 10),
-        startAngle,
-        fatAngle,
-        false,
-        paint,
-      );
-    }
+    drawSection(protein, const Color(0xFFFDD835));
+    drawSection(carbs, const Color(0xFFFF9800));
+    drawSection(fat, const Color(0xFFEF5350));
   }
 
   @override
