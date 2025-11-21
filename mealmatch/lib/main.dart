@@ -21,6 +21,7 @@ import 'screens/settings_screen.dart';
 import 'screens/about_us_screen.dart';
 import 'screens/user_manual_screen.dart';
 import 'screens/upload_recipe.dart ';
+import 'screens/notifications_screen.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -65,6 +66,7 @@ class MyApp extends StatelessWidget {
         '/aboutus': (context) => const AboutUsScreen(),
         '/usermanual': (context) => const UserManualScreen(),
         '/upload': (context) => const UploadRecipesScreen(),
+        '/notifications': (context) => const NotificationsScreen(),
       },
     );
   }

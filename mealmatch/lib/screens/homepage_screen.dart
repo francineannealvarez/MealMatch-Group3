@@ -4,9 +4,9 @@ import 'package:flutter/material.dart';
 import '../services/calorielog_history_service.dart';
 import '../services/firebase_service.dart';
 import 'package:intl/intl.dart';
-import 'package:mealmatch/services/themealdb_service.dart'; 
+import 'package:mealmatch/services/themealdb_service.dart';
 import 'package:mealmatch/services/cooked_recipes_service.dart';
-import 'package:mealmatch/screens/recipe_details_screen.dart'; 
+import 'package:mealmatch/screens/recipe_details_screen.dart';
 
 class HomePage extends StatefulWidget {
   const HomePage({super.key});
@@ -57,12 +57,12 @@ class _HomePageState extends State<HomePage> {
       final userDataFuture = _logService.getUserData();
       final goalFuture = _firebaseService.getUserCalorieGoal();
       final logsFuture = _logService.getTodayLogs();
-      
+
       // Wait for critical data
       userData = await userDataFuture;
       final goal = await goalFuture;
       final logs = await logsFuture;
-      
+
       // Process critical data
       if (userData != null) {
         userBMR = _calculateBMR(
@@ -71,27 +71,27 @@ class _HomePageState extends State<HomePage> {
           height: userData!['height'].toDouble(),
           weight: userData!['weight'].toDouble(),
         );
-        userTDEE = userBMR! * _getActivityMultiplier(userData!['activityLevel']);
+        userTDEE =
+            userBMR! * _getActivityMultiplier(userData!['activityLevel']);
       }
-      
+
       if (goal != null) {
         userGoalCalories = goal;
       }
-      
+
       consumedCalories = _logService.calculateTotalCalories(logs).toInt();
-      
+
       // Check if user has meal history
       hasLoggedMeals = await _checkUserHasMealHistory();
 
       // Check if user has cooked recipes
       hasCookedRecipes = await _checkUserHasCookedRecipes();
-      
+
       // Update UI with critical data first
       setState(() => isLoading = false);
-      
+
       // --- Phase 2: Load all recipes in parallel (faster) ---
       _loadRecipesInParallel();
-      
     } catch (e) {
       print('❌ Error loading today\'s data: $e');
       setState(() => isLoading = false);
@@ -105,53 +105,51 @@ class _HomePageState extends State<HomePage> {
       print('⚠️ Recipes already loading, skipping...');
       return;
     }
-    
+
     _isLoadingRecipes = true;
-    
+
     // ✅ FIX: Clear all lists so spinners show
     setState(() {
       cookAgainRecipes = [];
       tryTheseRecipes = [];
       discoverProteinRecipes = [];
     });
-    
+
     try {
       print('🔄 Starting parallel recipe loading...');
-      
+
       // Start all recipe loading in parallel
       final cookAgainFuture = _loadCookAgainRecipes();
       final discoverFuture = _getVariedProteinRecipes();
       final tryTheseFuture = TheMealDBService.getRandomMeals(5);
-      
+
       // Wait for all three at the same time with timeout
-      final results = await Future.wait(
-        [
-          cookAgainFuture,
-          discoverFuture,
-          tryTheseFuture,
-        ],
-        eagerError: true,
-      ).timeout(
-        const Duration(seconds: 30),
-        onTimeout: () {
-          print('⏱️ Recipe loading timeout');
-          return [[], [], []]; // Return empty lists on timeout
-        },
-      );
-      
+      final results =
+          await Future.wait([
+            cookAgainFuture,
+            discoverFuture,
+            tryTheseFuture,
+          ], eagerError: true).timeout(
+            const Duration(seconds: 30),
+            onTimeout: () {
+              print('⏱️ Recipe loading timeout');
+              return [[], [], []]; // Return empty lists on timeout
+            },
+          );
+
       // Assign results safely
       cookAgainRecipes = (results[0] as List).cast<Map<String, dynamic>>();
-      discoverProteinRecipes = (results[1] as List).cast<Map<String, dynamic>>();
+      discoverProteinRecipes = (results[1] as List)
+          .cast<Map<String, dynamic>>();
       tryTheseRecipes = (results[2] as List).cast<Map<String, dynamic>>();
-      
+
       print('✅ All recipes loaded successfully');
       print('   - Cook Again: ${cookAgainRecipes.length}');
       print('   - Discover: ${discoverProteinRecipes.length}');
       print('   - Try These: ${tryTheseRecipes.length}');
-      
+
       // Update UI once with all recipes loaded
       if (mounted) setState(() {});
-      
     } catch (e) {
       print('❌ Error loading recipes in parallel: $e');
       // Recipes stay as empty lists - UI will show loading spinners
@@ -204,27 +202,26 @@ class _HomePageState extends State<HomePage> {
   Future<List<Map<String, dynamic>>> _getMostCookedRecipes() async {
     try {
       final mostCooked = await _cookedService.getMostCookedRecipes(limit: 5);
-      
+
       if (mostCooked.isEmpty) {
         // Return empty list if no cooked recipes
         return [];
       }
-      
+
       List<Map<String, dynamic>> recipes = [];
-      
+
       for (var cookedRecipe in mostCooked) {
         final recipeId = cookedRecipe['recipeId'] as String;
         final details = await TheMealDBService.getMealDetails(recipeId);
-        
+
         // Only add if details exist
         if (details != null) {
           recipes.add(details);
         }
       }
-      
+
       // Return only what we have - don't fill with random meals
       return recipes;
-      
     } catch (e) {
       print('Error getting most cooked recipes: $e');
       return []; // Return empty list on error
@@ -238,25 +235,25 @@ class _HomePageState extends State<HomePage> {
         DateTime.now().subtract(const Duration(days: 60)),
         DateTime.now(),
       );
-      
+
       Map<String, int> mealFrequency = {};
       Map<String, String> mealIds = {};
-      
+
       for (var log in logs) {
         final mealName = log['name'] as String?;
         final mealId = log['recipeId'] as String?;
-        
+
         if (mealName != null && mealId != null) {
           mealFrequency[mealName] = (mealFrequency[mealName] ?? 0) + 1;
           mealIds[mealName] = mealId;
         }
       }
-      
+
       var sortedMeals = mealFrequency.entries.toList()
         ..sort((a, b) => b.value.compareTo(a.value));
-      
+
       List<Map<String, dynamic>> recipes = [];
-      
+
       for (var entry in sortedMeals.take(5)) {
         final mealId = mealIds[entry.key];
         if (mealId != null) {
@@ -266,9 +263,8 @@ class _HomePageState extends State<HomePage> {
           }
         }
       }
-      
+
       return recipes;
-      
     } catch (e) {
       print('❌ Error getting favorite recipes: $e');
       return await TheMealDBService.getRandomMeals(5);
@@ -279,23 +275,26 @@ class _HomePageState extends State<HomePage> {
   Future<List<Map<String, dynamic>>> _getVariedProteinRecipes() async {
     try {
       final proteinCategories = ['Chicken', 'Beef', 'Seafood', 'Pork'];
-      
+
       // ✅ Rotate category every 6 hours instead of daily
-      final hoursSinceEpoch = DateTime.now().millisecondsSinceEpoch ~/ (1000 * 60 * 60);
+      final hoursSinceEpoch =
+          DateTime.now().millisecondsSinceEpoch ~/ (1000 * 60 * 60);
       final categoryIndex = (hoursSinceEpoch ~/ 6) % proteinCategories.length;
       final selectedCategory = proteinCategories[categoryIndex];
-      
+
       print('🍖 Loading protein recipes: $selectedCategory');
-      
-      final meals = await TheMealDBService.getMealsByCategory(selectedCategory, number: 50);
-      
+
+      final meals = await TheMealDBService.getMealsByCategory(
+        selectedCategory,
+        number: 50,
+      );
+
       if (meals.isEmpty) return [];
-      
+
       // ✅ Shuffle differently each time using current timestamp
       meals.shuffle(Random(DateTime.now().millisecondsSinceEpoch));
-      
+
       return meals.take(5).toList();
-      
     } catch (e) {
       print('❌ Error getting protein recipes: $e');
       return [];
@@ -383,31 +382,71 @@ class _HomePageState extends State<HomePage> {
           bottomRight: Radius.circular(20),
         ),
       ),
-      child: Center(
-        child: RichText(
-          text: const TextSpan(
-            children: [
-              TextSpan(
-                text: 'Meal',
-                style: TextStyle(
-                  color: Color(0xFFFF9800),
-                  fontSize: 32,
-                  fontWeight: FontWeight.bold,
-                  fontFamily: 'MuseoModerno',
-                ),
+      child: Stack(
+        children: [
+          Center(
+            child: RichText(
+              text: const TextSpan(
+                children: [
+                  TextSpan(
+                    text: 'Meal',
+                    style: TextStyle(
+                      color: Color(0xFFFF9800),
+                      fontSize: 32,
+                      fontWeight: FontWeight.bold,
+                      fontFamily: 'MuseoModerno',
+                    ),
+                  ),
+                  TextSpan(
+                    text: 'Match',
+                    style: TextStyle(
+                      color: Color(0xFF4CAF50),
+                      fontSize: 32,
+                      fontWeight: FontWeight.bold,
+                      fontFamily: 'MuseoModerno',
+                    ),
+                  ),
+                ],
               ),
-              TextSpan(
-                text: 'Match',
-                style: TextStyle(
-                  color: Color(0xFF4CAF50),
-                  fontSize: 32,
-                  fontWeight: FontWeight.bold,
-                  fontFamily: 'MuseoModerno',
-                ),
-              ),
-            ],
+            ),
           ),
-        ),
+          Positioned(
+            right: 16,
+            top: 0,
+            bottom: 0,
+            child: Center(
+              child: IconButton(
+                onPressed: () {
+                  Navigator.pushNamed(context, '/notifications');
+                },
+                splashRadius: 24,
+                icon: Stack(
+                  clipBehavior: Clip.none,
+                  children: [
+                    const Icon(
+                      Icons.notifications_none_rounded,
+                      color: Colors.black,
+                      size: 26,
+                    ),
+                    Positioned(
+                      right: -1,
+                      top: -1,
+                      child: Container(
+                        width: 10,
+                        height: 10,
+                        decoration: BoxDecoration(
+                          color: Colors.redAccent,
+                          shape: BoxShape.circle,
+                          border: Border.all(color: Colors.white, width: 1),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -704,7 +743,7 @@ class _HomePageState extends State<HomePage> {
     if (!hasCookedRecipes && !hasLoggedMeals) {
       return const SizedBox.shrink(); // Don't show anything
     }
-    
+
     // Show different titles based on what data we have
     String sectionTitle;
     if (hasCookedRecipes) {
@@ -712,7 +751,7 @@ class _HomePageState extends State<HomePage> {
     } else {
       sectionTitle = 'Based on Your Logs'; // User has meal logs
     }
-    
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -730,7 +769,7 @@ class _HomePageState extends State<HomePage> {
         SizedBox(
           height: 210,
           child: cookAgainRecipes.isEmpty
-              ? ListView.builder(  
+              ? ListView.builder(
                   padding: const EdgeInsets.symmetric(horizontal: 16),
                   physics: const NeverScrollableScrollPhysics(),
                   itemCount: 5, // Show 5 skeleton cards
@@ -769,7 +808,7 @@ class _HomePageState extends State<HomePage> {
         SizedBox(
           height: 210,
           child: tryTheseRecipes.isEmpty
-              ? ListView.builder( 
+              ? ListView.builder(
                   scrollDirection: Axis.horizontal,
                   padding: const EdgeInsets.symmetric(horizontal: 16),
                   physics: const NeverScrollableScrollPhysics(),
@@ -808,7 +847,7 @@ class _HomePageState extends State<HomePage> {
         SizedBox(
           height: 210,
           child: discoverProteinRecipes.isEmpty
-              ? ListView.builder(  
+              ? ListView.builder(
                   scrollDirection: Axis.horizontal,
                   padding: const EdgeInsets.symmetric(horizontal: 16),
                   physics: const NeverScrollableScrollPhysics(),
@@ -1090,115 +1129,115 @@ class _HomePageState extends State<HomePage> {
   }
 
   Widget _buildSkeletonCard() {
-  return Container(
-    width: 160,
-    margin: const EdgeInsets.only(right: 16),
-    decoration: BoxDecoration(
-      color: Colors.white,
-      borderRadius: BorderRadius.circular(16),
-      boxShadow: [
-        BoxShadow(
-          color: Colors.grey.withOpacity(0.15),
-          spreadRadius: 1,
-          blurRadius: 6,
-          offset: const Offset(0, 2),
-        ),
-      ],
-    ),
-    child: Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        // Skeleton Image
-        Container(
-          height: 90,
-          width: 160,
-          decoration: BoxDecoration(
-            color: Colors.grey[300],
-            borderRadius: const BorderRadius.only(
-              topLeft: Radius.circular(16),
-              topRight: Radius.circular(16),
+    return Container(
+      width: 160,
+      margin: const EdgeInsets.only(right: 16),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.grey.withOpacity(0.15),
+            spreadRadius: 1,
+            blurRadius: 6,
+            offset: const Offset(0, 2),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // Skeleton Image
+          Container(
+            height: 90,
+            width: 160,
+            decoration: BoxDecoration(
+              color: Colors.grey[300],
+              borderRadius: const BorderRadius.only(
+                topLeft: Radius.circular(16),
+                topRight: Radius.circular(16),
+              ),
             ),
           ),
-        ),
-        Expanded(
-          child: Padding(
-            padding: const EdgeInsets.all(10),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                // Skeleton Title
-                Container(
-                  height: 14,
-                  width: 120,
-                  decoration: BoxDecoration(
-                    color: Colors.grey[300],
-                    borderRadius: BorderRadius.circular(4),
+          Expanded(
+            child: Padding(
+              padding: const EdgeInsets.all(10),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  // Skeleton Title
+                  Container(
+                    height: 14,
+                    width: 120,
+                    decoration: BoxDecoration(
+                      color: Colors.grey[300],
+                      borderRadius: BorderRadius.circular(4),
+                    ),
                   ),
-                ),
-                const SizedBox(height: 6),
-                // Skeleton Author
-                Container(
-                  height: 11,
-                  width: 80,
-                  decoration: BoxDecoration(
-                    color: Colors.grey[300],
-                    borderRadius: BorderRadius.circular(4),
+                  const SizedBox(height: 6),
+                  // Skeleton Author
+                  Container(
+                    height: 11,
+                    width: 80,
+                    decoration: BoxDecoration(
+                      color: Colors.grey[300],
+                      borderRadius: BorderRadius.circular(4),
+                    ),
                   ),
-                ),
-                const SizedBox(height: 8),
-                // Skeleton Cook Time
-                Row(
-                  children: [
-                    Container(
-                      height: 12,
-                      width: 12,
-                      decoration: BoxDecoration(
-                        color: Colors.grey[300],
-                        shape: BoxShape.circle,
+                  const SizedBox(height: 8),
+                  // Skeleton Cook Time
+                  Row(
+                    children: [
+                      Container(
+                        height: 12,
+                        width: 12,
+                        decoration: BoxDecoration(
+                          color: Colors.grey[300],
+                          shape: BoxShape.circle,
+                        ),
                       ),
-                    ),
-                    const SizedBox(width: 4),
-                    Container(
-                      height: 10,
-                      width: 60,
-                      decoration: BoxDecoration(
-                        color: Colors.grey[300],
-                        borderRadius: BorderRadius.circular(4),
+                      const SizedBox(width: 4),
+                      Container(
+                        height: 10,
+                        width: 60,
+                        decoration: BoxDecoration(
+                          color: Colors.grey[300],
+                          borderRadius: BorderRadius.circular(4),
+                        ),
                       ),
-                    ),
-                  ],
-                ),
-                const Spacer(),
-                // Skeleton Bottom Row
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    Container(
-                      height: 11,
-                      width: 60,
-                      decoration: BoxDecoration(
-                        color: Colors.grey[300],
-                        borderRadius: BorderRadius.circular(4),
+                    ],
+                  ),
+                  const Spacer(),
+                  // Skeleton Bottom Row
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Container(
+                        height: 11,
+                        width: 60,
+                        decoration: BoxDecoration(
+                          color: Colors.grey[300],
+                          borderRadius: BorderRadius.circular(4),
+                        ),
                       ),
-                    ),
-                    Container(
-                      height: 11,
-                      width: 40,
-                      decoration: BoxDecoration(
-                        color: Colors.grey[300],
-                        borderRadius: BorderRadius.circular(4),
+                      Container(
+                        height: 11,
+                        width: 40,
+                        decoration: BoxDecoration(
+                          color: Colors.grey[300],
+                          borderRadius: BorderRadius.circular(4),
+                        ),
                       ),
-                    ),
-                  ],
-                ),
-              ],
+                    ],
+                  ),
+                ],
+              ),
             ),
           ),
-        ),
-      ],
-    ),
-  );
-}
+        ],
+      ),
+    );
+  }
 
   Widget _buildRecipeCard(Map<String, dynamic> recipe) {
     // Extract data from the service
