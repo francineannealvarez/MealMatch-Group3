@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../services/profile_service.dart';
+import '../services/firebase_service.dart';
 
 class ProfileScreen extends StatefulWidget {
   const ProfileScreen({super.key});
@@ -10,11 +11,13 @@ class ProfileScreen extends StatefulWidget {
 
 class _ProfileScreenState extends State<ProfileScreen> {
   final ProfileService _profileService = ProfileService();
+  final FirebaseService _firebaseService = FirebaseService();
 
   int _selectedTab = 0;
   int _selectedIndex = 4;
   bool isLoading = true;
 
+  // Profile Data
   String userName = 'Loading...';
   String userEmail = 'loading@example.com';
   int currentStreak = 0;
@@ -22,30 +25,18 @@ class _ProfileScreenState extends State<ProfileScreen> {
   int weeklyGoalDays = 0;
   int recipeCount = 0;
   int totalLikes = 0;
-  String? avatarPath; // Nullable - will be null if user hasn't set avatar yet
+  String? avatarPath;
 
+  // Lists
   List<Map<String, dynamic>> achievements = [];
-  List<String> newAchievementIds = [];
-
-  Map<String, bool> likedRecipes = {
-    'egg_sandwich': false,
-    'banana_oatmeal': false,
-    'pinoy_spaghetti': false,
-  };
-
-  Map<String, int> likeCounts = {
-    'egg_sandwich': 0,
-    'banana_oatmeal': 0,
-    'pinoy_spaghetti': 0,
-  };
+  List<Map<String, dynamic>> _userRecipes = []; // Fetched from Firebase
 
   @override
   void initState() {
     super.initState();
-    _loadProfileData(); // Load data from Firebase on screen open
+    _loadProfileData();
   }
 
-  // Refresh when returning from other screens
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
@@ -55,60 +46,63 @@ class _ProfileScreenState extends State<ProfileScreen> {
   }
 
   Future<void> _loadProfileData() async {
-    if (achievements.isEmpty) {
+    if (achievements.isEmpty && _userRecipes.isEmpty) {
       setState(() => isLoading = true);
     }
 
     try {
-      // Call ProfileService to get all data from Firebase at once
+      // 1. Load Profile Stats
       final profileData = await _profileService.getProfileData();
 
-      // Load achievements first (before setState)
+      // 2. Load User Recipes from Firebase (New Logic)
+      final recipes = await _firebaseService.getUserRecipes();
+
+      // 3. Load Achievements
       final loadedAchievements = await _profileService.getAchievements();
 
-      // Find new achievements
+      // 4. Find new achievements to show "NEW" badge logic
       final newAchievements = loadedAchievements
           .where((a) => a['isNew'] == true)
           .toList();
 
-      // Update state with data from Firebase
-      setState(() {
-        userName = profileData['name'] ?? 'User';
-        userEmail = profileData['email'] ?? 'No email';
-        currentStreak = profileData['streak'] ?? 0;
-        avgDailyCalories = profileData['avgCalories'] ?? 0;
-        weeklyGoalDays = profileData['weeklyGoalDays'] ?? 0;
-        recipeCount = profileData['recipeCount'] ?? 0;
-        totalLikes = profileData['totalLikes'] ?? 0;
-        avatarPath = profileData['avatar']; // Updated avatar from Firebase
-        achievements = loadedAchievements;
-        isLoading = false;
-      });
+      if (mounted) {
+        setState(() {
+          userName = profileData['name'] ?? 'User';
+          userEmail = profileData['email'] ?? 'No email';
+          currentStreak = profileData['streak'] ?? 0;
+          avgDailyCalories = profileData['avgCalories'] ?? 0;
+          weeklyGoalDays = profileData['weeklyGoalDays'] ?? 0;
+          totalLikes = profileData['totalLikes'] ?? 0;
+          avatarPath = profileData['avatar'];
+          
+          // Update recipe data
+          _userRecipes = recipes;
+          recipeCount = recipes.length;
 
-      // Mark new achievements as viewed after a short delay (so user can see them)
-      if (newAchievements.isNotEmpty) {
-        await Future.delayed(const Duration(seconds: 2));
-        final idsToMark = newAchievements
-            .map((a) => a['id'] as String)
-            .toList();
-        await _profileService.markAchievementsAsViewed(idsToMark);
+          achievements = loadedAchievements;
+          isLoading = false;
+        });
 
-        // Update UI to remove "NEW" badges after marking
-        if (mounted) {
-          setState(() {
-            for (var achievement in achievements) {
-              if (idsToMark.contains(achievement['id'])) {
-                achievement['isNew'] = false;
+        // Handle "New Achievement" badge removal delay
+        if (newAchievements.isNotEmpty) {
+          await Future.delayed(const Duration(seconds: 2));
+          final idsToMark = newAchievements.map((a) => a['id'] as String).toList();
+          await _profileService.markAchievementsAsViewed(idsToMark);
+          
+          if (mounted) {
+            setState(() {
+              for (var achievement in achievements) {
+                if (idsToMark.contains(achievement['id'])) {
+                  achievement['isNew'] = false;
+                }
               }
-            }
-          });
+            });
+          }
         }
       }
     } catch (e) {
       print('Error loading profile: $e');
-      if (mounted) {
-        setState(() => isLoading = false);
-      }
+      if (mounted) setState(() => isLoading = false);
     }
   }
 
@@ -127,10 +121,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
           IconButton(
             icon: const Icon(Icons.settings, color: Colors.black),
             onPressed: () async {
-              // Wait for settings screen to return, then refresh
               final result = await Navigator.pushNamed(context, '/settings');
               if (result == true && mounted) {
-                // Settings returned true, meaning profile was updated
                 _loadProfileData();
               }
             },
@@ -161,17 +153,18 @@ class _ProfileScreenState extends State<ProfileScreen> {
     );
   }
 
+  // ==========================================
+  // UI: SKELETON SCREEN (Restored)
+  // ==========================================
   Widget _buildSkeletonProfileScreen() {
     return SingleChildScrollView(
       child: Column(
         children: [
-          // Skeleton Profile Header
+          // Skeleton Header
           Column(
             children: [
-              // Skeleton Avatar
               Container(
-                width: 100,
-                height: 100,
+                width: 100, height: 100,
                 decoration: BoxDecoration(
                   shape: BoxShape.circle,
                   border: Border.all(color: const Color(0xFFFFC107), width: 3),
@@ -179,354 +172,51 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 ),
               ),
               const SizedBox(height: 12),
-              // Skeleton Name
-              Container(
-                width: 150,
-                height: 24,
-                decoration: BoxDecoration(
-                  color: Colors.grey[300],
-                  borderRadius: BorderRadius.circular(4),
-                ),
-              ),
+              Container(width: 150, height: 24, decoration: BoxDecoration(color: Colors.grey[300], borderRadius: BorderRadius.circular(4))),
               const SizedBox(height: 8),
-              // Skeleton Email
-              Container(
-                width: 200,
-                height: 16,
-                decoration: BoxDecoration(
-                  color: Colors.grey[200],
-                  borderRadius: BorderRadius.circular(4),
-                ),
-              ),
+              Container(width: 200, height: 16, decoration: BoxDecoration(color: Colors.grey[200], borderRadius: BorderRadius.circular(4))),
               const SizedBox(height: 16),
-              // Skeleton Stats
               Row(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  Column(
-                    children: [
-                      Container(
-                        width: 40,
-                        height: 20,
-                        decoration: BoxDecoration(
-                          color: Colors.grey[300],
-                          borderRadius: BorderRadius.circular(4),
-                        ),
-                      ),
-                      const SizedBox(height: 8),
-                      Container(
-                        width: 60,
-                        height: 14,
-                        decoration: BoxDecoration(
-                          color: Colors.grey[200],
-                          borderRadius: BorderRadius.circular(4),
-                        ),
-                      ),
-                    ],
-                  ),
+                  Container(width: 60, height: 40, color: Colors.grey[300]),
                   const SizedBox(width: 48),
-                  Column(
-                    children: [
-                      Container(
-                        width: 40,
-                        height: 20,
-                        decoration: BoxDecoration(
-                          color: Colors.grey[300],
-                          borderRadius: BorderRadius.circular(4),
-                        ),
-                      ),
-                      const SizedBox(height: 8),
-                      Container(
-                        width: 50,
-                        height: 14,
-                        decoration: BoxDecoration(
-                          color: Colors.grey[200],
-                          borderRadius: BorderRadius.circular(4),
-                        ),
-                      ),
-                    ],
-                  ),
+                  Container(width: 60, height: 40, color: Colors.grey[300]),
                 ],
               ),
             ],
           ),
           const SizedBox(height: 16),
-          // Skeleton Tab Selector
-          Container(
-            margin: const EdgeInsets.symmetric(horizontal: 16),
-            child: Row(
-              children: [
-                Expanded(
-                  child: Container(
-                    padding: const EdgeInsets.symmetric(vertical: 12),
-                    decoration: BoxDecoration(
-                      border: Border(
-                        bottom: BorderSide(color: Colors.grey[300]!, width: 3),
-                      ),
-                    ),
-                    child: Container(
-                      width: 80,
-                      height: 16,
-                      margin: const EdgeInsets.symmetric(horizontal: 20),
-                      decoration: BoxDecoration(
-                        color: Colors.grey[300],
-                        borderRadius: BorderRadius.circular(4),
-                      ),
-                    ),
-                  ),
-                ),
-                Expanded(
-                  child: Container(
-                    padding: const EdgeInsets.symmetric(vertical: 12),
-                    child: Container(
-                      width: 100,
-                      height: 16,
-                      margin: const EdgeInsets.symmetric(horizontal: 20),
-                      decoration: BoxDecoration(
-                        color: Colors.grey[200],
-                        borderRadius: BorderRadius.circular(4),
-                      ),
-                    ),
-                  ),
-                ),
-              ],
-            ),
-          ),
-          const SizedBox(height: 16),
-          // Skeleton Progress Tab Content
+          // Skeleton Tabs
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 16),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                // Skeleton Weekly Goal Card
-                Container(
-                  padding: const EdgeInsets.all(20),
-                  decoration: _cardDecoration(),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                        children: [
-                          Container(
-                            width: 100,
-                            height: 18,
-                            decoration: BoxDecoration(
-                              color: Colors.grey[300],
-                              borderRadius: BorderRadius.circular(4),
-                            ),
-                          ),
-                          Container(
-                            width: 70,
-                            height: 16,
-                            decoration: BoxDecoration(
-                              color: Colors.grey[200],
-                              borderRadius: BorderRadius.circular(4),
-                            ),
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: 12),
-                      Container(
-                        height: 12,
-                        decoration: BoxDecoration(
-                          color: Colors.grey[300],
-                          borderRadius: BorderRadius.circular(10),
-                        ),
-                      ),
-                      const SizedBox(height: 10),
-                      Container(
-                        width: 200,
-                        height: 14,
-                        decoration: BoxDecoration(
-                          color: Colors.grey[200],
-                          borderRadius: BorderRadius.circular(4),
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-                const SizedBox(height: 16),
-                // Skeleton Calories and Streak Cards
-                Row(
-                  children: [
-                    Expanded(
-                      child: Container(
-                        padding: const EdgeInsets.all(20),
-                        decoration: _cardDecoration(),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Container(
-                              width: 120,
-                              height: 16,
-                              decoration: BoxDecoration(
-                                color: Colors.grey[300],
-                                borderRadius: BorderRadius.circular(4),
-                              ),
-                            ),
-                            const SizedBox(height: 12),
-                            Container(
-                              width: 100,
-                              height: 26,
-                              decoration: BoxDecoration(
-                                color: Colors.grey[300],
-                                borderRadius: BorderRadius.circular(4),
-                              ),
-                            ),
-                            const SizedBox(height: 8),
-                            Container(
-                              width: 80,
-                              height: 13,
-                              decoration: BoxDecoration(
-                                color: Colors.grey[200],
-                                borderRadius: BorderRadius.circular(4),
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ),
-                    const SizedBox(width: 16),
-                    Expanded(
-                      child: Container(
-                        padding: const EdgeInsets.all(20),
-                        decoration: _cardDecoration(),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Container(
-                              width: 110,
-                              height: 16,
-                              decoration: BoxDecoration(
-                                color: Colors.grey[300],
-                                borderRadius: BorderRadius.circular(4),
-                              ),
-                            ),
-                            const SizedBox(height: 12),
-                            Container(
-                              width: 80,
-                              height: 26,
-                              decoration: BoxDecoration(
-                                color: Colors.grey[300],
-                                borderRadius: BorderRadius.circular(4),
-                              ),
-                            ),
-                            const SizedBox(height: 8),
-                            Container(
-                              width: 90,
-                              height: 13,
-                              decoration: BoxDecoration(
-                                color: Colors.grey[200],
-                                borderRadius: BorderRadius.circular(4),
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 16),
-                // Skeleton Achievements Card
-                Container(
-                  padding: const EdgeInsets.all(20),
-                  decoration: _cardDecoration(),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Container(
-                        width: 140,
-                        height: 18,
-                        decoration: BoxDecoration(
-                          color: Colors.grey[300],
-                          borderRadius: BorderRadius.circular(4),
-                        ),
-                      ),
-                      const SizedBox(height: 16),
-                      // Skeleton Achievement Items
-                      Container(
-                        width: double.infinity,
-                        padding: const EdgeInsets.all(16),
-                        decoration: BoxDecoration(
-                          color: Colors.grey[100],
-                          borderRadius: BorderRadius.circular(12),
-                          border: Border.all(
-                            color: Colors.grey[300]!,
-                            width: 1,
-                          ),
-                        ),
-                        child: Row(
-                          children: [
-                            Container(
-                              width: 24,
-                              height: 24,
-                              decoration: BoxDecoration(
-                                color: Colors.grey[300],
-                                borderRadius: BorderRadius.circular(4),
-                              ),
-                            ),
-                            const SizedBox(width: 12),
-                            Expanded(
-                              child: Container(
-                                height: 16,
-                                decoration: BoxDecoration(
-                                  color: Colors.grey[300],
-                                  borderRadius: BorderRadius.circular(4),
-                                ),
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                      const SizedBox(height: 12),
-                      Container(
-                        width: double.infinity,
-                        padding: const EdgeInsets.all(16),
-                        decoration: BoxDecoration(
-                          color: Colors.grey[100],
-                          borderRadius: BorderRadius.circular(12),
-                          border: Border.all(
-                            color: Colors.grey[300]!,
-                            width: 1,
-                          ),
-                        ),
-                        child: Row(
-                          children: [
-                            Container(
-                              width: 24,
-                              height: 24,
-                              decoration: BoxDecoration(
-                                color: Colors.grey[300],
-                                borderRadius: BorderRadius.circular(4),
-                              ),
-                            ),
-                            const SizedBox(width: 12),
-                            Expanded(
-                              child: Container(
-                                height: 16,
-                                decoration: BoxDecoration(
-                                  color: Colors.grey[300],
-                                  borderRadius: BorderRadius.circular(4),
-                                ),
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ],
-            ),
+            child: Row(children: [
+              Expanded(child: Container(height: 40, color: Colors.grey[300])),
+              const SizedBox(width: 10),
+              Expanded(child: Container(height: 40, color: Colors.grey[200])),
+            ]),
           ),
           const SizedBox(height: 20),
+          // Skeleton Cards
+          Container(
+            margin: const EdgeInsets.symmetric(horizontal: 16),
+            height: 120,
+            decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(16)),
+          ),
+          const SizedBox(height: 16),
+          Container(
+            margin: const EdgeInsets.symmetric(horizontal: 16),
+            height: 120,
+            decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(16)),
+          ),
         ],
       ),
     );
   }
 
+  // ==========================================
+  // UI: HEADER
+  // ==========================================
   Widget _buildProfileHeader() {
     return Column(
       children: [
@@ -543,9 +233,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 ? Image.asset(
                     avatarPath!,
                     fit: BoxFit.cover,
-                    errorBuilder: (context, error, stackTrace) {
-                      return _buildAvatarPlaceholder();
-                    },
+                    errorBuilder: (context, error, stackTrace) => _buildAvatarPlaceholder(),
                   )
                 : _buildAvatarPlaceholder(),
           ),
@@ -553,11 +241,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
         const SizedBox(height: 12),
         Text(
           userName,
-          style: const TextStyle(
-            fontSize: 20,
-            fontWeight: FontWeight.bold,
-            color: Colors.black,
-          ),
+          style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: Colors.black),
         ),
         const SizedBox(height: 4),
         Text(
@@ -565,13 +249,15 @@ class _ProfileScreenState extends State<ProfileScreen> {
           style: const TextStyle(color: Colors.grey, fontSize: 14),
         ),
         const SizedBox(height: 16),
-        // ✅ UPDATED: Only Recipes and Likes
         Row(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
             _StatItem(label: 'Recipes', value: '$recipeCount'),
-            const SizedBox(width: 48), // ✅ Increased spacing (was 32)
+            const SizedBox(width: 48),
             _StatItem(label: 'Likes', value: '$totalLikes'),
+            // Optional: Add Followers if backend supports it, otherwise hidden
+            // const SizedBox(width: 48),
+            // const _StatItem(label: 'Followers', value: '0'),
           ],
         ),
       ],
@@ -581,26 +267,13 @@ class _ProfileScreenState extends State<ProfileScreen> {
   Widget _buildAvatarPlaceholder() {
     return Container(
       color: Colors.grey[300],
-      child: Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Icon(Icons.person, size: 40, color: Colors.grey[600]),
-            const SizedBox(height: 4),
-            Text(
-              'No Avatar',
-              style: TextStyle(
-                fontSize: 10,
-                color: Colors.grey[600],
-                fontWeight: FontWeight.w500,
-              ),
-            ),
-          ],
-        ),
-      ),
+      child: const Icon(Icons.person, size: 40, color: Colors.grey),
     );
   }
 
+  // ==========================================
+  // UI: TABS
+  // ==========================================
   Widget _buildTabSelector() {
     return Container(
       margin: const EdgeInsets.symmetric(horizontal: 16),
@@ -614,9 +287,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 decoration: BoxDecoration(
                   border: Border(
                     bottom: BorderSide(
-                      color: _selectedTab == 0
-                          ? const Color(0xFF4CAF50)
-                          : Colors.transparent,
+                      color: _selectedTab == 0 ? const Color(0xFF4CAF50) : Colors.transparent,
                       width: 3,
                     ),
                   ),
@@ -641,9 +312,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 decoration: BoxDecoration(
                   border: Border(
                     bottom: BorderSide(
-                      color: _selectedTab == 1
-                          ? const Color(0xFF4CAF50)
-                          : Colors.transparent,
+                      color: _selectedTab == 1 ? const Color(0xFF4CAF50) : Colors.transparent,
                       width: 3,
                     ),
                   ),
@@ -665,6 +334,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
     );
   }
 
+  // ==========================================
+  // UI: PROGRESS TAB (Restored)
+  // ==========================================
   Widget _buildProgressTab() {
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 16),
@@ -695,16 +367,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
             children: [
               const Text(
                 'Weekly Goal',
-                style: TextStyle(
-                  fontWeight: FontWeight.bold,
-                  color: Colors.black,
-                  fontSize: 16,
-                ),
+                style: TextStyle(fontWeight: FontWeight.bold, color: Colors.black, fontSize: 16),
               ),
-              Text(
-                '$weeklyGoalDays/7 days',
-                style: const TextStyle(color: Colors.grey, fontSize: 14),
-              ),
+              Text('$weeklyGoalDays/7 days', style: const TextStyle(color: Colors.grey, fontSize: 14)),
             ],
           ),
           const SizedBox(height: 12),
@@ -722,13 +387,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
             weeklyGoalDays == 0
                 ? 'Start your journey today!'
                 : weeklyGoalDays == 7
-                ? '🎉 Amazing! You logged every day this week!'
-                : 'Keep going! ${7 - weeklyGoalDays} more day${7 - weeklyGoalDays == 1 ? '' : 's'} to go!',
-            style: const TextStyle(
-              color: Colors.grey,
-              fontWeight: FontWeight.w600,
-              fontSize: 14,
-            ),
+                    ? '🎉 Amazing! You logged every day this week!'
+                    : 'Keep going! ${7 - weeklyGoalDays} more day${7 - weeklyGoalDays == 1 ? '' : 's'} to go!',
+            style: const TextStyle(color: Colors.grey, fontWeight: FontWeight.w600, fontSize: 14),
           ),
         ],
       ),
@@ -745,32 +406,11 @@ class _ProfileScreenState extends State<ProfileScreen> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                const Text(
-                  'Avg. Daily Kcal',
-                  style: TextStyle(
-                    fontWeight: FontWeight.bold,
-                    fontSize: 14,
-                    color: Colors.black,
-                  ),
-                ),
+                const Text('Avg. Daily Kcal', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
                 const SizedBox(height: 12),
-                Text(
-                  '$avgDailyCalories kcal',
-                  style: const TextStyle(
-                    fontWeight: FontWeight.bold,
-                    fontSize: 22,
-                    color: Color(0xFFFF9800),
-                  ),
-                ),
+                Text('$avgDailyCalories kcal', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 22, color: Color(0xFFFF9800))),
                 const SizedBox(height: 8),
-                Text(
-                  avgDailyCalories == 0 ? 'No data yet' : 'Last 7 days',
-                  style: const TextStyle(
-                    color: Colors.grey,
-                    fontSize: 13,
-                    fontWeight: FontWeight.w500,
-                  ),
-                ),
+                Text(avgDailyCalories == 0 ? 'No data yet' : 'Last 7 days', style: const TextStyle(color: Colors.grey, fontSize: 13)),
               ],
             ),
           ),
@@ -783,32 +423,12 @@ class _ProfileScreenState extends State<ProfileScreen> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                const Text(
-                  'Current Streak',
-                  style: TextStyle(
-                    fontWeight: FontWeight.bold,
-                    fontSize: 14,
-                    color: Colors.black,
-                  ),
-                ),
+                const Text('Current Streak', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
                 const SizedBox(height: 12),
-                Text(
-                  '$currentStreak Day${currentStreak == 1 ? '' : 's'}',
-                  style: const TextStyle(
-                    fontWeight: FontWeight.bold,
-                    fontSize: 22,
-                    color: Color(0xFF4CAF50),
-                  ),
-                ),
+                Text('$currentStreak Day${currentStreak == 1 ? '' : 's'}', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 22, color: Color(0xFF4CAF50))),
                 const SizedBox(height: 8),
                 Text(
-                  currentStreak == 0
-                      ? 'Start logging!'
-                      : currentStreak == 1
-                      ? 'Great start! 🔥'
-                      : currentStreak >= 7
-                      ? 'On fire! 🔥🔥🔥'
-                      : 'Keep it up! 🔥',
+                  currentStreak == 0 ? 'Start logging!' : 'Keep it up! 🔥',
                   style: const TextStyle(color: Colors.grey, fontSize: 12),
                 ),
               ],
@@ -826,43 +446,17 @@ class _ProfileScreenState extends State<ProfileScreen> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Text(
-            '🎖 Achievements',
-            style: TextStyle(
-              fontWeight: FontWeight.bold,
-              color: Colors.black,
-              fontSize: 16,
-            ),
-          ),
+          const Text('🎖 Achievements', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
           const SizedBox(height: 16),
           ConstrainedBox(
             constraints: const BoxConstraints(minHeight: 120),
             child: achievements.isEmpty
                 ? Center(
                     child: Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
                       children: [
-                        Icon(
-                          Icons.emoji_events_outlined,
-                          size: 48,
-                          color: Colors.grey.shade400,
-                        ),
+                        Icon(Icons.emoji_events_outlined, size: 48, color: Colors.grey.shade400),
                         const SizedBox(height: 8),
-                        Text(
-                          'No achievements yet',
-                          style: TextStyle(
-                            color: Colors.grey.shade600,
-                            fontSize: 14,
-                          ),
-                        ),
-                        const SizedBox(height: 4),
-                        Text(
-                          'Keep logging to earn badges!',
-                          style: TextStyle(
-                            color: Colors.grey.shade500,
-                            fontSize: 12,
-                          ),
-                        ),
+                        Text('No achievements yet', style: TextStyle(color: Colors.grey.shade600)),
                       ],
                     ),
                   )
@@ -889,9 +483,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
       width: double.infinity,
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: isNew
-            ? const Color(0xFF4CAF50).withOpacity(0.1)
-            : Colors.grey[100],
+        color: isNew ? const Color(0xFF4CAF50).withOpacity(0.1) : Colors.grey[100],
         borderRadius: BorderRadius.circular(12),
         border: Border.all(
           color: isNew ? const Color(0xFF4CAF50) : Colors.grey[300]!,
@@ -903,65 +495,44 @@ class _ProfileScreenState extends State<ProfileScreen> {
           Text(icon, style: const TextStyle(fontSize: 24)),
           const SizedBox(width: 12),
           Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  title,
-                  style: TextStyle(
-                    fontSize: 14,
-                    fontWeight: isNew ? FontWeight.bold : FontWeight.w600,
-                    color: isNew ? const Color(0xFF4CAF50) : Colors.black,
-                  ),
-                ),
-                // ✅ OPTIONAL: Can add description here later if you want
-              ],
+            child: Text(
+              title,
+              style: TextStyle(
+                fontSize: 14,
+                fontWeight: isNew ? FontWeight.bold : FontWeight.w600,
+                color: isNew ? const Color(0xFF4CAF50) : Colors.black,
+              ),
             ),
           ),
           if (isNew)
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-              decoration: BoxDecoration(
-                color: Colors.red,
-                borderRadius: BorderRadius.circular(12),
-              ),
-              child: const Text(
-                'NEW',
-                style: TextStyle(
-                  color: Colors.white,
-                  fontSize: 10,
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
+              decoration: BoxDecoration(color: Colors.red, borderRadius: BorderRadius.circular(12)),
+              child: const Text('NEW', style: TextStyle(color: Colors.white, fontSize: 10, fontWeight: FontWeight.bold)),
             ),
         ],
       ),
     );
   }
 
+  // ==========================================
+  // UI: RECIPES TAB (Dynamic Data + Old UI)
+  // ==========================================
   Widget _buildMyRecipesTab() {
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 16),
       child: Column(
         children: [
-          if (recipeCount == 0)
+          if (_userRecipes.isEmpty)
             Padding(
               padding: const EdgeInsets.symmetric(vertical: 40),
               child: Column(
                 children: [
-                  Icon(
-                    Icons.restaurant_menu,
-                    size: 64,
-                    color: Colors.grey[400],
-                  ),
+                  Icon(Icons.restaurant_menu, size: 64, color: Colors.grey[400]),
                   const SizedBox(height: 16),
                   Text(
                     'No recipes yet',
-                    style: TextStyle(
-                      fontSize: 18,
-                      fontWeight: FontWeight.bold,
-                      color: Colors.grey[600],
-                    ),
+                    style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.grey[600]),
                   ),
                   const SizedBox(height: 8),
                   Text(
@@ -972,45 +543,29 @@ class _ProfileScreenState extends State<ProfileScreen> {
               ),
             )
           else
-          // TODO: Replace these hardcoded recipe cards with actual Firebase data
-          ...[
-            _buildRecipeCard(
-              'egg_sandwich',
-              'Egg Sandwich',
-              'Breakfast • Easy • 5 mins',
-              '300 kcal',
-            ),
-            _buildRecipeCard(
-              'banana_oatmeal',
-              'Banana Oatmeal',
-              'Breakfast • Easy • 3 mins',
-              '284 kcal',
-            ),
-            _buildRecipeCard(
-              'pinoy_spaghetti',
-              'Pinoy Sweet Spaghetti',
-              'Lunch/Snacks • Medium • 25 mins',
-              '321 kcal',
-            ),
-          ],
+            ..._userRecipes.map((recipe) {
+              // Map dynamic Firebase data to the polished UI card
+              return _buildRecipeCard(
+                recipe['name'] ?? 'Untitled',
+                '${recipe['servings']} Servings • ${recipe['cookTime'] ?? "0 mins"}',
+                '${recipe['calories'] ?? 0} kcal',
+              );
+            }),
+
           const SizedBox(height: 16),
           OutlinedButton.icon(
-            onPressed: () {
-              Navigator.pushNamed(context, '/upload');
+            onPressed: () async {
+              await Navigator.pushNamed(context, '/upload');
+              _loadProfileData(); // Refresh after returning
             },
             icon: const Icon(Icons.add, color: Color(0xFF4CAF50)),
             label: const Text(
               'Add New Recipe',
-              style: TextStyle(
-                color: Color(0xFF4CAF50),
-                fontWeight: FontWeight.w600,
-              ),
+              style: TextStyle(color: Color(0xFF4CAF50), fontWeight: FontWeight.w600),
             ),
             style: OutlinedButton.styleFrom(
               side: const BorderSide(color: Color(0xFF4CAF50), width: 2),
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(25),
-              ),
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(25)),
               padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
             ),
           ),
@@ -1019,15 +574,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
     );
   }
 
-  Widget _buildRecipeCard(
-    String recipeId,
-    String name,
-    String details,
-    String kcal,
-  ) {
-    bool isLiked = likedRecipes[recipeId] ?? false;
-    int likes = likeCounts[recipeId] ?? 0;
-
+  Widget _buildRecipeCard(String name, String details, String kcal) {
     return Container(
       margin: const EdgeInsets.only(bottom: 16),
       decoration: _cardDecoration(),
@@ -1055,59 +602,20 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 children: [
                   Text(
                     name,
-                    style: const TextStyle(
-                      fontWeight: FontWeight.bold,
-                      fontSize: 16,
-                      color: Colors.black,
-                    ),
+                    style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: Colors.black),
                   ),
                   const SizedBox(height: 6),
-                  Text(
-                    details,
-                    style: const TextStyle(color: Colors.grey, fontSize: 12),
-                  ),
+                  Text(details, style: const TextStyle(color: Colors.grey, fontSize: 12)),
                   const SizedBox(height: 8),
                   Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
                       Text(
                         kcal,
-                        style: const TextStyle(
-                          color: Color(0xFFFF9800),
-                          fontWeight: FontWeight.bold,
-                          fontSize: 14,
-                        ),
+                        style: const TextStyle(color: Color(0xFFFF9800), fontWeight: FontWeight.bold, fontSize: 14),
                       ),
-                      GestureDetector(
-                        onTap: () {
-                          setState(() {
-                            likedRecipes[recipeId] = !isLiked;
-                            if (likedRecipes[recipeId]!) {
-                              likeCounts[recipeId] = likes + 1;
-                            } else {
-                              likeCounts[recipeId] = likes - 1;
-                            }
-                          });
-                        },
-                        child: Row(
-                          children: [
-                            Icon(
-                              isLiked ? Icons.favorite : Icons.favorite_border,
-                              color: isLiked ? Colors.red : Colors.grey,
-                              size: 18,
-                            ),
-                            const SizedBox(width: 4),
-                            Text(
-                              '${likeCounts[recipeId]}',
-                              style: const TextStyle(
-                                color: Colors.black,
-                                fontWeight: FontWeight.w600,
-                                fontSize: 14,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
+                      // Like count removed in updated logic, so just showing icon for UI consistency
+                      const Icon(Icons.favorite, color: Colors.red, size: 18),
                     ],
                   ),
                 ],
@@ -1133,6 +641,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
     );
   }
 
+  // ==========================================
+  // UI: BOTTOM NAVIGATION (Restored Routing)
+  // ==========================================
   Widget _buildBottomNavigationBar() {
     return Container(
       decoration: BoxDecoration(
@@ -1149,6 +660,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
       child: BottomNavigationBar(
         currentIndex: _selectedIndex,
         onTap: (index) {
+          // Use Navigator for switching screens logic from previous code
           switch (index) {
             case 0: // Home
               Navigator.pushReplacementNamed(context, '/home');
@@ -1183,18 +695,14 @@ class _ProfileScreenState extends State<ProfileScreen> {
           BottomNavigationBarItem(
             icon: Icon(
               _selectedIndex == 0 ? Icons.home : Icons.home_outlined,
-              color: _selectedIndex == 0
-                  ? const Color(0xFF4CAF50)
-                  : Colors.grey,
+              color: _selectedIndex == 0 ? const Color(0xFF4CAF50) : Colors.grey,
             ),
             label: 'Home',
           ),
           BottomNavigationBarItem(
             icon: Icon(
               Icons.restaurant_menu,
-              color: _selectedIndex == 1
-                  ? const Color(0xFF4CAF50)
-                  : Colors.grey,
+              color: _selectedIndex == 1 ? const Color(0xFF4CAF50) : Colors.grey,
             ),
             label: 'Recipes',
           ),
@@ -1213,18 +721,14 @@ class _ProfileScreenState extends State<ProfileScreen> {
           BottomNavigationBarItem(
             icon: Icon(
               Icons.history,
-              color: _selectedIndex == 3
-                  ? const Color(0xFF4CAF50)
-                  : Colors.grey,
+              color: _selectedIndex == 3 ? const Color(0xFF4CAF50) : Colors.grey,
             ),
             label: 'Log History',
           ),
           BottomNavigationBarItem(
             icon: Icon(
               Icons.person,
-              color: _selectedIndex == 4
-                  ? const Color(0xFF4CAF50)
-                  : Colors.grey,
+              color: _selectedIndex == 4 ? const Color(0xFF4CAF50) : Colors.grey,
             ),
             label: 'Profile',
           ),
@@ -1234,6 +738,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
   }
 }
 
+// Helper widget for stats
 class _StatItem extends StatelessWidget {
   final String label;
   final String value;
