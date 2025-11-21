@@ -7,6 +7,7 @@ import 'package:intl/intl.dart';
 import 'package:mealmatch/services/themealdb_service.dart';
 import 'package:mealmatch/services/cooked_recipes_service.dart';
 import 'package:mealmatch/screens/recipe_details_screen.dart';
+import 'package:mealmatch/services/recipe_service.dart';
 
 class HomePage extends StatefulWidget {
   const HomePage({super.key});
@@ -16,9 +17,13 @@ class HomePage extends StatefulWidget {
 }
 
 class _HomePageState extends State<HomePage> {
+  final RecipeService _recipeService = RecipeService();
+  List<Map<String, dynamic>> userRecipes = []; // For community recipes
+  bool isLoadingUserRecipes = true; // Loading state for user recipes
   final LogService _logService = LogService();
   final FirebaseService _firebaseService = FirebaseService();
   final CookedRecipesService _cookedService = CookedRecipesService();
+  
   int _selectedIndex = 0;
 
   int userGoalCalories = 2000;
@@ -100,7 +105,6 @@ class _HomePageState extends State<HomePage> {
 
   // ✅ FIX: Reset lists to empty before loading (shows spinners)
   Future<void> _loadRecipesInParallel() async {
-    // Don't load if already loading
     if (_isLoadingRecipes) {
       print('⚠️ Recipes already loading, skipping...');
       return;
@@ -108,56 +112,47 @@ class _HomePageState extends State<HomePage> {
 
     _isLoadingRecipes = true;
 
-    // ✅ FIX: Clear all lists so spinners show
     setState(() {
       cookAgainRecipes = [];
       tryTheseRecipes = [];
       discoverProteinRecipes = [];
+      userRecipes = []; // ✅ ADD THIS LINE
     });
 
     try {
       print('🔄 Starting parallel recipe loading...');
 
-      // Start all recipe loading in parallel
+      // ✅ ADD userRecipesFuture
+      final userRecipesFuture = _recipeService.getPublicRecipes(limit: 5);
       final cookAgainFuture = _loadCookAgainRecipes();
       final discoverFuture = _getVariedProteinRecipes();
       final tryTheseFuture = TheMealDBService.getRandomMeals(5);
 
-      // Wait for all three at the same time with timeout
-      final results =
-          await Future.wait([
-            cookAgainFuture,
-            discoverFuture,
-            tryTheseFuture,
-          ], eagerError: true).timeout(
-            const Duration(seconds: 30),
-            onTimeout: () {
-              print('⏱️ Recipe loading timeout');
-              return [[], [], []]; // Return empty lists on timeout
-            },
-          );
+      // ✅ Wait for all four futures
+      final results = await Future.wait([
+        userRecipesFuture,  // ✅ NEW
+        cookAgainFuture,
+        discoverFuture,
+        tryTheseFuture,
+      ], eagerError: true).timeout(
+        const Duration(seconds: 30),
+        onTimeout: () => [[], [], [], []],
+      );
 
-      // Assign results safely
-      cookAgainRecipes = (results[0] as List).cast<Map<String, dynamic>>();
-      discoverProteinRecipes = (results[1] as List)
-          .cast<Map<String, dynamic>>();
-      tryTheseRecipes = (results[2] as List).cast<Map<String, dynamic>>();
+      // ✅ Extract all results
+      userRecipes = (results[0] as List).cast<Map<String, dynamic>>();
+      cookAgainRecipes = (results[1] as List).cast<Map<String, dynamic>>();
+      discoverProteinRecipes = (results[2] as List).cast<Map<String, dynamic>>();
+      tryTheseRecipes = (results[3] as List).cast<Map<String, dynamic>>();
 
-      print('✅ All recipes loaded successfully');
-      print('   - Cook Again: ${cookAgainRecipes.length}');
-      print('   - Discover: ${discoverProteinRecipes.length}');
-      print('   - Try These: ${tryTheseRecipes.length}');
-
-      // Update UI once with all recipes loaded
+      print('✅ All recipes loaded (including ${userRecipes.length} user recipes)');
       if (mounted) setState(() {});
     } catch (e) {
-      print('❌ Error loading recipes in parallel: $e');
-      // Recipes stay as empty lists - UI will show loading spinners
+      print('❌ Error loading recipes: $e');
     } finally {
       _isLoadingRecipes = false;
     }
   }
-
   Future<List<Map<String, dynamic>>> _loadCookAgainRecipes() async {
     try {
       if (hasCookedRecipes) {
@@ -353,6 +348,7 @@ class _HomePageState extends State<HomePage> {
                       _buildDailyCaloriesWidget(),
                       _buildActionButtons(),
                       _buildCookAgainSection(),
+                      _buildUserRecipesSection(),
                       _buildTryTheseRecipesSection(),
                       _buildDiscoverRecipesSection(),
                       const SizedBox(height: 100),
@@ -782,6 +778,45 @@ class _HomePageState extends State<HomePage> {
                   itemCount: cookAgainRecipes.length,
                   itemBuilder: (context, index) {
                     return _buildRecipeCard(cookAgainRecipes[index]);
+                  },
+                ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildUserRecipesSection() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const Padding(
+          padding: EdgeInsets.fromLTRB(16, 16, 16, 8),
+          child: Text(
+            'Community Recipes',
+            style: TextStyle(
+              fontSize: 18,
+              fontWeight: FontWeight.bold,
+              color: Color(0xFF424242),
+            ),
+          ),
+        ),
+        SizedBox(
+          height: 210,
+          child: userRecipes.isEmpty
+              ? ListView.builder(
+                  scrollDirection: Axis.horizontal,
+                  padding: const EdgeInsets.symmetric(horizontal: 16),
+                  physics: const NeverScrollableScrollPhysics(),
+                  itemCount: 5,
+                  itemBuilder: (context, index) => _buildSkeletonCard(),
+                )
+              : ListView.builder(
+                  scrollDirection: Axis.horizontal,
+                  padding: const EdgeInsets.symmetric(horizontal: 16),
+                  physics: const BouncingScrollPhysics(),
+                  itemCount: userRecipes.length,
+                  itemBuilder: (context, index) {
+                    return _buildRecipeCard(userRecipes[index]);
                   },
                 ),
         ),

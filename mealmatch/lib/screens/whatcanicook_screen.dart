@@ -2,6 +2,7 @@
 import 'package:flutter/material.dart';
 import 'package:mealmatch/services/themealdb_service.dart';
 import 'package:mealmatch/screens/recipe_details_screen.dart';
+import 'package:mealmatch/services/recipe_service.dart';
 //import 'dart:math'; // <-- 1. IMPORT ADDED
 
 class WhatCanICookScreen extends StatefulWidget {
@@ -14,6 +15,7 @@ class WhatCanICookScreen extends StatefulWidget {
 class _WhatCanICookScreenState extends State<WhatCanICookScreen> {
   final List<String> selectedIngredients = [];
   final TextEditingController _searchController = TextEditingController();
+  final RecipeService _recipeService = RecipeService();
   
   final Map<String, List<String>> categoryIngredients = {
     'Vegetables': [
@@ -124,12 +126,23 @@ class _WhatCanICookScreenState extends State<WhatCanICookScreen> {
     });
 
     try {
+      // Get recipes from TheMealDB
       final found = await TheMealDBService.findByIngredients(
         selectedIngredients,
         number: 10,
       );
 
-      if (found.isEmpty) {
+      // ✅ Get user recipes with matching ingredients
+      final userRecipesMatching = 
+          await _recipeService.getPublicRecipesByIngredient(
+            selectedIngredients,
+            limit: 5,
+          );
+      
+      // ✅ Combine both lists
+      final allRecipes = [...found, ...userRecipesMatching];
+      
+      if (allRecipes.isEmpty) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: const Text('No recipes found. Try different ingredients.'),

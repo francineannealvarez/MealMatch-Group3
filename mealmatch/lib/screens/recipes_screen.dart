@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:mealmatch/services/themealdb_service.dart';
 import 'package:mealmatch/screens/recipe_details_screen.dart';
+import 'package:mealmatch/services/recipe_service.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 
@@ -14,6 +15,7 @@ class RecipesScreen extends StatefulWidget {
 class _RecipesScreenState extends State<RecipesScreen>
     with TickerProviderStateMixin {
   final TextEditingController _searchController = TextEditingController();
+  final RecipeService _recipeService = RecipeService();
   List<Map<String, dynamic>> recipes = []; // For search results
 
   // Lists for each category
@@ -21,12 +23,14 @@ class _RecipesScreenState extends State<RecipesScreen>
   List<Map<String, dynamic>> highProteinRecipes = [];
   List<Map<String, dynamic>> vegetarianRecipes = [];
   List<Map<String, dynamic>> dessertRecipes = [];
+  List<Map<String, dynamic>> publicUserRecipes = [];
 
   // Loading states for each category
   bool isLoadingPopular = true;
   bool isLoadingProtein = true;
   bool isLoadingVegetarian = true;
   bool isLoadingDesserts = true;
+  bool isLoadingPublic = true;
 
   bool isSearching = false;
   bool showSearchResults = false;
@@ -81,6 +85,7 @@ class _RecipesScreenState extends State<RecipesScreen>
   Future<void> _loadAllRecipes() async {
     _loadPopularRecipes();
     _loadHighProteinRecipes();
+    _loadPublicUserRecipes(); 
     _loadCategoryRecipes(
       'Vegetarian',
       (meals) => vegetarianRecipes = meals,
@@ -129,6 +134,21 @@ class _RecipesScreenState extends State<RecipesScreen>
     } catch (e) {
       print('Error loading high protein recipes: $e');
       setState(() => isLoadingProtein = false);
+    }
+  }
+
+  // ✅ NEW method
+  Future<void> _loadPublicUserRecipes() async {
+    setState(() => isLoadingPublic = true);
+    try {
+      final userRecipes = await _recipeService.getPublicRecipes(limit: 6);
+      setState(() {
+        publicUserRecipes = userRecipes;
+        isLoadingPublic = false;
+      });
+    } catch (e) {
+      print('Error loading user recipes: $e');
+      setState(() => isLoadingPublic = false);
     }
   }
 

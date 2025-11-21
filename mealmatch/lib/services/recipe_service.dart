@@ -12,52 +12,50 @@ class RecipeService {
   // ✅ ADDED: App ID constant for consistency
   static const String appId = 'mealmatch-app';
 
-  // ✅ IMPROVED: Save user recipe with better error handling
+  // Save user recipe both private and public
   Future<Map<String, dynamic>> saveUserRecipe(UserRecipe recipe) async {
     try {
       final user = _auth.currentUser;
       if (user == null) {
-        return {
-          'success': false,
-          'message': 'User not logged in',
-        };
+        return {'success': false, 'message': 'User not logged in'};
       }
 
-      // ✅ FIXED: Consistent Firebase path structure
-      final recipesRef = _firestore
-        .collection('users')
-        .doc(user.uid)
-        .collection('recipes');
-
-      // ✅ ADDED: Calculate total calories before saving
       final recipeData = recipe.toMap();
-      
-      // ✅ ADDED: Auto-calculate calories from nutrients
       final calories = _calculateCalories(recipe.nutrients);
       recipeData['calories'] = calories;
-
-      // ✅ IMPROVED: Use Firestore timestamp for consistency
       recipeData['createdAt'] = FieldValue.serverTimestamp();
+      recipeData['userId'] = user.uid; // ✅ IMPORTANT: Track owner
+      recipeData['userName'] = user.displayName ?? 'Anonymous'; // Add user name
+      recipeData['userEmail'] = user.email ?? ''; // Add email for contact
 
-      // Save to Firestore
-      final docRef = await recipesRef.add(recipeData);
+      // ✅ NEW: Save to private collection (user's own recipes)
+      final privateRecipesRef = _firestore
+          .collection('users')
+          .doc(user.uid)
+          .collection('recipes');
 
-      print('✅ Recipe saved successfully with ID: ${docRef.id}');
+      final privateDocRef = await privateRecipesRef.add(recipeData);
+      print('✅ Recipe saved to private collection: ${privateDocRef.id}');
+
+      // ✅ NEW: Also save to PUBLIC collection (all users can see)
+      final publicRecipesRef = _firestore.collection('public_recipes');
+      recipeData['privateRecipeId'] = privateDocRef.id; // Link to private copy
+      
+      final publicDocRef = await publicRecipesRef.add(recipeData);
+      print('✅ Recipe saved to public collection: ${publicDocRef.id}');
 
       return {
         'success': true,
-        'message': 'Recipe uploaded successfully!',
-        'recipeId': docRef.id,
+        'message': 'Recipe uploaded and shared with community!',
+        'recipeId': publicDocRef.id,
       };
     } on FirebaseException catch (e) {
-      // ✅ IMPROVED: Better Firebase error handling
       print('❌ Firebase Error: ${e.code} - ${e.message}');
       return {
         'success': false,
         'message': 'Failed to upload recipe: ${e.message}',
       };
     } catch (e) {
-      // ✅ IMPROVED: Catch all other errors
       print('❌ Unexpected Error: $e');
       return {
         'success': false,
@@ -167,4 +165,100 @@ class RecipeService {
       return {'success': false, 'message': 'Failed to update recipe'};
     }
   }
+
+  // Fetch all public recipes
+  Future<List<Map<String, dynamic>>> getPublicRecipes({int limit = 20}) async {
+    try {
+      final snapshot = await _firestore
+          .collection('public_recipes')
+          .orderBy('createdAt', descending: true)
+          .limit(limit)
+          .get();
+
+      return snapshot.docs.map((doc) {
+        final data = doc.data();
+        data['id'] = doc.id;
+        
+        // Ensure calories exist
+        if (!data.containsKey('calories') && data['nutrients'] != null) {
+          final nutrients = Map<String, double>.from(data['nutrients']);
+          data['calories'] = _calculateCalories(nutrients);
+        }
+        
+        return data;
+      }).toList();
+    } on FirebaseException catch (e) {
+      print('❌ Error fetching public recipes: ${e.code}');
+      return [];
+    } catch (e) {
+      print('❌ Unexpected error: $e');
+      return [];
+    }
+  }
+
+  // ✅ NEW: Search public recipes by name
+  Future<List<Map<String, dynamic>>> searchPublicRecipes(String query) async {
+    try {
+      if (query.trim().isEmpty) return [];
+
+      final snapshot = await _firestore
+          .collection('public_recipes')
+          .where('name', isGreaterThanOrEqualTo: query)
+          .where('name', isLessThan: query + 'z')
+          .limit(20)
+          .get();
+
+      return snapshot.docs.map((doc) {
+        final data = doc.data();
+        data['id'] = doc.id;
+        return data;
+      }).toList();
+    } catch (e) {
+      print('❌ Error searching recipes: $e');
+      return [];
+    }
+  }
+
+  // ✅ NEW: Get public recipes by ingredient (for "What Can I Cook")
+  Future<List<Map<String, dynamic>>> getPublicRecipesByIngredient(
+    List<String> ingredients, {
+    int limit = 10,
+  }) async {
+    try {
+      // Get all public recipes and filter locally
+      // (Firestore doesn't support array-contains multiple values)
+      final snapshot = await _firestore
+          .collection('public_recipes')
+          .limit(100)
+          .get();
+
+      final matching = <Map<String, dynamic>>[];
+
+      for (var doc in snapshot.docs) {
+        final data = doc.data();
+        final recipeIngredients = 
+            (data['ingredients'] as List<dynamic>? ?? [])
+                .map((ing) => ing.toString().toLowerCase())
+                .toList();
+
+        // Check if any user ingredient matches recipe ingredient
+        bool hasMatch = ingredients.any((userIng) =>
+            recipeIngredients.any((recipeIng) =>
+                recipeIng.contains(userIng.toLowerCase()) ||
+                userIng.toLowerCase().contains(recipeIng)));
+
+        if (hasMatch) {
+          data['id'] = doc.id;
+          matching.add(data);
+          if (matching.length >= limit) break;
+        }
+      }
+
+      return matching;
+    } catch (e) {
+      print('❌ Error getting recipes by ingredient: $e');
+      return [];
+    }
+  }
+
 }
