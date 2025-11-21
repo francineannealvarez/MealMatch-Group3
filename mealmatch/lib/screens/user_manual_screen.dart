@@ -1,881 +1,223 @@
 import 'package:flutter/material.dart';
-import 'package:firebase_auth/firebase_auth.dart';
-import 'package:image_picker/image_picker.dart';
-import 'dart:io';
-import 'dart:math' as math;
-import '../models/user_recipe.dart';
-import '../services/firebase_service.dart';
 
-class UploadRecipeScreen extends StatefulWidget {
-  const UploadRecipeScreen({super.key});
-
-  @override
-  State<UploadRecipeScreen> createState() => _UploadRecipeScreenState();
-}
-
-class _UploadRecipeScreenState extends State<UploadRecipeScreen> {
-  final FirebaseService _firebaseService = FirebaseService();
-  final TextEditingController _recipeNameController = TextEditingController();
-  final TextEditingController _servingsController = TextEditingController(text: '4');
-
-  String prepTime = '00:00';
-  String cookTime = '00:00';
-
-  List<String> ingredients = [];
-  List<InstructionStep> instructions = [
-    InstructionStep(stepNumber: 1, text: '', timer: null),
-  ];
-
-  final Map<String, double> nutrients = {
-    'Protein': 0,
-    'Carbs': 0,
-    'Fat': 0,
-    'Fiber': 0,
-    'Sugar': 0,
-    'Sodium': 0,
-  };
-
-  final Map<String, Color> nutrientColors = {
-    'Protein': const Color(0xFFFDD835),
-    'Carbs': const Color(0xFFFF9800),
-    'Fat': const Color(0xFFEF5350),
-    'Fiber': const Color(0xFF8BC34A),
-    'Sugar': const Color(0xFF42A5F5),
-    'Sodium': const Color(0xFF9C27B0),
-  };
-
-  File? _selectedImage;
-  bool _isUploading = false;
-
-  @override
-  void dispose() {
-    _recipeNameController.dispose();
-    _servingsController.dispose();
-    super.dispose();
-  }
-
-  Future<void> _pickImage() async {
-    try {
-      final ImagePicker picker = ImagePicker();
-      final XFile? image = await picker.pickImage(
-        source: ImageSource.gallery,
-        maxWidth: 1024,
-        maxHeight: 1024,
-        imageQuality: 85,
-      );
-
-      if (image != null) {
-        setState(() {
-          _selectedImage = File(image.path);
-        });
-      }
-    } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Error picking image: $e')),
-      );
-    }
-  }
-
-  void _showIngredientsDialog() {
-    final TextEditingController ingredientController = TextEditingController();
-
-    showDialog(
-      context: context,
-      builder: (BuildContext context) {
-        return AlertDialog(
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(20),
-          ),
-          title: const Text('Add Ingredient'),
-          content: TextField(
-            controller: ingredientController,
-            autofocus: true,
-            decoration: InputDecoration(
-              hintText: 'e.g., 2 cups flour',
-              border: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(12),
-              ),
-            ),
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(context),
-              child: const Text('Cancel'),
-            ),
-            ElevatedButton(
-              style: ElevatedButton.styleFrom(
-                backgroundColor: const Color(0xFF8BC34A),
-                foregroundColor: Colors.white,
-              ),
-              onPressed: () {
-                if (ingredientController.text.trim().isNotEmpty) {
-                  setState(() {
-                    ingredients.add(ingredientController.text.trim());
-                  });
-                  Navigator.pop(context);
-                }
-              },
-              child: const Text('Add'),
-            ),
-          ],
-        );
-      },
-    );
-  }
-
-  void _addInstructionStep() {
-    setState(() {
-      instructions.add(
-        InstructionStep(
-          stepNumber: instructions.length + 1,
-          text: '',
-          timer: null,
-        ),
-      );
-    });
-  }
-
-  void _deleteInstructionStep(int index) {
-    setState(() {
-      instructions.removeAt(index);
-      for (int i = 0; i < instructions.length; i++) {
-        instructions[i].stepNumber = i + 1;
-      }
-    });
-  }
-
-  void _showTimePicker(BuildContext context, String type, {int? stepIndex}) {
-    int minutes = 0;
-    int seconds = 0;
-
-    showDialog(
-      context: context,
-      builder: (BuildContext context) {
-        return StatefulBuilder(
-          builder: (context, setDialogState) {
-            return Dialog(
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(20),
-              ),
-              child: Container(
-                padding: const EdgeInsets.all(20),
-                decoration: BoxDecoration(
-                  color: const Color(0xFFFFF4E6),
-                  borderRadius: BorderRadius.circular(20),
-                ),
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
-                        const SizedBox(width: 24),
-                        Text(
-                          stepIndex != null
-                              ? 'Set Step Timer'
-                              : 'Set ${type == 'prep' ? 'Prep' : 'Cook'} Timer',
-                          style: const TextStyle(
-                            fontSize: 16,
-                            fontWeight: FontWeight.bold,
-                            color: Color(0xFF6B5F3B),
-                          ),
-                        ),
-                        IconButton(
-                          icon: const Icon(Icons.close, size: 20),
-                          onPressed: () => Navigator.pop(context),
-                          color: const Color(0xFF6B5F3B),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 20),
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        // MINUTES
-                        Column(
-                          children: [
-                            IconButton(
-                              onPressed: () {
-                                setDialogState(() => minutes = (minutes + 1) % 60);
-                              },
-                              icon: const Icon(Icons.arrow_drop_up, size: 32),
-                            ),
-                            Container(
-                              width: 60,
-                              height: 60,
-                              alignment: Alignment.center,
-                              decoration: BoxDecoration(
-                                color: Colors.white,
-                                borderRadius: BorderRadius.circular(12),
-                                border: Border.all(color: Colors.grey.shade300),
-                              ),
-                              child: Text(
-                                minutes.toString().padLeft(2, '0'),
-                                style: const TextStyle(
-                                  fontSize: 24,
-                                  fontWeight: FontWeight.bold,
-                                ),
-                              ),
-                            ),
-                            IconButton(
-                              onPressed: () {
-                                setDialogState(() {
-                                  minutes = (minutes - 1) % 60;
-                                  if (minutes < 0) minutes = 59;
-                                });
-                              },
-                              icon: const Icon(Icons.arrow_drop_down, size: 32),
-                            ),
-                            const Text('MM'),
-                          ],
-                        ),
-                        const Padding(
-                          padding: EdgeInsets.symmetric(horizontal: 8.0),
-                          child: Text(
-                            ':',
-                            style: TextStyle(
-                              fontSize: 32,
-                              fontWeight: FontWeight.bold,
-                            ),
-                          ),
-                        ),
-                        // SECONDS
-                        Column(
-                          children: [
-                            IconButton(
-                              onPressed: () {
-                                setDialogState(() => seconds = (seconds + 1) % 60);
-                              },
-                              icon: const Icon(Icons.arrow_drop_up, size: 32),
-                            ),
-                            Container(
-                              width: 60,
-                              height: 60,
-                              alignment: Alignment.center,
-                              decoration: BoxDecoration(
-                                color: Colors.white,
-                                borderRadius: BorderRadius.circular(12),
-                                border: Border.all(color: Colors.grey.shade300),
-                              ),
-                              child: Text(
-                                seconds.toString().padLeft(2, '0'),
-                                style: const TextStyle(
-                                  fontSize: 24,
-                                  fontWeight: FontWeight.bold,
-                                ),
-                              ),
-                            ),
-                            IconButton(
-                              onPressed: () {
-                                setDialogState(() {
-                                  seconds = (seconds - 1) % 60;
-                                  if (seconds < 0) seconds = 59;
-                                });
-                              },
-                              icon: const Icon(Icons.arrow_drop_down, size: 32),
-                            ),
-                            const Text('SS'),
-                          ],
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 20),
-                    ElevatedButton(
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: const Color(0xFFF59E42),
-                        foregroundColor: Colors.white,
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(20),
-                        ),
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 40,
-                          vertical: 12,
-                        ),
-                      ),
-                      onPressed: () {
-                        setState(() {
-                          final timeString =
-                              '${minutes.toString().padLeft(2, '0')}:${seconds.toString().padLeft(2, '0')}';
-                          if (stepIndex != null) {
-                            instructions[stepIndex].timer = timeString;
-                          } else if (type == 'prep') {
-                            prepTime = timeString;
-                          } else {
-                            cookTime = timeString;
-                          }
-                        });
-                        Navigator.pop(context);
-                      },
-                      child: const Text(
-                        'Add Timer',
-                        style: TextStyle(fontWeight: FontWeight.bold),
-                      ),
-                    ),
-                    const SizedBox(height: 8),
-                    TextButton(
-                      onPressed: () {
-                        setState(() {
-                          if (stepIndex != null) {
-                            instructions[stepIndex].timer = null;
-                          } else if (type == 'prep') {
-                            prepTime = '00:00';
-                          } else {
-                            cookTime = '00:00';
-                          }
-                        });
-                        Navigator.pop(context);
-                      },
-                      child: const Text(
-                        'Remove Timer',
-                        style: TextStyle(color: Colors.grey),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            );
-          },
-        );
-      },
-    );
-  }
-
-  void _showNutrientDialog(String nutrient) {
-    final TextEditingController controller = TextEditingController(
-      text: nutrients[nutrient]!.toStringAsFixed(1),
-    );
-
-    showDialog(
-      context: context,
-      builder: (BuildContext context) {
-        return AlertDialog(
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(20),
-          ),
-          title: Text('Add $nutrient'),
-          content: TextField(
-            controller: controller,
-            keyboardType: TextInputType.number,
-            decoration: InputDecoration(
-              hintText: 'Enter grams',
-              suffixText: 'g',
-              border: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(12),
-              ),
-            ),
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(context),
-              child: const Text('Cancel'),
-            ),
-            ElevatedButton(
-              style: ElevatedButton.styleFrom(
-                backgroundColor: const Color(0xFFF59E42),
-                foregroundColor: Colors.white,
-              ),
-              onPressed: () {
-                setState(() {
-                  nutrients[nutrient] = double.tryParse(controller.text) ?? 0;
-                });
-                Navigator.pop(context);
-              },
-              child: const Text('Save'),
-            ),
-          ],
-        );
-      },
-    );
-  }
-
-  int get totalCalories {
-    return ((nutrients['Protein']! * 4) +
-            (nutrients['Carbs']! * 4) +
-            (nutrients['Fat']! * 9))
-        .round();
-  }
-
-  // --- SAVE TO FIREBASE LOGIC ---
-  Future<void> _uploadRecipe() async {
-    // Validation
-    if (_recipeNameController.text.trim().isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Please enter recipe name')),
-      );
-      return;
-    }
-
-    if (ingredients.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Please add at least one ingredient')),
-      );
-      return;
-    }
-
-    if (instructions.any((step) => step.text.trim().isEmpty)) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Please fill in all instruction steps')),
-      );
-      return;
-    }
-
-    setState(() {
-      _isUploading = true;
-    });
-
-    try {
-      final user = FirebaseAuth.instance.currentUser;
-      if (user == null) {
-        throw Exception('User not logged in');
-      }
-
-      // Prepare model
-      final newRecipe = UserRecipe(
-        userId: user.uid,
-        name: _recipeNameController.text.trim(),
-        servings: int.tryParse(_servingsController.text) ?? 1,
-        prepTime: prepTime,
-        cookTime: cookTime,
-        ingredients: ingredients,
-        instructions: instructions
-            .map((step) => InstructionStepModel(
-                  stepNumber: step.stepNumber,
-                  text: step.text,
-                  timer: step.timer,
-                ))
-            .toList(),
-        nutrients: nutrients,
-        localImagePath: _selectedImage?.path, // Added this
-        createdAt: DateTime.now(),
-      );
-
-      // Call Service
-      await _firebaseService.saveUserRecipe(newRecipe.toMap());
-
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Recipe uploaded successfully!'),
-            backgroundColor: Color(0xFF8BC34A),
-          ),
-        );
-        
-        // Reset Form
-        _recipeNameController.clear();
-        _servingsController.text = '4';
-        setState(() {
-          prepTime = '00:00';
-          cookTime = '00:00';
-          ingredients = [];
-          instructions = [InstructionStep(stepNumber: 1, text: '', timer: null)];
-          nutrients.updateAll((key, value) => 0);
-          _selectedImage = null;
-        });
-        
-        Navigator.pop(context); // Go back
-      }
-    } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Error uploading recipe: $e'),
-            backgroundColor: Colors.red,
-          ),
-        );
-      }
-    } finally {
-      if (mounted) {
-        setState(() {
-          _isUploading = false;
-        });
-      }
-    }
-  }
+class UserManualScreen extends StatelessWidget {
+  const UserManualScreen({super.key});
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFFFFF8E1),
+      backgroundColor: const Color(0xFFFFF5CF),
       appBar: AppBar(
-        backgroundColor: const Color(0xFF8BC34A),
+        backgroundColor: Colors.transparent,
         elevation: 0,
         leading: IconButton(
-          icon: const Icon(Icons.arrow_back, color: Colors.white),
+          icon: const Icon(Icons.arrow_back, color: Colors.black),
           onPressed: () => Navigator.pop(context),
         ),
         title: const Text(
-          'Upload Recipe',
-          style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+          'User Manual',
+          style: TextStyle(color: Colors.black, fontWeight: FontWeight.bold),
         ),
+        centerTitle: true,
       ),
+
       body: SingleChildScrollView(
         child: Padding(
           padding: const EdgeInsets.all(16.0),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              // IMAGE UPLOAD
-              Center(
-                child: GestureDetector(
-                  onTap: _pickImage,
-                  child: Container(
-                    width: double.infinity,
-                    height: 150,
+              Row(
+                children: [
+                  Container(
+                    padding: const EdgeInsets.all(8),
                     decoration: BoxDecoration(
-                      color: Colors.white,
-                      borderRadius: BorderRadius.circular(12),
-                      border: Border.all(color: Colors.grey.shade300),
-                      image: _selectedImage != null
-                          ? DecorationImage(
-                              image: FileImage(_selectedImage!),
-                              fit: BoxFit.cover,
-                            )
-                          : null,
+                      color: Colors.teal[100],
+                      borderRadius: BorderRadius.circular(8),
                     ),
-                    child: _selectedImage == null
-                        ? Column(
-                            mainAxisAlignment: MainAxisAlignment.center,
-                            children: [
-                              Icon(Icons.image_outlined,
-                                  size: 48, color: Colors.grey.shade400),
-                              const SizedBox(height: 8),
-                              Text('Tap to Upload Image',
-                                  style: TextStyle(
-                                      color: Colors.grey.shade600, fontSize: 14)),
-                            ],
-                          )
-                        : null,
-                  ),
-                ),
-              ),
-              const SizedBox(height: 20),
-
-              const Text('Recipe Name',
-                  style: TextStyle(
-                      fontSize: 14,
-                      fontWeight: FontWeight.w600,
-                      color: Color(0xFF6B5F3B))),
-              const SizedBox(height: 8),
-              TextField(
-                controller: _recipeNameController,
-                decoration: InputDecoration(
-                  filled: true,
-                  fillColor: Colors.white,
-                  border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(12),
-                      borderSide: BorderSide(color: Colors.grey.shade300)),
-                  enabledBorder: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(12),
-                      borderSide: BorderSide(color: Colors.grey.shade300)),
-                ),
-              ),
-              const SizedBox(height: 20),
-
-              const Text('Number of Servings',
-                  style: TextStyle(
-                      fontSize: 14,
-                      fontWeight: FontWeight.w600,
-                      color: Color(0xFF6B5F3B))),
-              const SizedBox(height: 8),
-              TextField(
-                controller: _servingsController,
-                keyboardType: TextInputType.number,
-                decoration: InputDecoration(
-                  filled: true,
-                  fillColor: Colors.white,
-                  border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(12),
-                      borderSide: BorderSide(color: Colors.grey.shade300)),
-                  enabledBorder: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(12),
-                      borderSide: BorderSide(color: Colors.grey.shade300)),
-                ),
-              ),
-              const SizedBox(height: 20),
-
-              // INGREDIENTS HEADER
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  const Text('Ingredients',
-                      style: TextStyle(
-                          fontSize: 14,
-                          fontWeight: FontWeight.w600,
-                          color: Color(0xFF6B5F3B))),
-                  Text('${ingredients.length} added',
-                      style: TextStyle(fontSize: 12, color: Colors.grey[600])),
-                ],
-              ),
-              const SizedBox(height: 12),
-
-              // ADD BUTTON
-              GestureDetector(
-                onTap: _showIngredientsDialog,
-                child: Row(
-                  children: [
-                    Container(
-                      width: 24,
-                      height: 24,
-                      decoration: const BoxDecoration(
-                          color: Color(0xFF8BC34A), shape: BoxShape.circle),
-                      child: const Icon(Icons.add, color: Colors.white, size: 16),
+                    child: Icon(
+                      Icons.menu_book,
+                      color: Colors.teal[800],
+                      size: 24,
                     ),
-                    const SizedBox(width: 8),
-                    const Text('Add Ingredient',
-                        style: TextStyle(
-                            color: Color(0xFF6B5F3B), fontWeight: FontWeight.w600)),
-                  ],
-                ),
-              ),
-              
-              // INGREDIENT LIST
-              if (ingredients.isNotEmpty) ...[
-                const SizedBox(height: 12),
-                ...ingredients.asMap().entries.map((entry) {
-                  return Card(
-                    margin: const EdgeInsets.only(bottom: 8),
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                    child: ListTile(
-                      dense: true,
-                      title: Text(entry.value),
-                      trailing: IconButton(
-                        icon: const Icon(Icons.delete, color: Colors.red, size: 20),
-                        onPressed: () {
-                          setState(() {
-                            ingredients.removeAt(entry.key);
-                          });
-                        },
-                      ),
-                    ),
-                  );
-                }),
-              ],
-
-              const SizedBox(height: 20),
-
-              Row(
-                children: [
-                  Expanded(
-                    child: _timeCard('Prep Time', prepTime,
-                        () => _showTimePicker(context, 'prep')),
                   ),
                   const SizedBox(width: 12),
-                  Expanded(
-                    child: _timeCard('Cook Time', cookTime,
-                        () => _showTimePicker(context, 'cook')),
+                  const Text(
+                    "User's Manual",
+                    style: TextStyle(
+                      fontSize: 20,
+                      fontWeight: FontWeight.bold,
+                      color: Colors.black,
+                    ),
                   ),
                 ],
               ),
-              const SizedBox(height: 20),
+              const SizedBox(height: 16),
 
-              const Text('Instructions',
-                  style: TextStyle(
-                      fontSize: 14,
-                      fontWeight: FontWeight.w600,
-                      color: Color(0xFF6B5F3B))),
-              const SizedBox(height: 8),
-
-              ...instructions.asMap().entries.map((entry) {
-                int index = entry.key;
-                InstructionStep step = entry.value;
-                return Container(
-                  margin: const EdgeInsets.only(bottom: 12),
-                  padding: const EdgeInsets.all(12),
-                  decoration: BoxDecoration(
-                    color: Colors.white,
-                    borderRadius: BorderRadius.circular(12),
-                    border: Border.all(color: Colors.grey.shade300),
-                  ),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Row(
-                        children: [
-                          Text(
-                            'Step ${step.stepNumber}',
-                            style: const TextStyle(
-                                fontSize: 14,
-                                fontWeight: FontWeight.bold,
-                                color: Color(0xFF6B5F3B)),
-                          ),
-                          const Spacer(),
-                          GestureDetector(
-                            onTap: () => _showTimePicker(context, 'step',
-                                stepIndex: index),
-                            child: Container(
-                              padding: const EdgeInsets.symmetric(
-                                  horizontal: 12, vertical: 6),
-                              decoration: BoxDecoration(
-                                color: step.timer != null
-                                    ? const Color(0xFFF59E42)
-                                    : Colors.grey.shade200,
-                                borderRadius: BorderRadius.circular(8),
-                              ),
-                              child: Row(
-                                children: [
-                                  Icon(Icons.timer_outlined,
-                                      size: 16,
-                                      color: step.timer != null
-                                          ? Colors.white
-                                          : Colors.grey.shade600),
-                                  const SizedBox(width: 4),
-                                  Text(
-                                    step.timer ?? '00:00',
-                                    style: TextStyle(
-                                        fontSize: 12,
-                                        fontWeight: FontWeight.bold,
-                                        color: step.timer != null
-                                            ? Colors.white
-                                            : Colors.grey.shade600),
-                                  ),
-                                ],
-                              ),
-                            ),
-                          ),
-                          if (instructions.length > 1) ...[
-                            const SizedBox(width: 8),
-                            GestureDetector(
-                              onTap: () => _deleteInstructionStep(index),
-                              child: Container(
-                                padding: const EdgeInsets.all(6),
-                                decoration: BoxDecoration(
-                                    color: Colors.red.shade400,
-                                    shape: BoxShape.circle),
-                                child: const Icon(Icons.close,
-                                    size: 16, color: Colors.white),
-                              ),
-                            ),
-                          ],
-                        ],
-                      ),
-                      const SizedBox(height: 8),
-                      TextField(
-                        maxLines: 3,
-                        controller: TextEditingController(text: step.text)
-                          ..selection = TextSelection.fromPosition(
-                              TextPosition(offset: step.text.length)),
-                        onChanged: (value) => step.text = value,
-                        decoration: InputDecoration(
-                          hintText: 'Enter instruction for this step...',
-                          filled: true,
-                          fillColor: Colors.grey.shade50,
-                          border: OutlineInputBorder(
-                              borderRadius: BorderRadius.circular(8),
-                              borderSide: BorderSide(color: Colors.grey.shade300)),
-                          enabledBorder: OutlineInputBorder(
-                              borderRadius: BorderRadius.circular(8),
-                              borderSide: BorderSide(color: Colors.grey.shade300)),
-                        ),
-                      ),
-                    ],
-                  ),
-                );
-              }),
-
-              GestureDetector(
-                onTap: _addInstructionStep,
-                child: Row(
-                  children: [
-                    Container(
-                      width: 24,
-                      height: 24,
-                      decoration: const BoxDecoration(
-                          color: Color(0xFF8BC34A), shape: BoxShape.circle),
-                      child: const Icon(Icons.add, color: Colors.white, size: 16),
-                    ),
-                    const SizedBox(width: 8),
-                    const Text('Add Instruction',
-                        style: TextStyle(
-                            color: Color(0xFF6B5F3B), fontWeight: FontWeight.w600)),
-                  ],
-                ),
-              ),
-              const SizedBox(height: 24),
-
-              // Nutrition chart
               Container(
-                padding: const EdgeInsets.all(16),
+                width: double.infinity,
+                padding: const EdgeInsets.all(20),
                 decoration: BoxDecoration(
                   color: Colors.white,
                   borderRadius: BorderRadius.circular(16),
-                  border: Border.all(color: Colors.grey.shade300),
+                  border: Border.all(color: const Color(0xFF4CAF50), width: 2),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.grey.withOpacity(0.2),
+                      blurRadius: 8,
+                      offset: const Offset(0, 2),
+                    ),
+                  ],
                 ),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    const Text('Nutrition Info',
-                        style: TextStyle(
-                            fontSize: 16,
-                            fontWeight: FontWeight.bold,
-                            color: Color(0xFF6B5F3B))),
-                    const SizedBox(height: 16),
-                    Row(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        SizedBox(
-                          width: 120,
-                          height: 120,
-                          child: CustomPaint(
-                            painter: NutritionChartPainter(
-                              protein: nutrients['Protein']!,
-                              carbs: nutrients['Carbs']!,
-                              fat: nutrients['Fat']!,
-                            ),
-                          ),
-                        ),
-                        const SizedBox(width: 16),
-                        Expanded(
-                          child: Column(
-                            children: nutrients.keys.map((key) {
-                              return _nutrientRow(key, nutrients[key]!,
-                                  nutrientColors[key]!);
-                            }).toList(),
-                          ),
-                        ),
+                    _buildSection(
+                      number: '1',
+                      title: 'Introduction',
+                      content:
+                          'MealMatch is a mobile application that simplifies cooking and promotes healthier eating. It helps users discover recipes based on available ingredients, log their meals, and track calorie intake.',
+                    ),
+                    const SizedBox(height: 20),
+
+                    _buildSection(
+                      number: '2',
+                      title: 'System Requirements',
+                      content: null,
+                      bulletPoints: [
+                        'Android 8.0 (Oreo) or higher / iOS 13 or higher',
+                        'At least 100 MB free storage',
+                        'Internet connection',
                       ],
                     ),
+                    const SizedBox(height: 20),
+
+                    _buildSection(
+                      number: '3',
+                      title: 'Installation Guide',
+                      content: null,
+                      bulletPoints: [
+                        'Download MealMatch from the App Store or Google Play Store.',
+                        'Open the app and allow required permissions.',
+                        'Wait until installation is complete.',
+                      ],
+                    ),
+                    const SizedBox(height: 20),
+
+                    _buildSection(
+                      number: '4',
+                      title: 'Account Setup',
+                      content:
+                          'Open the app and tap Sign Up.\nEnter the following details:',
+                      bulletPoints: [
+                        'Preferred Name',
+                        'Goal (Lose, Maintain, Gain, or Healthy Eating)',
+                        'Activity Level (Not Very Active, Lightly Active, Active, Very Active)',
+                        'Basic Info (Sex, Age, Height, Weight)',
+                        'Dietary Preferences & Food Restrictions',
+                        'Email & Password',
+                      ],
+                      additionalContent:
+                          'Confirm your account.\nProceed to Home/Dashboard.',
+                    ),
+                    const SizedBox(height: 20),
+
+                    _buildSection(
+                      number: '5',
+                      title: 'Navigating the App Home/Dashboard',
+                      content:
+                          'Displays Calorie Goal, Food Logged, Remaining Calories\n\nPanels: Meal Matcher, Log Food, Recent Recipes, Weight Progress\n\nIngredient-based recipe search "What Can I Cook?" complete/partial match\n\nRecipe steps, calories, ratings, and smart timers',
+                    ),
+                    const SizedBox(height: 16),
+
+                    _buildSubSection('Log Food:', [
+                      'Select meal (Breakfast/Lunch/Dinner/Snack)',
+                      'Search food or choose from Favorites, My Recipes, or Recent',
+                      'Adjust servings and log calories',
+                    ]),
+                    const SizedBox(height: 16),
+
+                    _buildSubSection('Log History:', [
+                      'View previous daily food logs',
+                      'Displays calories per meal and daily total',
+                    ]),
+                    const SizedBox(height: 16),
+
+                    _buildSubSection('User Profile:', [
+                      'Avatar, name, progress, uploaded recipes',
+                    ]),
+                    const SizedBox(height: 16),
+
+                    _buildSubSection('Settings:', [
+                      'Edit profile, modify goals',
+                      'Change password, delete account',
+                    ]),
+                    const SizedBox(height: 20),
+
+                    _buildSection(
+                      number: '6',
+                      title: 'Features Explained',
+                      content: null,
+                      bulletPoints: [
+                        'Food Calorie Tracker – look up calories of specific foods',
+                        'Daily Calorie Calculator – goal tracking in real time',
+                        'Recipe Posting & Saving – upload and save recipes',
+                        'Smart Timer – assists during cooking steps',
+                        'Discover Recipes – based on filters and preferences',
+                      ],
+                    ),
+                    const SizedBox(height: 20),
+
+                    _buildSection(
+                      number: '7',
+                      title: 'Troubleshooting & FAQs',
+                      content: null,
+                    ),
+                    const SizedBox(height: 12),
+
+                    _buildFAQ(
+                      'Q: I forgot my password. What do I do?',
+                      'A: Go to Login > Forgot Password and follow instructions.',
+                    ),
+                    const SizedBox(height: 12),
+
+                    _buildFAQ(
+                      'Q: Why can\'t I see recipes offline?',
+                      'A: An internet connection is required to access recipe data.',
+                    ),
+                    const SizedBox(height: 12),
+
+                    _buildFAQ(
+                      'Q: Can I adjust my calorie goal later?',
+                      'A: Yes, go to Settings > Modify Goals.',
+                    ),
+                    const SizedBox(height: 12),
+
+                    _buildFAQ(
+                      'Q: How do I delete my account?',
+                      'A: Go to Settings > Delete Account.',
+                    ),
+                    const SizedBox(height: 20),
+
+                    _buildSection(
+                      number: '8',
+                      title: 'Contact & Support',
+                      content: 'For questions or issues, please contact:',
+                    ),
+                    const SizedBox(height: 8),
+
+                    Center(
+                      child: Text(
+                        'support@mealmatch.com',
+                        style: TextStyle(
+                          fontSize: 14,
+                          fontWeight: FontWeight.bold,
+                          color: Colors.blue[700],
+                          decoration: TextDecoration.underline,
+                        ),
+                      ),
+                    ),
                   ],
-                ),
-              ),
-              const SizedBox(height: 20),
-
-              Container(
-                padding: const EdgeInsets.symmetric(vertical: 12),
-                alignment: Alignment.center,
-                decoration: BoxDecoration(
-                  color: Colors.white,
-                  borderRadius: BorderRadius.circular(12),
-                  border: Border.all(color: Colors.grey.shade300, width: 2),
-                ),
-                child: Text('Calories: $totalCalories',
-                    style: const TextStyle(
-                        fontSize: 18,
-                        fontWeight: FontWeight.bold,
-                        color: Color(0xFF6B5F3B))),
-              ),
-              const SizedBox(height: 20),
-
-              SizedBox(
-                width: double.infinity,
-                child: ElevatedButton(
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: const Color(0xFF8BC34A),
-                    foregroundColor: Colors.white,
-                    padding: const EdgeInsets.symmetric(vertical: 16),
-                    shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(28)),
-                  ),
-                  onPressed: _isUploading ? null : _uploadRecipe,
-                  child: _isUploading
-                      ? const SizedBox(
-                          height: 20,
-                          width: 20,
-                          child: CircularProgressIndicator(
-                              color: Colors.white, strokeWidth: 2),
-                        )
-                      : const Text('Upload Recipe',
-                          style: TextStyle(
-                              fontSize: 16, fontWeight: FontWeight.bold)),
                 ),
               ),
               const SizedBox(height: 20),
@@ -886,126 +228,168 @@ class _UploadRecipeScreenState extends State<UploadRecipeScreen> {
     );
   }
 
-  Widget _timeCard(String label, String time, VoidCallback onTap) {
-    return GestureDetector(
-      onTap: onTap,
-      child: Container(
-        padding: const EdgeInsets.all(12),
-        decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(12),
-          border: Border.all(color: Colors.grey.shade300),
-        ),
-        child: Column(
-          children: [
-            Text(label,
+  Widget _buildSection({
+    required String number,
+    required String title,
+    String? content,
+    List<String>? bulletPoints,
+    String? additionalContent,
+  }) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        RichText(
+          text: TextSpan(
+            children: [
+              TextSpan(
+                text: '$number. ',
                 style: const TextStyle(
-                    fontSize: 12,
-                    color: Color(0xFF6B5F3B),
-                    fontWeight: FontWeight.w600)),
-            const SizedBox(height: 8),
-            Text(time,
+                  fontSize: 15,
+                  fontWeight: FontWeight.bold,
+                  color: Colors.black,
+                ),
+              ),
+              TextSpan(
+                text: title,
                 style: const TextStyle(
-                    fontSize: 16,
-                    fontWeight: FontWeight.bold,
-                    color: Color(0xFF6B5F3B))),
-          ],
+                  fontSize: 15,
+                  fontWeight: FontWeight.bold,
+                  color: Colors.black,
+                ),
+              ),
+            ],
+          ),
         ),
-      ),
+        if (content != null) ...[
+          const SizedBox(height: 8),
+          Text(
+            content,
+            style: TextStyle(
+              fontSize: 13,
+              color: Colors.grey[800],
+              height: 1.5,
+            ),
+          ),
+        ],
+        if (bulletPoints != null) ...[
+          const SizedBox(height: 8),
+          ...bulletPoints.map(
+            (point) => Padding(
+              padding: const EdgeInsets.only(left: 16, bottom: 6),
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    '• ',
+                    style: TextStyle(
+                      fontSize: 13,
+                      color: Colors.grey[800],
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                  Expanded(
+                    child: Text(
+                      point,
+                      style: TextStyle(
+                        fontSize: 13,
+                        color: Colors.grey[800],
+                        height: 1.5,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ],
+        if (additionalContent != null) ...[
+          const SizedBox(height: 8),
+          Text(
+            additionalContent,
+            style: TextStyle(
+              fontSize: 13,
+              color: Colors.grey[800],
+              height: 1.5,
+            ),
+          ),
+        ],
+      ],
     );
   }
 
-  Widget _nutrientRow(String name, double value, Color color) {
+  Widget _buildSubSection(String title, List<String> points) {
     return Padding(
-      padding: const EdgeInsets.only(bottom: 8.0),
-      child: Row(
+      padding: const EdgeInsets.only(left: 8),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Container(
-              width: 12,
-              height: 12,
-              decoration: BoxDecoration(color: color, shape: BoxShape.circle)),
-          const SizedBox(width: 8),
-          Expanded(
-              child: Text(name,
-                  style: const TextStyle(fontSize: 13, color: Color(0xFF6B5F3B)))),
-          Text('${value.toStringAsFixed(1)}g',
-              style: const TextStyle(
-                  fontSize: 13,
-                  fontWeight: FontWeight.w600,
-                  color: Color(0xFF6B5F3B))),
-          const SizedBox(width: 4),
-          GestureDetector(
-            onTap: () => _showNutrientDialog(name),
-            child: Container(
-              padding: const EdgeInsets.all(2),
-              decoration: const BoxDecoration(
-                  color: Color(0xFFEF5350), shape: BoxShape.circle),
-              child: const Icon(Icons.add, color: Colors.white, size: 14),
+          Text(
+            title,
+            style: const TextStyle(
+              fontSize: 14,
+              fontWeight: FontWeight.bold,
+              color: Colors.black,
+            ),
+          ),
+          const SizedBox(height: 6),
+          ...points.map(
+            (point) => Padding(
+              padding: const EdgeInsets.only(left: 16, bottom: 4),
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    '• ',
+                    style: TextStyle(
+                      fontSize: 13,
+                      color: Colors.grey[800],
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                  Expanded(
+                    child: Text(
+                      point,
+                      style: TextStyle(
+                        fontSize: 13,
+                        color: Colors.grey[800],
+                        height: 1.5,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
             ),
           ),
         ],
       ),
     );
   }
-}
 
-// --- Helper Classes ---
-class InstructionStep {
-  int stepNumber;
-  String text;
-  String? timer;
-
-  InstructionStep({required this.stepNumber, required this.text, this.timer});
-}
-
-class NutritionChartPainter extends CustomPainter {
-  final double protein;
-  final double carbs;
-  final double fat;
-
-  NutritionChartPainter(
-      {required this.protein, required this.carbs, required this.fat});
-
-  @override
-  void paint(Canvas canvas, Size size) {
-    final center = Offset(size.width / 2, size.height / 2);
-    final radius = size.width / 2;
-    final total = protein + carbs + fat;
-
-    if (total == 0) {
-      final paint = Paint()
-        ..color = Colors.grey.shade300
-        ..style = PaintingStyle.stroke
-        ..strokeWidth = 20;
-      canvas.drawCircle(center, radius - 10, paint);
-      return;
-    }
-
-    double startAngle = -math.pi / 2;
-
-    void drawSection(double value, Color color) {
-      if (value > 0) {
-        final sweepAngle = (value / total) * 2 * math.pi;
-        final paint = Paint()
-          ..color = color
-          ..style = PaintingStyle.stroke
-          ..strokeWidth = 20
-          ..strokeCap = StrokeCap.round;
-        canvas.drawArc(Rect.fromCircle(center: center, radius: radius - 10),
-            startAngle, sweepAngle, false, paint);
-        startAngle += sweepAngle;
-      }
-    }
-
-    drawSection(protein, const Color(0xFFFDD835));
-    drawSection(carbs, const Color(0xFFFF9800));
-    drawSection(fat, const Color(0xFFEF5350));
-  }
-
-  @override
-  bool shouldRepaint(NutritionChartPainter oldDelegate) {
-    return oldDelegate.protein != protein ||
-        oldDelegate.carbs != carbs ||
-        oldDelegate.fat != fat;
+  Widget _buildFAQ(String question, String answer) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          question,
+          style: const TextStyle(
+            fontSize: 13,
+            fontWeight: FontWeight.bold,
+            color: Colors.black,
+          ),
+        ),
+        const SizedBox(height: 4),
+        Padding(
+          padding: const EdgeInsets.only(left: 8),
+          child: Text(
+            answer,
+            style: TextStyle(
+              fontSize: 13,
+              color: Colors.grey[800],
+              height: 1.5,
+            ),
+          ),
+        ),
+      ],
+    );
   }
 }
