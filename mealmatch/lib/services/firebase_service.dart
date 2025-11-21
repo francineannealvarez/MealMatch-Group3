@@ -7,6 +7,64 @@ class FirebaseService {
   final FirebaseAuth _auth = FirebaseAuth.instance;
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
 
+ // In lib/services/firebase_service.dart
+
+  Future<void> saveUserRecipe(Map<String, dynamic> recipeData) async {
+    final user = _auth.currentUser;
+    if (user == null) throw Exception('User not logged in');
+
+    try {
+      const String appId = 'mealmatch-app'; 
+      
+      final CollectionReference recipesRef = _firestore
+          .collection('artifacts')
+          .doc(appId)
+          .collection('users')
+          .doc(user.uid)
+          .collection('recipes');
+
+      await recipesRef.add(recipeData);
+      
+      // ... rest of code ...
+      
+      print('✅ Recipe saved successfully!');
+    } catch (e) {
+      // CHANGE THIS LINE TO PRINT THE FULL ERROR
+      print('❌ FIREBASE ERROR: $e'); 
+      throw Exception('Failed to save recipe: $e'); // Pass the real error up
+    }
+  }
+
+  // 2. Fetch the user's uploaded recipes for the Profile Screen
+  // This returns a list of Maps that your ProfileScreen can iterate over
+  Future<List<Map<String, dynamic>>> getUserRecipes() async {
+    final user = _auth.currentUser;
+    if (user == null) return [];
+
+    try {
+      const String appId = 'mealmatch-app';
+      
+      final QuerySnapshot snapshot = await _firestore
+          .collection('artifacts')
+          .doc(appId)
+          .collection('users')
+          .doc(user.uid)
+          .collection('recipes')
+          .orderBy('createdAt', descending: true) // Show newest recipes first
+          .get();
+
+      // Convert Firestore documents to a List of Maps
+      return snapshot.docs.map((doc) {
+        final data = doc.data() as Map<String, dynamic>;
+        data['id'] = doc.id; // Important: Add the ID so we can reference it later if needed
+        return data;
+      }).toList();
+    } catch (e) {
+      print('❌ Error fetching user recipes: $e');
+      return [];
+    }
+  }
+
 // ✅ MAIN: Sign in with email & password (with deletion check)
   Future<Map<String, dynamic>> signInUser({
     required String email,
@@ -154,7 +212,6 @@ class FirebaseService {
 
       // Delete meal_logs subcollection (your main data)
       await deleteSubcollection('meal_logs');
-      await deleteSubcollection('achievements');
       
       // Add more subcollections here if you create them in the future:
       
@@ -170,9 +227,11 @@ class FirebaseService {
   }
 
   // Create user with email & password
-  Future<bool> saveUserProfile({
+  Future<User?> signUpUser({
+    required String email,
+    required String password,
     required String name,
-    String? avatar,
+    String? avatar, 
     required List<String> goals,
     required String activityLevel,
     required String gender,
@@ -182,14 +241,14 @@ class FirebaseService {
     required double goalWeight,
   }) async {
     try {
-      final user = _auth.currentUser;
-      
-      if (user == null) {
-        print('❌ No authenticated user found');
-        return false;
-      }
+      final userCredential = await _auth.createUserWithEmailAndPassword(
+        email: email,
+        password: password,
+      );
 
-      // Calculate daily calorie goal
+      final user = userCredential.user;
+
+      // Calculate daily calorie goal automatically
       int dailyCalorieGoal = _calculateDailyCalorieGoal(
         gender: gender,
         age: age,
@@ -199,9 +258,9 @@ class FirebaseService {
         goals: goals,
       );
 
-      // Prepare user data
+      // Save user info in Firestore with avatar
       Map<String, dynamic> userData = {
-        'email': user.email,
+        'email': email,
         'name': name,
         'goals': goals,
         'activityLevel': activityLevel,
@@ -214,18 +273,17 @@ class FirebaseService {
         'createdAt': FieldValue.serverTimestamp(),
       };
 
+      // Add avatar if provided
       if (avatar != null) {
         userData['avatar'] = avatar;
       }
 
-      // Save to Firestore
-      await _firestore.collection('users').doc(user.uid).set(userData);
+      await _firestore.collection('users').doc(user!.uid).set(userData);
 
-      print('✅ User profile saved successfully');
-      return true;
+      return user;
     } catch (e) {
-      print('❌ saveUserProfile error: $e');
-      return false;
+      print('❌ signUpUser error: $e');
+      return null;
     }
   }
 
@@ -280,7 +338,7 @@ class FirebaseService {
         .set(userData, SetOptions(merge: true));
   }
 
-  // Change user password with validations
+  // ✅ NEW: Change user password
   Future<Map<String, dynamic>> changePassword({
     required String currentPassword,
     required String newPassword,
@@ -290,23 +348,6 @@ class FirebaseService {
 
       if (user == null) {
         return {'success': false, 'message': 'No user is currently signed in'};
-      }
-
-      // Check if new password is same as current password
-      if (currentPassword == newPassword) {
-        return {
-          'success': false,
-          'message': 'New password must be different from current password'
-        };
-      }
-
-      // Validate password strength
-      if (!_isPasswordStrong(newPassword)) {
-        return {
-          'success': false,
-          'message':
-              'Password must be at least 8 characters with uppercase, lowercase, and number'
-        };
       }
 
       // Step 1: Re-authenticate user with current password
@@ -362,14 +403,7 @@ class FirebaseService {
     }
   }
 
-  // Helper function - Validate password strength
-  bool _isPasswordStrong(String password) {
-    // At least 8 chars, 1 uppercase, 1 lowercase, 1 number
-    final regex = RegExp(r'^(?=.*[a-z])(?=.*[A-Z])(?=.*\d).{8,}$');
-    return regex.hasMatch(password);
-  }
-
-  // Sign out user
+  // ✅ NEW: Sign out user
   Future<void> signOut() async {
     try {
       await _auth.signOut();
@@ -378,12 +412,12 @@ class FirebaseService {
     }
   }
 
-  // Get current user
+  // ✅ NEW: Get current user
   User? getCurrentUser() {
     return _auth.currentUser;
   }
 
-  // Get user's daily calorie goal
+  // ✅ NEW: Get user's daily calorie goal
   Future<int?> getUserCalorieGoal() async {
     try {
       final user = _auth.currentUser;
@@ -401,7 +435,7 @@ class FirebaseService {
     }
   }
 
-  // Get complete user data
+  // ✅ NEW: Get complete user data
   Future<Map<String, dynamic>?> getUserData() async {
     try {
       final user = _auth.currentUser;
@@ -419,7 +453,7 @@ class FirebaseService {
     }
   }
 
-  // Update user weight (recalculates calorie goal)
+  // ✅ NEW: Update user weight (recalculates calorie goal)
   Future<void> updateUserWeight(double newWeight) async {
     try {
       final user = _auth.currentUser;
@@ -448,7 +482,7 @@ class FirebaseService {
     }
   }
 
-  // Update activity level (recalculates calorie goal)
+  // ✅ NEW: Update activity level (recalculates calorie goal)
   Future<void> updateActivityLevel(String newActivityLevel) async {
     try {
       final user = _auth.currentUser;
@@ -476,7 +510,7 @@ class FirebaseService {
     }
   }
 
-  // Calculate BMR using Mifflin-St Jeor Equation
+  // ✅ NEW: Calculate BMR using Mifflin-St Jeor Equation
   double _calculateBMR({
     required String gender,
     required int age,
@@ -494,7 +528,7 @@ class FirebaseService {
     }
   }
 
-  // Get activity multiplier
+  // ✅ NEW: Get activity multiplier
   double _getActivityMultiplier(String activityLevel) {
     switch (activityLevel.toLowerCase()) {
       case 'sedentary':
@@ -510,7 +544,7 @@ class FirebaseService {
     }
   }
 
-  // Calculate TDEE (Total Daily Energy Expenditure)
+  // ✅ NEW: Calculate TDEE (Total Daily Energy Expenditure)
   double _calculateTDEE({
     required String gender,
     required int age,
@@ -530,7 +564,7 @@ class FirebaseService {
     return bmr * activityMultiplier;
   }
 
-  // Calculate daily calorie goal based on user's goals
+  // ✅ NEW: Calculate daily calorie goal based on user's goals
   int _calculateDailyCalorieGoal({
     required String gender,
     required int age,
@@ -571,13 +605,13 @@ class FirebaseService {
     }
   }
 
-  // Calculate BMI
+  // ✅ NEW: Calculate BMI
   double calculateBMI(double weight, double height) {
     double heightInMeters = height / 100;
     return weight / (heightInMeters * heightInMeters);
   }
 
-  // Get BMI category
+  // ✅ NEW: Get BMI category
   String getBMICategory(double bmi) {
     if (bmi < 18.5) return 'Underweight';
     if (bmi < 25) return 'Normal';
@@ -678,7 +712,7 @@ class FirebaseService {
     }
   }
 
-  // Permanently delete account (Firestore + all collections + Firebase Auth)
+  // ✅ COMPLETE: Permanently delete account (Firestore + all collections + Firebase Auth)
   Future<Map<String, dynamic>> permanentlyDeleteAccount() async {
     try {
       final user = _auth.currentUser;
