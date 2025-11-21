@@ -65,7 +65,7 @@ class MyApp extends StatelessWidget {
         '/settings': (context) => const SettingsScreen(),
         '/aboutus': (context) => const AboutUsScreen(),
         '/usermanual': (context) => const UserManualScreen(),
-        '/upload': (context) => const UploadRecipesScreen(),
+        '/upload': (context) => const UploadRecipeScreen(),
         '/notifications': (context) => const NotificationsScreen(),
       },
     );

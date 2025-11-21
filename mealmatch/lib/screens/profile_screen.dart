@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import '../services/profile_service.dart';
-import '../services/firebase_service.dart';
+import '../services/recipe_service.dart';
 
 class ProfileScreen extends StatefulWidget {
   const ProfileScreen({super.key});
@@ -11,7 +11,7 @@ class ProfileScreen extends StatefulWidget {
 
 class _ProfileScreenState extends State<ProfileScreen> {
   final ProfileService _profileService = ProfileService();
-  final FirebaseService _firebaseService = FirebaseService();
+  final RecipeService _recipeService = RecipeService();
 
   int _selectedTab = 0;
   int _selectedIndex = 4;
@@ -54,8 +54,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
       // 1. Load Profile Stats
       final profileData = await _profileService.getProfileData();
 
-      // 2. Load User Recipes from Firebase (New Logic)
-      final recipes = await _firebaseService.getUserRecipes();
+      // 2. Load User Recipes from RecipeService
+      final recipes = await _recipeService.getUserRecipes();
 
       // 3. Load Achievements
       final loadedAchievements = await _profileService.getAchievements();
@@ -574,6 +574,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
     );
   }
 
+  // ✅ IMPROVED: Recipe card with better data display
   Widget _buildRecipeCard(String name, String details, String kcal) {
     return Container(
       margin: const EdgeInsets.only(bottom: 16),
@@ -602,20 +603,34 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 children: [
                   Text(
                     name,
-                    style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: Colors.black),
+                    style: const TextStyle(
+                      fontWeight: FontWeight.bold,
+                      fontSize: 16,
+                      color: Colors.black,
+                    ),
+                    maxLines: 1, // ✅ ADDED: Prevent overflow
+                    overflow: TextOverflow.ellipsis, // ✅ ADDED
                   ),
                   const SizedBox(height: 6),
-                  Text(details, style: const TextStyle(color: Colors.grey, fontSize: 12)),
+                  Text(
+                    details,
+                    style: const TextStyle(color: Colors.grey, fontSize: 12),
+                    maxLines: 1, // ✅ ADDED
+                    overflow: TextOverflow.ellipsis, // ✅ ADDED
+                  ),
                   const SizedBox(height: 8),
                   Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
                       Text(
                         kcal,
-                        style: const TextStyle(color: Color(0xFFFF9800), fontWeight: FontWeight.bold, fontSize: 14),
+                        style: const TextStyle(
+                          color: Color(0xFFFF9800),
+                          fontWeight: FontWeight.bold,
+                          fontSize: 14,
+                        ),
                       ),
-                      // Like count removed in updated logic, so just showing icon for UI consistency
-                      const Icon(Icons.favorite, color: Colors.red, size: 18),
+                      const Icon(Icons.favorite_border, color: Colors.red, size: 18),
                     ],
                   ),
                 ],

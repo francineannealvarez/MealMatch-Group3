@@ -7,64 +7,6 @@ class FirebaseService {
   final FirebaseAuth _auth = FirebaseAuth.instance;
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
 
- // In lib/services/firebase_service.dart
-
-  Future<void> saveUserRecipe(Map<String, dynamic> recipeData) async {
-    final user = _auth.currentUser;
-    if (user == null) throw Exception('User not logged in');
-
-    try {
-      const String appId = 'mealmatch-app'; 
-      
-      final CollectionReference recipesRef = _firestore
-          .collection('artifacts')
-          .doc(appId)
-          .collection('users')
-          .doc(user.uid)
-          .collection('recipes');
-
-      await recipesRef.add(recipeData);
-      
-      // ... rest of code ...
-      
-      print('✅ Recipe saved successfully!');
-    } catch (e) {
-      // CHANGE THIS LINE TO PRINT THE FULL ERROR
-      print('❌ FIREBASE ERROR: $e'); 
-      throw Exception('Failed to save recipe: $e'); // Pass the real error up
-    }
-  }
-
-  // 2. Fetch the user's uploaded recipes for the Profile Screen
-  // This returns a list of Maps that your ProfileScreen can iterate over
-  Future<List<Map<String, dynamic>>> getUserRecipes() async {
-    final user = _auth.currentUser;
-    if (user == null) return [];
-
-    try {
-      const String appId = 'mealmatch-app';
-      
-      final QuerySnapshot snapshot = await _firestore
-          .collection('artifacts')
-          .doc(appId)
-          .collection('users')
-          .doc(user.uid)
-          .collection('recipes')
-          .orderBy('createdAt', descending: true) // Show newest recipes first
-          .get();
-
-      // Convert Firestore documents to a List of Maps
-      return snapshot.docs.map((doc) {
-        final data = doc.data() as Map<String, dynamic>;
-        data['id'] = doc.id; // Important: Add the ID so we can reference it later if needed
-        return data;
-      }).toList();
-    } catch (e) {
-      print('❌ Error fetching user recipes: $e');
-      return [];
-    }
-  }
-
 // ✅ MAIN: Sign in with email & password (with deletion check)
   Future<Map<String, dynamic>> signInUser({
     required String email,
@@ -227,11 +169,9 @@ class FirebaseService {
   }
 
   // Create user with email & password
-  Future<User?> signUpUser({
-    required String email,
-    required String password,
+  Future<bool> saveUserProfile({
     required String name,
-    String? avatar, 
+    String? avatar,
     required List<String> goals,
     required String activityLevel,
     required String gender,
@@ -241,14 +181,14 @@ class FirebaseService {
     required double goalWeight,
   }) async {
     try {
-      final userCredential = await _auth.createUserWithEmailAndPassword(
-        email: email,
-        password: password,
-      );
+      final user = _auth.currentUser;
+      
+      if (user == null) {
+        print('❌ No authenticated user found');
+        return false;
+      }
 
-      final user = userCredential.user;
-
-      // Calculate daily calorie goal automatically
+      // Calculate daily calorie goal
       int dailyCalorieGoal = _calculateDailyCalorieGoal(
         gender: gender,
         age: age,
@@ -258,9 +198,9 @@ class FirebaseService {
         goals: goals,
       );
 
-      // Save user info in Firestore with avatar
+      // Prepare user data
       Map<String, dynamic> userData = {
-        'email': email,
+        'email': user.email,
         'name': name,
         'goals': goals,
         'activityLevel': activityLevel,
@@ -273,17 +213,18 @@ class FirebaseService {
         'createdAt': FieldValue.serverTimestamp(),
       };
 
-      // Add avatar if provided
       if (avatar != null) {
         userData['avatar'] = avatar;
       }
 
-      await _firestore.collection('users').doc(user!.uid).set(userData);
+      // Save to Firestore
+      await _firestore.collection('users').doc(user.uid).set(userData);
 
-      return user;
+      print('✅ User profile saved successfully');
+      return true;
     } catch (e) {
-      print('❌ signUpUser error: $e');
-      return null;
+      print('❌ saveUserProfile error: $e');
+      return false;
     }
   }
 

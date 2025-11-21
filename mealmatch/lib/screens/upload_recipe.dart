@@ -1,10 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
-import 'package:image_picker/image_picker.dart';
+import 'package:image_picker/image_picker.dart'; 
 import 'dart:io';
 import 'dart:math' as math;
 import '../models/user_recipe.dart';
-import '../services/firebase_service.dart';
+import '../services/recipe_service.dart';
 
 class UploadRecipeScreen extends StatefulWidget {
   const UploadRecipeScreen({super.key});
@@ -14,7 +14,7 @@ class UploadRecipeScreen extends StatefulWidget {
 }
 
 class _UploadRecipeScreenState extends State<UploadRecipeScreen> {
-  final FirebaseService _firebaseService = FirebaseService();
+  final RecipeService _recipeService = RecipeService();
   final TextEditingController _recipeNameController = TextEditingController();
   final TextEditingController _servingsController = TextEditingController(text: '4');
 
@@ -396,26 +396,29 @@ class _UploadRecipeScreenState extends State<UploadRecipeScreen> {
   }
 
   // --- SAVE TO FIREBASE LOGIC ---
+  // ✅ IMPROVED: Upload recipe with better validation and error handling
   Future<void> _uploadRecipe() async {
-    // Validation
+    // ✅ IMPROVED: Enhanced validation
     if (_recipeNameController.text.trim().isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Please enter recipe name')),
-      );
+      _showErrorSnackBar('Please enter recipe name');
       return;
     }
 
     if (ingredients.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Please add at least one ingredient')),
-      );
+      _showErrorSnackBar('Please add at least one ingredient');
       return;
     }
 
+    // ✅ ADDED: Check if any instruction is empty
     if (instructions.any((step) => step.text.trim().isEmpty)) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Please fill in all instruction steps')),
-      );
+      _showErrorSnackBar('Please fill in all instruction steps');
+      return;
+    }
+
+    // ✅ ADDED: Validate servings
+    final servings = int.tryParse(_servingsController.text);
+    if (servings == null || servings < 1) {
+      _showErrorSnackBar('Please enter a valid number of servings');
       return;
     }
 
@@ -429,11 +432,11 @@ class _UploadRecipeScreenState extends State<UploadRecipeScreen> {
         throw Exception('User not logged in');
       }
 
-      // Prepare model
+      // ✅ IMPROVED: Create UserRecipe model
       final newRecipe = UserRecipe(
         userId: user.uid,
         name: _recipeNameController.text.trim(),
-        servings: int.tryParse(_servingsController.text) ?? 1,
+        servings: servings,
         prepTime: prepTime,
         cookTime: cookTime,
         ingredients: ingredients,
@@ -445,43 +448,32 @@ class _UploadRecipeScreenState extends State<UploadRecipeScreen> {
                 ))
             .toList(),
         nutrients: nutrients,
-        localImagePath: _selectedImage?.path, // Added this
+        localImagePath: _selectedImage?.path, // ⚠️ NOTE: This is temporary storage
         createdAt: DateTime.now(),
       );
 
-      // Call Service
-      await _firebaseService.saveUserRecipe(newRecipe.toMap());
+      // ✅ CHANGED: Call RecipeService instead of FirebaseService
+      final result = await _recipeService.saveUserRecipe(newRecipe);
 
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Recipe uploaded successfully!'),
-            backgroundColor: Color(0xFF8BC34A),
-          ),
-        );
-        
-        // Reset Form
-        _recipeNameController.clear();
-        _servingsController.text = '4';
-        setState(() {
-          prepTime = '00:00';
-          cookTime = '00:00';
-          ingredients = [];
-          instructions = [InstructionStep(stepNumber: 1, text: '', timer: null)];
-          nutrients.updateAll((key, value) => 0);
-          _selectedImage = null;
-        });
-        
-        Navigator.pop(context); // Go back
+        if (result['success'] == true) {
+          // ✅ IMPROVED: Show success message
+          _showSuccessSnackBar(result['message'] ?? 'Recipe uploaded successfully!');
+          
+          // ✅ IMPROVED: Reset form
+          _resetForm();
+          
+          // ✅ IMPROVED: Navigate back with success indicator
+          Navigator.pop(context, true); // Pass true to indicate success
+        } else {
+          // ✅ IMPROVED: Show error from service
+          _showErrorSnackBar(result['message'] ?? 'Failed to upload recipe');
+        }
       }
     } catch (e) {
+      print('❌ Upload error: $e'); // ✅ ADDED: Better error logging
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Error uploading recipe: $e'),
-            backgroundColor: Colors.red,
-          ),
-        );
+        _showErrorSnackBar('An unexpected error occurred. Please try again.');
       }
     } finally {
       if (mounted) {
@@ -490,6 +482,42 @@ class _UploadRecipeScreenState extends State<UploadRecipeScreen> {
         });
       }
     }
+  }
+
+  // ✅ ADDED: Helper method to reset form
+  void _resetForm() {
+    _recipeNameController.clear();
+    _servingsController.text = '4';
+    setState(() {
+      prepTime = '00:00';
+      cookTime = '00:00';
+      ingredients = [];
+      instructions = [InstructionStep(stepNumber: 1, text: '', timer: null)];
+      nutrients.updateAll((key, value) => 0);
+      _selectedImage = null;
+    });
+  }
+
+  // ✅ ADDED: Helper method for error snackbar
+  void _showErrorSnackBar(String message) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(message),
+        backgroundColor: Colors.red,
+        behavior: SnackBarBehavior.floating,
+      ),
+    );
+  }
+
+  // ✅ ADDED: Helper method for success snackbar
+  void _showSuccessSnackBar(String message) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(message),
+        backgroundColor: const Color(0xFF8BC34A),
+        behavior: SnackBarBehavior.floating,
+      ),
+    );
   }
 
   @override
