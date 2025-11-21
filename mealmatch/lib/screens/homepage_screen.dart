@@ -342,9 +342,7 @@ class _HomePageState extends State<HomePage> {
       backgroundColor: const Color(0xFFFFF5CF),
       body: SafeArea(
         child: isLoading
-            ? const Center(
-                child: CircularProgressIndicator(color: Color(0xFF4CAF50)),
-              )
+            ? _buildSkeletonHomeScreen()
             : RefreshIndicator(
                 onRefresh: _loadTodayData,
                 child: SingleChildScrollView(
@@ -826,6 +824,266 @@ class _HomePageState extends State<HomePage> {
                     return _buildRecipeCard(discoverProteinRecipes[index]);
                   },
                 ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildSkeletonHomeScreen() {
+    return SingleChildScrollView(
+      child: Column(
+        children: [
+          // Skeleton Header
+          Container(
+            height: 60,
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                colors: [
+                  const Color(0xFFD4E7C5).withOpacity(0.6),
+                  const Color(0xFFFFD3AD).withOpacity(0.6),
+                ],
+                begin: Alignment.centerLeft,
+                end: Alignment.centerRight,
+              ),
+              borderRadius: const BorderRadius.only(
+                bottomLeft: Radius.circular(20),
+                bottomRight: Radius.circular(20),
+              ),
+            ),
+            child: Center(
+              child: Container(
+                width: 150,
+                height: 30,
+                decoration: BoxDecoration(
+                  color: Colors.grey[300],
+                  borderRadius: BorderRadius.circular(8),
+                ),
+              ),
+            ),
+          ),
+          // Skeleton Date
+          Padding(
+            padding: const EdgeInsets.all(16),
+            child: Container(
+              width: 200,
+              height: 24,
+              decoration: BoxDecoration(
+                color: Colors.grey[300],
+                borderRadius: BorderRadius.circular(4),
+              ),
+            ),
+          ),
+          // Skeleton Daily Calories Widget
+          Container(
+            margin: const EdgeInsets.all(16),
+            padding: const EdgeInsets.all(20),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(16),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.grey.withOpacity(0.15),
+                  spreadRadius: 1,
+                  blurRadius: 6,
+                  offset: const Offset(0, 2),
+                ),
+              ],
+            ),
+            child: Row(
+              children: [
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Container(
+                        width: 140,
+                        height: 24,
+                        decoration: BoxDecoration(
+                          color: Colors.grey[300],
+                          borderRadius: BorderRadius.circular(4),
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                      Container(
+                        width: 180,
+                        height: 14,
+                        decoration: BoxDecoration(
+                          color: Colors.grey[200],
+                          borderRadius: BorderRadius.circular(4),
+                        ),
+                      ),
+                      const SizedBox(height: 20),
+                      Container(
+                        width: 120,
+                        height: 20,
+                        decoration: BoxDecoration(
+                          color: Colors.grey[300],
+                          borderRadius: BorderRadius.circular(4),
+                        ),
+                      ),
+                      const SizedBox(height: 16),
+                      Container(
+                        width: 120,
+                        height: 20,
+                        decoration: BoxDecoration(
+                          color: Colors.grey[300],
+                          borderRadius: BorderRadius.circular(4),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(width: 8),
+                Container(
+                  width: 130,
+                  height: 130,
+                  decoration: BoxDecoration(
+                    color: Colors.grey[300],
+                    shape: BoxShape.circle,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          // Skeleton Action Buttons
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16),
+            child: Row(
+              children: [
+                Expanded(
+                  child: Container(
+                    height: 100,
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      borderRadius: BorderRadius.circular(16),
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.grey.withOpacity(0.15),
+                          spreadRadius: 1,
+                          blurRadius: 6,
+                          offset: const Offset(0, 2),
+                        ),
+                      ],
+                    ),
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Container(
+                          width: 32,
+                          height: 32,
+                          decoration: BoxDecoration(
+                            color: Colors.grey[300],
+                            shape: BoxShape.circle,
+                          ),
+                        ),
+                        const SizedBox(height: 8),
+                        Container(
+                          width: 80,
+                          height: 14,
+                          decoration: BoxDecoration(
+                            color: Colors.grey[300],
+                            borderRadius: BorderRadius.circular(4),
+                          ),
+                        ),
+                        const SizedBox(height: 4),
+                        Container(
+                          width: 100,
+                          height: 11,
+                          decoration: BoxDecoration(
+                            color: Colors.grey[200],
+                            borderRadius: BorderRadius.circular(4),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 16),
+                Expanded(
+                  child: Container(
+                    height: 100,
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      borderRadius: BorderRadius.circular(16),
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.grey.withOpacity(0.15),
+                          spreadRadius: 1,
+                          blurRadius: 6,
+                          offset: const Offset(0, 2),
+                        ),
+                      ],
+                    ),
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Container(
+                          width: 32,
+                          height: 32,
+                          decoration: BoxDecoration(
+                            color: Colors.grey[300],
+                            shape: BoxShape.circle,
+                          ),
+                        ),
+                        const SizedBox(height: 8),
+                        Container(
+                          width: 70,
+                          height: 14,
+                          decoration: BoxDecoration(
+                            color: Colors.grey[300],
+                            borderRadius: BorderRadius.circular(4),
+                          ),
+                        ),
+                        const SizedBox(height: 4),
+                        Container(
+                          width: 100,
+                          height: 11,
+                          decoration: BoxDecoration(
+                            color: Colors.grey[200],
+                            borderRadius: BorderRadius.circular(4),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          // Skeleton Recipe Sections
+          _buildSkeletonRecipeSection('Cook Again'),
+          _buildSkeletonRecipeSection('Try These Recipes'),
+          _buildSkeletonRecipeSection('Discover High-Protein Recipes'),
+          const SizedBox(height: 100),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildSkeletonRecipeSection(String title) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Padding(
+          padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
+          child: Container(
+            width: 180,
+            height: 20,
+            decoration: BoxDecoration(
+              color: Colors.grey[300],
+              borderRadius: BorderRadius.circular(4),
+            ),
+          ),
+        ),
+        SizedBox(
+          height: 210,
+          child: ListView.builder(
+            scrollDirection: Axis.horizontal,
+            padding: const EdgeInsets.symmetric(horizontal: 16),
+            physics: const NeverScrollableScrollPhysics(),
+            itemCount: 5,
+            itemBuilder: (context, index) => _buildSkeletonCard(),
+          ),
         ),
       ],
     );

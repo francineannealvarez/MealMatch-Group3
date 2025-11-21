@@ -276,6 +276,141 @@ class _RecipesScreenState extends State<RecipesScreen>
     }
   }
 
+  Widget _buildSkeletonRecipeGrid() {
+    return GridView.builder(
+      shrinkWrap: true,
+      physics: const NeverScrollableScrollPhysics(),
+      padding: const EdgeInsets.symmetric(horizontal: 16),
+      gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+        crossAxisCount: 2,
+        childAspectRatio: 0.75,
+        crossAxisSpacing: 16,
+        mainAxisSpacing: 16,
+      ),
+      itemCount: 6, // Show 6 skeleton cards
+      itemBuilder: (context, index) {
+        return _buildSkeletonGridCard();
+      },
+    );
+  }
+
+  Widget _buildSkeletonGridCard() {
+    return Container(
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(14),
+        color: Colors.grey[300],
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.1),
+            blurRadius: 8,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(14),
+        child: Stack(
+          children: [
+            // Skeleton Image
+            Positioned.fill(child: Container(color: Colors.grey[300])),
+            // Skeleton Gradient Overlay
+            Positioned.fill(
+              child: Container(
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    colors: [
+                      Colors.black.withOpacity(0.3),
+                      Colors.transparent,
+                      Colors.transparent,
+                      Colors.black.withOpacity(0.4),
+                    ],
+                    begin: Alignment.topCenter,
+                    end: Alignment.bottomCenter,
+                    stops: const [0, 0.3, 0.6, 1.0],
+                  ),
+                ),
+              ),
+            ),
+            // Skeleton Favorite Icon
+            Positioned(
+              top: 8,
+              right: 8,
+              child: Container(
+                width: 30,
+                height: 30,
+                decoration: BoxDecoration(
+                  color: Colors.grey[400],
+                  shape: BoxShape.circle,
+                ),
+              ),
+            ),
+            // Skeleton Text Content
+            Positioned(
+              bottom: 10,
+              left: 10,
+              right: 10,
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  // Skeleton Title
+                  Container(
+                    height: 16,
+                    width: double.infinity,
+                    decoration: BoxDecoration(
+                      color: Colors.grey[400],
+                      borderRadius: BorderRadius.circular(4),
+                    ),
+                  ),
+                  const SizedBox(height: 6),
+                  // Skeleton Author
+                  Container(
+                    height: 12,
+                    width: 100,
+                    decoration: BoxDecoration(
+                      color: Colors.grey[400],
+                      borderRadius: BorderRadius.circular(4),
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  // Skeleton Bottom Row
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Container(
+                        height: 12,
+                        width: 60,
+                        decoration: BoxDecoration(
+                          color: Colors.grey[400],
+                          borderRadius: BorderRadius.circular(4),
+                        ),
+                      ),
+                      Container(
+                        height: 12,
+                        width: 50,
+                        decoration: BoxDecoration(
+                          color: Colors.grey[400],
+                          borderRadius: BorderRadius.circular(4),
+                        ),
+                      ),
+                      Container(
+                        height: 12,
+                        width: 40,
+                        decoration: BoxDecoration(
+                          color: Colors.grey[400],
+                          borderRadius: BorderRadius.circular(4),
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
   Widget _buildGridRecipeCard(Map<String, dynamic> recipe, bool isSaved) {
     final String title = recipe['title'] ?? 'Recipe Name';
     final String author = recipe['author'] ?? 'By Author';
@@ -485,12 +620,7 @@ class _RecipesScreenState extends State<RecipesScreen>
         ),
         const SizedBox(height: 16),
         if (isLoading)
-          const Center(
-            child: Padding(
-              padding: EdgeInsets.all(40),
-              child: CircularProgressIndicator(),
-            ),
-          )
+          _buildSkeletonRecipeGrid()
         else if (recipeList.isEmpty)
           const Center(
             child: Padding(
@@ -540,12 +670,7 @@ class _RecipesScreenState extends State<RecipesScreen>
             ),
             const SizedBox(height: 16),
             if (isSearching)
-              const Center(
-                child: Padding(
-                  padding: EdgeInsets.all(40),
-                  child: CircularProgressIndicator(),
-                ),
-              )
+              _buildSkeletonRecipeGrid()
             else if (recipes.isEmpty)
               const Center(
                 child: Padding(
@@ -665,7 +790,7 @@ class _RecipesScreenState extends State<RecipesScreen>
 
                 // --- Favorites Tab ---
                 _isLoadingFavorites
-                    ? const Center(child: CircularProgressIndicator())
+                    ? _buildSkeletonRecipeGrid()
                     : _favoriteRecipes.isEmpty
                     ? const Center(
                         child: Column(
@@ -734,27 +859,35 @@ class _RecipesScreenState extends State<RecipesScreen>
         showUnselectedLabels: true,
         selectedFontSize: 12,
         unselectedFontSize: 12,
-        items: const [
-          BottomNavigationBarItem(
+        items: [
+          const BottomNavigationBarItem(
             icon: Icon(Icons.home_outlined),
             activeIcon: Icon(Icons.home),
             label: 'Home',
           ),
-          BottomNavigationBarItem(
+          const BottomNavigationBarItem(
             icon: Icon(Icons.restaurant_menu_outlined),
             activeIcon: Icon(Icons.restaurant_menu),
             label: 'Recipes',
           ),
           BottomNavigationBarItem(
-            icon: Icon(Icons.add_circle, size: 36),
-            label: '', // No label for add button
+            icon: Container(
+              width: 50,
+              height: 50,
+              decoration: const BoxDecoration(
+                color: Color(0xFF4CAF50),
+                shape: BoxShape.circle,
+              ),
+              child: const Icon(Icons.add, color: Colors.white, size: 28),
+            ),
+            label: '',
           ),
-          BottomNavigationBarItem(
+          const BottomNavigationBarItem(
             icon: Icon(Icons.history_outlined),
             activeIcon: Icon(Icons.history),
             label: 'Log History',
           ),
-          BottomNavigationBarItem(
+          const BottomNavigationBarItem(
             icon: Icon(Icons.person_outline),
             activeIcon: Icon(Icons.person),
             label: 'Profile',

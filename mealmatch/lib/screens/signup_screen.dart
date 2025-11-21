@@ -20,10 +20,10 @@ class _SignUpScreenState extends State<SignUpScreen> {
       TextEditingController();
   bool _isPasswordVisible = false;
   bool _isConfirmPasswordVisible = false;
-  bool _isVerificationMode = false; 
-  Timer? _verificationCheckTimer; 
+  bool _isVerificationMode = false;
+  Timer? _verificationCheckTimer;
 
-   // Resend cooldown timer
+  // Resend cooldown timer
   int _resendCooldown = 0;
   Timer? _cooldownTimer;
 
@@ -63,7 +63,9 @@ class _SignUpScreenState extends State<SignUpScreen> {
         context: context,
         builder: (context) => AlertDialog(
           title: Text('Cancel Sign Up?'),
-          content: Text('Your email verification is incomplete. Going back will cancel your sign up.'),
+          content: Text(
+            'Your email verification is incomplete. Going back will cancel your sign up.',
+          ),
           actions: [
             TextButton(
               onPressed: () => Navigator.pop(context, false),
@@ -157,7 +159,7 @@ class _SignUpScreenState extends State<SignUpScreen> {
     }
   }
 
-   @override
+  @override
   Widget build(BuildContext context) {
     return Scaffold(
       body: Container(
@@ -183,30 +185,25 @@ class _SignUpScreenState extends State<SignUpScreen> {
   Widget _buildAppBar(BuildContext context) {
     return Container(
       width: double.infinity,
-      padding: EdgeInsets.only(top: 4, right: 38, bottom: 4, left: 38),
-      child: Row(
+      padding: EdgeInsets.only(top: 24, right: 38, bottom: 20, left: 8),
+      child: Stack(
+        alignment: Alignment.center,
         children: [
-          Align(
-            alignment: Alignment.centerLeft,
+          Positioned(
+            left: 0,
             child: IconButton(
               icon: Icon(Icons.arrow_back, color: Colors.black),
               onPressed: () => handleBack(context),
             ),
           ),
-          Expanded(
-            // Takes remaining space
-            child: Center(
-              child: Text(
-                "Sign Up",
-                style: TextStyle(
-                  fontSize: 28,
-                  fontWeight: FontWeight.bold,
-                  color: Colors.green[400],
-                ),
-              ),
+          Text(
+            "Sign Up",
+            style: TextStyle(
+              fontSize: 28,
+              fontWeight: FontWeight.bold,
+              color: Colors.green[400],
             ),
           ),
-          SizedBox(width: 28), // Balance for back button
         ],
       ),
     );
@@ -220,11 +217,7 @@ class _SignUpScreenState extends State<SignUpScreen> {
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Icon(
-              Icons.mark_email_unread,
-              size: 100,
-              color: Color(0xFF5EA140),
-            ),
+            Icon(Icons.mark_email_unread, size: 100, color: Color(0xFF5EA140)),
             SizedBox(height: 30),
             Text(
               "Verify Your Email",
@@ -301,17 +294,17 @@ class _SignUpScreenState extends State<SignUpScreen> {
             SizedBox(
               width: double.infinity,
               child: OutlinedButton(
-                onPressed: _resendCooldown > 0 
+                onPressed: _resendCooldown > 0
                     ? null // ✅ Disable button during cooldown
                     : () => _resendVerificationEmail(context),
                 style: OutlinedButton.styleFrom(
                   side: BorderSide(
-                    color: _resendCooldown > 0 
-                        ? Colors.grey.shade300 
+                    color: _resendCooldown > 0
+                        ? Colors.grey.shade300
                         : Color(0xFF5EA140),
                   ),
-                  backgroundColor: _resendCooldown > 0 
-                      ? Colors.grey.shade100 
+                  backgroundColor: _resendCooldown > 0
+                      ? Colors.grey.shade100
                       : Colors.white,
                   padding: EdgeInsets.symmetric(vertical: 16),
                   shape: RoundedRectangleBorder(
@@ -325,8 +318,8 @@ class _SignUpScreenState extends State<SignUpScreen> {
                   style: TextStyle(
                     fontWeight: FontWeight.w600,
                     fontSize: 16,
-                    color: _resendCooldown > 0 
-                        ? Colors.grey.shade500 
+                    color: _resendCooldown > 0
+                        ? Colors.grey.shade500
                         : Color(0xFF5EA140),
                   ),
                 ),
@@ -362,7 +355,7 @@ class _SignUpScreenState extends State<SignUpScreen> {
       if (user?.emailVerified == true) {
         // ✅ Email verified! Proceed to GetStarted
         _cooldownTimer?.cancel(); // Stop countdown
-        
+
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
             content: Text('Email verified successfully!'),
@@ -382,7 +375,9 @@ class _SignUpScreenState extends State<SignUpScreen> {
         // ❌ Not verified yet
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
-            content: Text('Please verify your email first by clicking the link in your inbox'),
+            content: Text(
+              'Please verify your email first by clicking the link in your inbox',
+            ),
             backgroundColor: Colors.orange,
             duration: Duration(seconds: 4),
           ),
@@ -402,7 +397,9 @@ class _SignUpScreenState extends State<SignUpScreen> {
     if (_resendCooldown > 0) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text('Please wait $_resendCooldown seconds before resending'),
+          content: Text(
+            'Please wait $_resendCooldown seconds before resending',
+          ),
           backgroundColor: Colors.orange,
         ),
       );
@@ -413,10 +410,10 @@ class _SignUpScreenState extends State<SignUpScreen> {
       final user = FirebaseAuth.instance.currentUser;
       if (user != null && !user.emailVerified) {
         await user.sendEmailVerification();
-        
+
         // ✅ Start cooldown after successful send
         _startResendCooldown();
-        
+
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
             content: Text('Verification email sent! Check your inbox'),
@@ -426,7 +423,7 @@ class _SignUpScreenState extends State<SignUpScreen> {
       }
     } on FirebaseAuthException catch (e) {
       String message = 'Error sending email';
-      
+
       if (e.code == 'too-many-requests') {
         message = 'Too many requests. Please wait a few minutes and try again.';
         // ✅ If Firebase blocks, set longer cooldown
@@ -435,7 +432,7 @@ class _SignUpScreenState extends State<SignUpScreen> {
         });
         _startResendCooldown();
       }
-      
+
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text(message), backgroundColor: Colors.red),
       );
@@ -806,31 +803,32 @@ class _SignUpScreenState extends State<SignUpScreen> {
     try {
       // ✅ Check if email is already in use
       try {
-        final signInMethods = await FirebaseAuth.instance.fetchSignInMethodsForEmail(email);
-        
+        final signInMethods = await FirebaseAuth.instance
+            .fetchSignInMethodsForEmail(email);
+
         if (signInMethods.isNotEmpty) {
           // Email already exists
           Navigator.of(context).pop();
-          
+
           // Check if it's an unverified account
           try {
-            final userCred = await FirebaseAuth.instance.signInWithEmailAndPassword(
-              email: email,
-              password: password,
-            );
-            
+            final userCred = await FirebaseAuth.instance
+                .signInWithEmailAndPassword(email: email, password: password);
+
             if (userCred.user != null && !userCred.user!.emailVerified) {
               // ✅ Same unverified account - allow resending verification
               setState(() {
                 _isVerificationMode = true;
               });
-              
+
               await userCred.user!.sendEmailVerification();
               _startResendCooldown();
-              
+
               ScaffoldMessenger.of(context).showSnackBar(
                 const SnackBar(
-                  content: Text('Verification email resent! Please check your inbox'),
+                  content: Text(
+                    'Verification email resent! Please check your inbox',
+                  ),
                   backgroundColor: Color(0xFF5EA140),
                 ),
               );
@@ -839,7 +837,9 @@ class _SignUpScreenState extends State<SignUpScreen> {
               // ✅ Verified account exists
               ScaffoldMessenger.of(context).showSnackBar(
                 const SnackBar(
-                  content: Text('This email is already registered. Please log in.'),
+                  content: Text(
+                    'This email is already registered. Please log in.',
+                  ),
                   backgroundColor: Colors.orange,
                 ),
               );
@@ -851,7 +851,9 @@ class _SignUpScreenState extends State<SignUpScreen> {
             Navigator.of(context).pop();
             ScaffoldMessenger.of(context).showSnackBar(
               const SnackBar(
-                content: Text('This email is already registered. If you forgot your password, use "Forgot Password" on the login screen.'),
+                content: Text(
+                  'This email is already registered. If you forgot your password, use "Forgot Password" on the login screen.',
+                ),
                 backgroundColor: Colors.red,
                 duration: Duration(seconds: 4),
               ),
@@ -864,10 +866,8 @@ class _SignUpScreenState extends State<SignUpScreen> {
       }
 
       // ✅ Create NEW Firebase Auth account
-      final userCredential = await FirebaseAuth.instance.createUserWithEmailAndPassword(
-        email: email,
-        password: password,
-      );
+      final userCredential = await FirebaseAuth.instance
+          .createUserWithEmailAndPassword(email: email, password: password);
 
       // Send verification email
       await userCredential.user?.sendEmailVerification();
@@ -892,7 +892,8 @@ class _SignUpScreenState extends State<SignUpScreen> {
 
       String message = 'Sign up failed.';
       if (e.code == 'email-already-in-use') {
-        message = 'This email is already registered. Please log in or use "Forgot Password".';
+        message =
+            'This email is already registered. Please log in or use "Forgot Password".';
       } else if (e.code == 'invalid-email') {
         message = 'Invalid email address';
       } else if (e.code == 'weak-password') {
