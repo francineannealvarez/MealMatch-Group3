@@ -396,9 +396,8 @@ class _UploadRecipeScreenState extends State<UploadRecipeScreen> {
   }
 
   // --- SAVE TO FIREBASE LOGIC ---
-  // ✅ IMPROVED: Upload recipe with better validation and error handling
+  // Upload recipe with better validation and error handling
   Future<void> _uploadRecipe() async {
-    // ✅ IMPROVED: Enhanced validation
     if (_recipeNameController.text.trim().isEmpty) {
       _showErrorSnackBar('Please enter recipe name');
       return;
@@ -409,13 +408,13 @@ class _UploadRecipeScreenState extends State<UploadRecipeScreen> {
       return;
     }
 
-    // ✅ ADDED: Check if any instruction is empty
+    // Check if any instruction is empty
     if (instructions.any((step) => step.text.trim().isEmpty)) {
       _showErrorSnackBar('Please fill in all instruction steps');
       return;
     }
 
-    // ✅ ADDED: Validate servings
+    // Validate servings
     final servings = int.tryParse(_servingsController.text);
     if (servings == null || servings < 1) {
       _showErrorSnackBar('Please enter a valid number of servings');
@@ -432,23 +431,30 @@ class _UploadRecipeScreenState extends State<UploadRecipeScreen> {
         throw Exception('User not logged in');
       }
 
-      // ✅ IMPROVED: Create UserRecipe model
+      // prepTime and cookTime are in "MM:SS" format
+      String prepTimeMinutes = _timeStringToMinutesString(prepTime);
+      String cookTimeMinutes = _timeStringToMinutesString(cookTime);
+
+      print('⏱️ Prep Time: $prepTime → ${prepTimeMinutes}m');
+      print('⏱️ Cook Time: $cookTime → ${cookTimeMinutes}m');
+
+      // ✅ IMPROVED: Create UserRecipe model with proper time storage
       final newRecipe = UserRecipe(
         userId: user.uid,
         name: _recipeNameController.text.trim(),
         servings: servings,
-        prepTime: prepTime,
-        cookTime: cookTime,
+        prepTime: prepTimeMinutes.toString(), // ✅ Store as minutes
+        cookTime: cookTimeMinutes.toString(), // ✅ Store as minutes
         ingredients: ingredients,
         instructions: instructions
             .map((step) => InstructionStepModel(
                   stepNumber: step.stepNumber,
                   text: step.text,
-                  timer: step.timer,
+                  timer: step.timer, // ✅ Keep as "MM:SS" format
                 ))
             .toList(),
         nutrients: nutrients,
-        localImagePath: _selectedImage?.path, // ⚠️ NOTE: This is temporary storage
+        localImagePath: _selectedImage?.path,
         createdAt: DateTime.now(),
       );
 
@@ -464,14 +470,14 @@ class _UploadRecipeScreenState extends State<UploadRecipeScreen> {
           _resetForm();
           
           // ✅ IMPROVED: Navigate back with success indicator
-          Navigator.pop(context, true); // Pass true to indicate success
+          Navigator.pop(context, true);
         } else {
           // ✅ IMPROVED: Show error from service
           _showErrorSnackBar(result['message'] ?? 'Failed to upload recipe');
         }
       }
     } catch (e) {
-      print('❌ Upload error: $e'); // ✅ ADDED: Better error logging
+      print('❌ Upload error: $e');
       if (mounted) {
         _showErrorSnackBar('An unexpected error occurred. Please try again.');
       }
@@ -481,6 +487,24 @@ class _UploadRecipeScreenState extends State<UploadRecipeScreen> {
           _isUploading = false;
         });
       }
+    }
+  }
+
+  //  Helper function to convert "MM:SS" to minutes STRING
+  String _timeStringToMinutesString(String timeString) {
+    try {
+      if (timeString.isEmpty || timeString == '00:00') return '0';
+      
+      final parts = timeString.split(':');
+      if (parts.length != 2) return '0';
+      
+      final minutes = int.tryParse(parts[0]) ?? 0;
+      // Don't add seconds to minutes - just return the minutes
+      
+      return minutes.toString();
+    } catch (e) {
+      print('❌ Error parsing time: $e');
+      return '0';
     }
   }
 
@@ -519,6 +543,7 @@ class _UploadRecipeScreenState extends State<UploadRecipeScreen> {
       ),
     );
   }
+  
 
   @override
   Widget build(BuildContext context) {

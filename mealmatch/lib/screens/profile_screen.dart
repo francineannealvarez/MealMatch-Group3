@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../services/profile_service.dart';
+import 'package:mealmatch/screens/recipe_details_screen.dart';
 import '../services/recipe_service.dart';
 
 class ProfileScreen extends StatefulWidget {
@@ -543,20 +544,25 @@ class _ProfileScreenState extends State<ProfileScreen> {
               ),
             )
           else
-            ..._userRecipes.map((recipe) {
-              // Map dynamic Firebase data to the polished UI card
-              return _buildRecipeCard(
-                recipe['name'] ?? 'Untitled',
-                '${recipe['servings']} Servings • ${recipe['cookTime'] ?? "0 mins"}',
-                '${recipe['calories'] ?? 0} kcal',
-              );
-            }),
-
+            GridView.builder(
+              shrinkWrap: true,
+              physics: const NeverScrollableScrollPhysics(),
+              gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                crossAxisCount: 2,
+                childAspectRatio: 0.75,
+                crossAxisSpacing: 16,
+                mainAxisSpacing: 16,
+              ),
+              itemCount: _userRecipes.length,
+              itemBuilder: (context, index) {
+                return _buildClickableRecipeCard(_userRecipes[index]);
+              },
+            ),
           const SizedBox(height: 16),
           OutlinedButton.icon(
             onPressed: () async {
               await Navigator.pushNamed(context, '/upload');
-              _loadProfileData(); // Refresh after returning
+              _loadProfileData();
             },
             icon: const Icon(Icons.add, color: Color(0xFF4CAF50)),
             label: const Text(
@@ -574,7 +580,288 @@ class _ProfileScreenState extends State<ProfileScreen> {
     );
   }
 
-  // ✅ IMPROVED: Recipe card with better data display
+  // Clickable recipe card (same style as home page)
+  Widget _buildClickableRecipeCard(Map<String, dynamic> recipe) {
+    try {
+      print('🔍 === PROFILE RECIPE CARD DEBUG ===');
+      print('Recipe ID: ${recipe['id']}');
+      print('Recipe ID type: ${recipe['id'].runtimeType}');
+
+      // Extract title/name
+      String title = 'Recipe Name';
+      if (recipe['title'] != null && recipe['title'] is String) {
+        title = recipe['title'] as String;
+      } else if (recipe['name'] != null && recipe['name'] is String) {
+        title = recipe['name'] as String;
+      }
+      print('✅ Title: $title');
+
+      // Extract author/userName
+      String author = 'By You';
+      if (recipe['author'] != null && recipe['author'] is String) {
+        author = recipe['author'] as String;
+      } else if (recipe['userName'] != null && recipe['userName'] is String) {
+        author = recipe['userName'] as String;
+      }
+      print('✅ Author: $author');
+
+      // Extract cook time
+      int cookTime = 0;
+      if (recipe['cookTime'] != null) {
+        if (recipe['cookTime'] is int) {
+          cookTime = recipe['cookTime'] as int;
+        } else if (recipe['cookTime'] is String) {
+          cookTime = int.tryParse(recipe['cookTime'].toString().replaceAll(RegExp(r'[^0-9]'), '')) ?? 0;
+        } else if (recipe['readyInMinutes'] is int) {
+          cookTime = recipe['readyInMinutes'] as int;
+        }
+      } else if (recipe['readyInMinutes'] != null) {
+        if (recipe['readyInMinutes'] is int) {
+          cookTime = recipe['readyInMinutes'] as int;
+        } else {
+          cookTime = int.tryParse(recipe['readyInMinutes'].toString()) ?? 0;
+        }
+      }
+      print('✅ CookTime: $cookTime');
+
+      // Extract calories
+      int calories = 0;
+      if (recipe['nutrition'] != null && recipe['nutrition'] is Map) {
+        final nutrition = recipe['nutrition'] as Map;
+        if (nutrition['calories'] != null) {
+          calories = int.tryParse(nutrition['calories'].toString()) ?? 0;
+        }
+      } else if (recipe['calories'] != null) {
+        calories = int.tryParse(recipe['calories'].toString()) ?? 0;
+      }
+      print('✅ Calories: $calories');
+
+      // Extract rating
+      double rating = 5.0;
+      if (recipe['rating'] != null) {
+        if (recipe['rating'] is double) {
+          rating = recipe['rating'] as double;
+        } else if (recipe['rating'] is int) {
+          rating = (recipe['rating'] as int).toDouble();
+        } else {
+          rating = double.tryParse(recipe['rating'].toString()) ?? 5.0;
+        }
+      }
+      print('✅ Rating: $rating');
+
+      // Extract image
+      String image = '';
+      if (recipe['image'] != null && recipe['image'] is String) {
+        image = recipe['image'] as String;
+      } else if (recipe['strMealThumb'] != null) {
+        image = recipe['strMealThumb'].toString();
+      } else if (recipe['localImagePath'] != null) {
+        image = recipe['localImagePath'].toString();
+      }
+      print('✅ Image: ${image.isEmpty ? "No image" : image}');
+
+      // Get the recipe ID as String
+      final recipeId = recipe['id'].toString();
+      print('✅ RecipeID for navigation: $recipeId');
+      print('✅ All extractions complete!');
+
+      return GestureDetector(
+        onTap: () {
+          print('📍 Tapping recipe: $recipeId');
+          Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (context) => RecipeDetailsScreen(
+                recipeId: recipeId,  // This will work for both public and private
+                isOwnRecipe: true,
+              ),
+            ),
+          ).then((_) {
+            _loadProfileData();
+          });
+        },
+        child: Container(
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(14),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withOpacity(0.1),
+                blurRadius: 8,
+                offset: const Offset(0, 4),
+              ),
+            ],
+          ),
+          child: ClipRRect(
+            borderRadius: BorderRadius.circular(14),
+            child: Stack(
+              children: [
+                // Background Image
+                Positioned.fill(
+                  child: image.isNotEmpty
+                      ? Image.network(
+                          image,
+                          fit: BoxFit.cover,
+                          errorBuilder: (_, __, ___) => Container(
+                            color: Colors.grey[200],
+                            child: const Icon(Icons.restaurant, size: 40),
+                          ),
+                        )
+                      : Container(
+                          color: Colors.grey[200],
+                          child: const Icon(Icons.restaurant, size: 40),
+                        ),
+                ),
+
+                // Gradient Overlay
+                Positioned.fill(
+                  child: Container(
+                    decoration: BoxDecoration(
+                      gradient: LinearGradient(
+                        colors: [
+                          Colors.black.withOpacity(0.8),
+                          Colors.transparent,
+                          Colors.transparent,
+                          Colors.black.withOpacity(0.9),
+                        ],
+                        begin: Alignment.topCenter,
+                        end: Alignment.bottomCenter,
+                        stops: const [0, 0.3, 0.6, 1.0],
+                      ),
+                    ),
+                  ),
+                ),
+
+                // "Your Recipe" Badge
+                Positioned(
+                  top: 8,
+                  right: 8,
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFF4CAF50),
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: const Text(
+                      'YOURS',
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontSize: 10,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                  ),
+                ),
+
+                // Recipe Info
+                Positioned(
+                  bottom: 10,
+                  left: 10,
+                  right: 10,
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        title,
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontWeight: FontWeight.bold,
+                          fontSize: 15,
+                          shadows: [Shadow(blurRadius: 2, color: Colors.black)],
+                        ),
+                      ),
+                      Text(
+                        author,
+                        maxLines: 1,
+                        style: const TextStyle(
+                          color: Colors.white70,
+                          fontSize: 11,
+                          shadows: [Shadow(blurRadius: 2, color: Colors.black)],
+                        ),
+                      ),
+                      const SizedBox(height: 6),
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          if (calories > 0)
+                            Text(
+                              '$calories kcal',
+                              style: const TextStyle(
+                                color: Colors.white,
+                                fontSize: 11,
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                          if (cookTime > 0)
+                            Text(
+                              '$cookTime mins',
+                              style: const TextStyle(
+                                color: Colors.white,
+                                fontSize: 11,
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                          Row(
+                            children: [
+                              const Icon(
+                                Icons.star,
+                                color: Colors.amber,
+                                size: 14,
+                              ),
+                              const SizedBox(width: 2),
+                              Text(
+                                rating.toStringAsFixed(1),
+                                style: const TextStyle(
+                                  color: Colors.white,
+                                  fontSize: 11,
+                                  fontWeight: FontWeight.w600,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      );
+    } catch (e, stackTrace) {
+      print('❌ FATAL ERROR in profile recipe card: $e');
+      print('❌ Stack trace: $stackTrace');
+      print('❌ Full recipe data: $recipe');
+
+      return Container(
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(14),
+          color: Colors.white,
+        ),
+        child: Center(
+          child: Padding(
+            padding: const EdgeInsets.all(8.0),
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                const Icon(Icons.error_outline, color: Colors.red, size: 32),
+                const SizedBox(height: 8),
+                Text(
+                  'Error loading recipe',
+                  style: TextStyle(fontSize: 12, color: Colors.red),
+                  textAlign: TextAlign.center,
+                ),
+              ],
+            ),
+          ),
+        ),
+      );
+    }
+  }
+
+  /* ✅ IMPROVED: Recipe card with better data display
   Widget _buildRecipeCard(String name, String details, String kcal) {
     return Container(
       margin: const EdgeInsets.only(bottom: 16),
@@ -640,7 +927,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
         ],
       ),
     );
-  }
+  } */
 
   BoxDecoration _cardDecoration() {
     return BoxDecoration(

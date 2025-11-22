@@ -26,8 +26,9 @@ class RecipeService {
       recipeData['userId'] = user.uid;
       recipeData['userName'] = user.displayName ?? 'Anonymous';
       recipeData['userEmail'] = user.email ?? '';
+      recipeData['authorId'] = user.uid;  // ✅ ADD THIS for consistency
 
-      // ✅ IMPORTANT: Ensure ingredients are in correct format
+      // ✅ IMPORTANT: Ensure ingredients are in correct format BEFORE saving
       if (recipeData['ingredients'] is List) {
         final ingredients = recipeData['ingredients'] as List;
         recipeData['ingredients'] = ingredients.map((ing) {
@@ -54,15 +55,23 @@ class RecipeService {
           }
           return ing;
         }).toList();
+      } else {
+        // If ingredients is not a list, make it one
+        recipeData['ingredients'] = [];
       }
 
       // ✅ Ensure nutrition is in correct format
       if (recipeData['nutrients'] != null) {
         recipeData['nutrition'] = recipeData['nutrients'];
+      } else {
+        recipeData['nutrition'] = {};
       }
 
       recipeData['isPublic'] = true;
-      recipeData['source'] = 'public';
+      recipeData['source'] = 'user';  // Mark as user-created recipe
+
+      // ✅ NOW normalize the data BEFORE saving
+      _normalizeRecipeData(recipeData);
 
       // Save to private collection (user's own recipes)
       final privateRecipesRef = _firestore
@@ -75,15 +84,24 @@ class RecipeService {
 
       // Also save to PUBLIC collection (all users can see)
       final publicRecipesRef = _firestore.collection('public_recipes');
-      recipeData['privateRecipeId'] = privateDocRef.id;
       
-      final publicDocRef = await publicRecipesRef.add(recipeData);
+      // ✅ IMPORTANT: Create a COPY for public collection with same normalized data
+      final publicData = Map<String, dynamic>.from(recipeData);
+      publicData['privateRecipeId'] = privateDocRef.id;
+      
+      final publicDocRef = await publicRecipesRef.add(publicData);
       print('✅ Recipe saved to public collection: ${publicDocRef.id}');
+
+      // ✅ OPTIONAL: Also update private recipe with public ID for reference
+      await privateDocRef.update({
+        'publicRecipeId': publicDocRef.id,
+      });
 
       return {
         'success': true,
         'message': 'Recipe uploaded and shared publicly!',
         'recipeId': publicDocRef.id,
+        'privateRecipeId': privateDocRef.id,
       };
     } on FirebaseException catch (e) {
       print('❌ Firebase Error: ${e.code} - ${e.message}');
@@ -153,30 +171,88 @@ class RecipeService {
   // Get a specific recipe by ID (works for both API and user recipes)
   Future<Map<String, dynamic>?> getRecipeById(String recipeId) async {
     try {
-      // Try to get from public_recipes first
+      print('🔍 getRecipeById: Attempting to fetch $recipeId');
+      
+      // TRY 1: Check public_recipes first
+      print('🔍 Trying public_recipes collection...');
       final publicDoc = await _firestore
           .collection('public_recipes')
           .doc(recipeId)
           .get();
 
       if (publicDoc.exists) {
-        final data = publicDoc.data()!;
+        print('✅ Found in public_recipes');
+        final data = Map<String, dynamic>.from(publicDoc.data() ?? {});
         data['id'] = recipeId;
         
         if (!data.containsKey('calories') && data['nutrients'] != null) {
-          final nutrients = Map<String, double>.from(data['nutrients']);
+          final nutrients = Map<String, double>.from(data['nutrients'] as Map? ?? {});
           data['calories'] = _calculateCalories(nutrients);
         }
         
         // ✅ Normalize field names
         _normalizeRecipeData(data);
         
+        print('✅ Recipe loaded and normalized from public_recipes');
         return data;
       }
 
+      print('⚠️ Not found in public_recipes');
+
+      // TRY 2: Check user's private recipes
+      final currentUser = _auth.currentUser;
+      if (currentUser != null) {
+        print('🔍 Trying user private recipes...');
+        
+        final privateDoc = await _firestore
+            .collection('users')
+            .doc(currentUser.uid)
+            .collection('recipes')
+            .doc(recipeId)
+            .get();
+
+        if (privateDoc.exists) {
+          print('✅ Found in user private recipes');
+          final data = Map<String, dynamic>.from(privateDoc.data() ?? {});
+          data['id'] = recipeId;
+          
+          if (!data.containsKey('calories') && data['nutrients'] != null) {
+            final nutrients = Map<String, double>.from(data['nutrients'] as Map? ?? {});
+            data['calories'] = _calculateCalories(nutrients);
+          }
+          
+          // ✅ Normalize field names
+          _normalizeRecipeData(data);
+          
+          print('✅ Recipe loaded and normalized from private recipes');
+          return data;
+        }
+
+        print('⚠️ Not found in user private recipes');
+      }
+
+      // TRY 3: Search all public recipes for this ID (fallback)
+      print('🔍 Fallback: Searching all public recipes...');
+      final allRecipes = await _firestore
+          .collection('public_recipes')
+          .limit(100)
+          .get();
+
+      for (var doc in allRecipes.docs) {
+        if (doc.id == recipeId) {
+          print('✅ Found in fallback search');
+          final data = Map<String, dynamic>.from(doc.data());
+          data['id'] = recipeId;
+          _normalizeRecipeData(data);
+          return data;
+        }
+      }
+
+      print('❌ Recipe not found anywhere');
       return null;
-    } catch (e) {
+    } catch (e, stackTrace) {
       print('❌ Error fetching recipe by ID: $e');
+      print('❌ Stack trace: $stackTrace');
       return null;
     }
   }
@@ -340,117 +416,167 @@ class RecipeService {
 
   // ✅ NEW: Helper function to normalize recipe data fields
   void _normalizeRecipeData(Map<String, dynamic> data) {
-    // ✅ FIX: Safely handle title field
-    if (!data.containsKey('title') && data.containsKey('name')) {
-      data['title'] = data['name']?.toString() ?? 'Recipe';
-    }
-    if (data['title'] == null) {
-      data['title'] = data['name']?.toString() ?? 'Recipe';
-    }
-    
-    // ✅ FIX: Safely handle author field
-    if (!data.containsKey('author')) {
-      data['author'] = data['userName']?.toString() ?? 'Public Recipe';
-    }
-    if (data['author'] is List) {
-      // If author is accidentally a List, take first item
-      data['author'] = (data['author'] as List).isNotEmpty 
-          ? (data['author'] as List)[0].toString() 
-          : 'Public Recipe';
-    }
-    
-    // ✅ FIX: Safely handle readyInMinutes
-    if (!data.containsKey('readyInMinutes')) {
-      final cookTime = data['cookTime'];
-      if (cookTime is int) {
-        data['readyInMinutes'] = cookTime;
-      } else if (cookTime is String) {
-        data['readyInMinutes'] = int.tryParse(cookTime) ?? 30;
-      } else {
-        data['readyInMinutes'] = 30;
+    try {
+      print('🔄 Normalizing recipe data...');
+      
+      // ✅ FIX: Safely handle title field
+      if (!data.containsKey('title') || data['title'] == null) {
+        if (data.containsKey('name') && data['name'] != null) {
+          data['title'] = data['name']?.toString() ?? 'Recipe';
+        } else {
+          data['title'] = 'Recipe';
+        }
       }
-    }
-    
-    // Ensure rating exists
-    if (!data.containsKey('rating')) {
-      data['rating'] = 4.5;
-    }
-    
-    // Ensure servings exists
-    if (!data.containsKey('servings')) {
-      data['servings'] = 4;
-    }
-    
-    // Normalize nutrition field
-    if (data['nutrients'] != null && data['nutrition'] == null) {
-      data['nutrition'] = data['nutrients'];
-    }
-    
-    // ✅ FIX: Ensure ingredients is a List of Maps (handle List<dynamic> safely)
-    if (data['ingredients'] != null) {
-      try {
-        // Convert List<dynamic> to List safely
-        final ingredientsRaw = data['ingredients'];
-        
-        if (ingredientsRaw is List) {
-          // ✅ Safe conversion from List<dynamic>
-          final ingredientsList = List.from(ingredientsRaw);
+      if (data['title'] is List) {
+        data['title'] = (data['title'] as List).isNotEmpty 
+            ? (data['title'] as List)[0].toString() 
+            : 'Recipe';
+      }
+      print('✅ Title: ${data['title']}');
+      
+      // ✅ FIX: Safely handle author field
+      if (!data.containsKey('author') || data['author'] == null) {
+        data['author'] = data['userName']?.toString() ?? 'Public Recipe';
+      }
+      if (data['author'] is List) {
+        data['author'] = (data['author'] as List).isNotEmpty 
+            ? (data['author'] as List)[0].toString() 
+            : 'Public Recipe';
+      }
+      print('✅ Author: ${data['author']}');
+      
+      // ✅ NEW: Safely handle prepTime
+      if (!data.containsKey('prepTime') || data['prepTime'] == null) {
+        data['prepTime'] = '0';
+      } else {
+        data['prepTime'] = data['prepTime'].toString();
+      }
+      print('✅ Prep Time: ${data['prepTime']}m');
+      
+      // ✅ FIX: Safely handle readyInMinutes (cook time)
+      if (!data.containsKey('readyInMinutes') || data['readyInMinutes'] == null) {
+        final cookTime = data['cookTime'];
+        if (cookTime is int) {
+          data['readyInMinutes'] = cookTime.toString();
+        } else if (cookTime is String) {
+          data['readyInMinutes'] = cookTime;
+        } else {
+          data['readyInMinutes'] = '30';
+        }
+      } else {
+        // Ensure it's a string
+        if (data['readyInMinutes'] is int) {
+          data['readyInMinutes'] = data['readyInMinutes'].toString();
+        } else if (data['readyInMinutes'] is! String) {
+          data['readyInMinutes'] = '30';
+        }
+      }
+      print('✅ Cook Time: ${data['readyInMinutes']}m');
+      
+      // Ensure rating exists
+      if (!data.containsKey('rating') || data['rating'] == null) {
+        data['rating'] = 4.5;
+      }
+      
+      // Ensure servings exists
+      if (!data.containsKey('servings') || data['servings'] == null) {
+        data['servings'] = 4;
+      }
+      
+      // Normalize nutrition field
+      if (data['nutrients'] != null && data['nutrition'] == null) {
+        data['nutrition'] = data['nutrients'];
+      }
+      
+      // ✅ CRITICAL FIX: Ensure ingredients is ALWAYS a proper List
+      if (data['ingredients'] != null) {
+        try {
+          final rawIngredients = data['ingredients'];
+          print('🔍 Raw ingredients type before normalization: ${rawIngredients.runtimeType}');
           
-          data['ingredients'] = ingredientsList.map((ing) {
-            if (ing is String) {
-              return {
-                'name': ing,
-                'original': ing,
-                'measure': '',
-              };
-            } else if (ing is Map) {
-              final ingMap = Map<String, dynamic>.from(ing);
+          List<dynamic> ingredientsList = [];
+          
+          if (rawIngredients is List) {
+            ingredientsList = List<dynamic>.from(rawIngredients);
+          } else if (rawIngredients is String) {
+            ingredientsList = [rawIngredients];
+          } else if (rawIngredients is Map) {
+            ingredientsList = [rawIngredients];
+          } else {
+            ingredientsList = [rawIngredients.toString()];
+          }
+          
+          print('🔍 Ingredient count after list conversion: ${ingredientsList.length}');
+          
+          List<Map<String, dynamic>> normalizedIngredients = [];
+          
+          for (int i = 0; i < ingredientsList.length; i++) {
+            try {
+              final ing = ingredientsList[i];
+              final ingMap = <String, dynamic>{};
               
-              // Ensure name is a String, not List
+              if (ing is Map) {
+                ingMap.addAll(Map<String, dynamic>.from(ing));
+              } else if (ing is String) {
+                ingMap['name'] = ing;
+                ingMap['original'] = ing;
+                ingMap['measure'] = '';
+              } else {
+                final str = ing.toString();
+                ingMap['name'] = str;
+                ingMap['original'] = str;
+                ingMap['measure'] = '';
+              }
+              
               if (ingMap['name'] is List) {
                 ingMap['name'] = (ingMap['name'] as List).isNotEmpty
                     ? (ingMap['name'] as List)[0].toString()
                     : 'Ingredient';
               }
+              if (ingMap['original'] is List) {
+                ingMap['original'] = (ingMap['original'] as List).isNotEmpty
+                    ? (ingMap['original'] as List)[0].toString()
+                    : ingMap['name'];
+              }
               
               if (!ingMap.containsKey('name') || ingMap['name'] == null) {
                 ingMap['name'] = ingMap['original']?.toString() ?? 'Ingredient';
               }
-              
               if (!ingMap.containsKey('original') || ingMap['original'] == null) {
                 ingMap['original'] = ingMap['name']?.toString() ?? 'Ingredient';
               }
-              
               if (!ingMap.containsKey('measure')) {
                 ingMap['measure'] = '';
               }
               
-              return ingMap;
+              normalizedIngredients.add(ingMap);
+            } catch (e) {
+              print('⚠️ Error normalizing ingredient $i: $e');
+              continue;
             }
-            // Unknown type, convert to string
-            return {
-              'name': ing.toString(),
-              'original': ing.toString(),
-              'measure': '',
-            };
-          }).toList();
+          }
+          
+          data['ingredients'] = normalizedIngredients;
+          print('✅ Ingredients normalized: ${normalizedIngredients.length} items');
+        } catch (e) {
+          print('❌ Error normalizing ingredients: $e');
+          data['ingredients'] = [];
         }
-      } catch (e) {
-        print('⚠️ Error normalizing ingredients: $e');
-        // Set empty list as fallback
+      } else {
         data['ingredients'] = [];
       }
-    }
-    
-    // ✅ FIX: Ensure instructions is safe
-    if (data['instructions'] != null) {
-      if (data['instructions'] is List) {
-        // Keep as is
-      } else if (data['instructions'] is String) {
-        // Keep as string
+      
+      // ✅ NEW: Safely handle instructions (keep format flexible)
+      if (data['instructions'] != null) {
+        // Keep as is - can be String, List, or Map
+        print('✅ Instructions format: ${data['instructions'].runtimeType}');
       } else {
-        data['instructions'] = data['instructions'].toString();
+        data['instructions'] = [];
       }
+      
+      print('✅ Recipe data normalized successfully');
+    } catch (e) {
+      print('❌ Error normalizing recipe data: $e');
     }
   }
 }
