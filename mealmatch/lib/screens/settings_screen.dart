@@ -1443,9 +1443,17 @@ class _ModifyGoalsScreenState extends State<ModifyGoalsScreen> {
   // User data
   double _startingWeight = 0.0;
   String _accountCreatedDate = '';
+  double _currentWeight = 0.0;
   double _goalWeight = 0.0;
   String _activityLevel = 'Moderately Active';
   double _dailyCalorieGoal = 2000;
+  String _weightPace = 'steady'; // NEW: Weight loss/gain pace
+  List<String> _goals = [];
+
+  // User profile data for calculation
+  String _gender = 'male';
+  int _age = 25;
+  double _height = 170;
 
   // For editing
   final _goalWeightController = TextEditingController();
@@ -1479,11 +1487,18 @@ class _ModifyGoalsScreenState extends State<ModifyGoalsScreen> {
 
         setState(() {
           _startingWeight = (data['weight'] ?? 0.0).toDouble();
+          _currentWeight = (data['weight'] ?? 0.0).toDouble();
           _goalWeight = (data['goalWeight'] ?? 0.0).toDouble();
           _activityLevel = data['activityLevel'] ?? 'Moderately Active';
           _dailyCalorieGoal = (data['dailyCalorieGoal'] ?? 2000).toDouble();
+          _weightPace = data['weightPace'] ?? 'steady';
+          _goals = List<String>.from(data['goals'] ?? []);
 
-          // Format created date
+          // Load user profile data for calculations
+          _gender = data['gender'] ?? 'male';
+          _age = data['age'] ?? 25;
+          _height = (data['height'] ?? 170).toDouble();
+
           final createdAt = data['createdAt'] as Timestamp?;
           if (createdAt != null) {
             _accountCreatedDate = DateFormat(
@@ -1520,6 +1535,77 @@ class _ModifyGoalsScreenState extends State<ModifyGoalsScreen> {
     }
   }
 
+  // NEW: Calculate calorie adjustment based on weight pace
+  int _getCalorieAdjustment() {
+    final isLosingWeight = _currentWeight > _goalWeight;
+
+    switch (_weightPace) {
+      case 'relaxed':
+        return isLosingWeight ? -250 : 250; // 0.5 lb/week
+      case 'steady':
+        return isLosingWeight ? -500 : 500; // 1 lb/week
+      case 'accelerated':
+        return isLosingWeight ? -750 : 750; // 1.5 lb/week
+      case 'vigorous':
+        return isLosingWeight ? -1000 : 1000; // 2 lb/week
+      default:
+        return isLosingWeight ? -500 : 500;
+    }
+  }
+
+  // NEW: Calculate daily calorie goal with pace consideration
+  int _calculateDailyCalorieGoal() {
+    // Calculate BMR
+    double bmr;
+    if (_gender.toLowerCase() == 'male') {
+      bmr = (10 * _currentWeight) + (6.25 * _height) - (5 * _age) + 5;
+    } else {
+      bmr = (10 * _currentWeight) + (6.25 * _height) - (5 * _age) - 161;
+    }
+
+    // Get activity multiplier
+    double multiplier;
+    switch (_activityLevel.toLowerCase()) {
+      case 'sedentary':
+        multiplier = 1.2;
+        break;
+      case 'lightly active':
+        multiplier = 1.375;
+        break;
+      case 'moderately active':
+        multiplier = 1.55;
+        break;
+      case 'extremely active':
+        multiplier = 1.9;
+        break;
+      default:
+        multiplier = 1.2;
+    }
+
+    // Calculate TDEE
+    double tdee = bmr * multiplier;
+
+    // Apply calorie adjustment based on pace
+    int calorieAdjustment = _getCalorieAdjustment();
+    int targetCalories = (tdee + calorieAdjustment).round();
+
+    // Safety limits
+    if (_gender.toLowerCase() == 'male') {
+      targetCalories = targetCalories.clamp(1500, 4000);
+    } else {
+      targetCalories = targetCalories.clamp(1200, 4000);
+    }
+
+    return targetCalories;
+  }
+
+  // NEW: Recalculate calorie goal when pace changes
+  void _updateCalorieGoalFromPace() {
+    setState(() {
+      _dailyCalorieGoal = _calculateDailyCalorieGoal().toDouble();
+    });
+  }
+
   Future<void> _saveGoals() async {
     setState(() => _isSaving = true);
 
@@ -1531,6 +1617,7 @@ class _ModifyGoalsScreenState extends State<ModifyGoalsScreen> {
         'goalWeight': _goalWeight,
         'activityLevel': _activityLevel,
         'dailyCalorieGoal': _dailyCalorieGoal.round(),
+        'weightPace': _weightPace, // NEW: Save weight pace
         'lastUpdated': FieldValue.serverTimestamp(),
       });
 
@@ -1632,11 +1719,15 @@ class _ModifyGoalsScreenState extends State<ModifyGoalsScreen> {
                         _buildGoalWeightCard(),
                         const SizedBox(height: 16),
 
+                        // NEW: Weight Pace Card
+                        _buildWeightPaceCard(),
+                        const SizedBox(height: 16),
+
                         // Activity Level Card (Editable)
                         _buildActivityLevelCard(),
                         const SizedBox(height: 16),
 
-                        // Daily Calorie Goal Card (Editable with Slider)
+                        // Daily Calorie Goal Card (Auto-calculated, read-only)
                         _buildCalorieGoalCard(),
                         const SizedBox(height: 24),
 
@@ -1658,7 +1749,7 @@ class _ModifyGoalsScreenState extends State<ModifyGoalsScreen> {
                               const SizedBox(width: 12),
                               Expanded(
                                 child: Text(
-                                  'Adjusting your goals will help personalize your meal recommendations and daily targets.',
+                                  'Your daily calorie goal is automatically calculated based on your weight pace and activity level.',
                                   style: TextStyle(
                                     color: Colors.blue[900],
                                     fontSize: 13,
@@ -1737,60 +1828,46 @@ class _ModifyGoalsScreenState extends State<ModifyGoalsScreen> {
           ),
         ],
       ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
+      child: Row(
         children: [
-          Row(
-            children: [
-              Container(
-                padding: const EdgeInsets.all(8),
-                decoration: BoxDecoration(
-                  color: const Color(0xFF4CAF50).withOpacity(0.1),
-                  shape: BoxShape.circle,
-                ),
-                child: const Icon(
-                  Icons.flag,
-                  color: Color(0xFF4CAF50),
-                  size: 24,
-                ),
-              ),
-              const SizedBox(width: 12),
-              const Text(
-                'Starting Weight',
-                style: TextStyle(
-                  fontSize: 16,
-                  fontWeight: FontWeight.bold,
-                  color: Colors.black,
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 16),
           Container(
-            padding: const EdgeInsets.all(16),
+            padding: const EdgeInsets.all(8),
             decoration: BoxDecoration(
               color: const Color(0xFF4CAF50).withOpacity(0.1),
-              borderRadius: BorderRadius.circular(12),
+              shape: BoxShape.circle,
             ),
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.center,
+            child: const Icon(Icons.flag, color: Color(0xFF4CAF50), size: 24),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(
-                  '${_startingWeight.toStringAsFixed(1)} kg',
-                  style: const TextStyle(
-                    fontSize: 28,
-                    fontWeight: FontWeight.bold,
-                    color: Color(0xFF4CAF50),
-                  ),
-                ),
-                const SizedBox(width: 8),
-                Text(
-                  'on $_accountCreatedDate',
+                const Text(
+                  'Starting Weight',
                   style: TextStyle(
                     fontSize: 14,
-                    color: Colors.grey[600],
-                    fontWeight: FontWeight.w500,
+                    fontWeight: FontWeight.w600,
+                    color: Colors.grey,
                   ),
+                ),
+                const SizedBox(height: 4),
+                Row(
+                  children: [
+                    Text(
+                      '${_startingWeight.toStringAsFixed(1)} kg',
+                      style: const TextStyle(
+                        fontSize: 18,
+                        fontWeight: FontWeight.bold,
+                        color: Color(0xFF4CAF50),
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    Text(
+                      'on $_accountCreatedDate',
+                      style: TextStyle(fontSize: 13, color: Colors.grey[600]),
+                    ),
+                  ],
                 ),
               ],
             ),
@@ -1815,69 +1892,65 @@ class _ModifyGoalsScreenState extends State<ModifyGoalsScreen> {
           ),
         ],
       ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
+      child: Row(
         children: [
-          Row(
-            children: [
-              Container(
-                padding: const EdgeInsets.all(8),
-                decoration: BoxDecoration(
-                  color: Colors.pink.withOpacity(0.1),
-                  shape: BoxShape.circle,
-                ),
-                child: const Icon(
-                  Icons.track_changes,
-                  color: Colors.pink,
-                  size: 24,
-                ),
-              ),
-              const SizedBox(width: 12),
-              const Text(
-                'Goal Weight',
-                style: TextStyle(
-                  fontSize: 16,
-                  fontWeight: FontWeight.bold,
-                  color: Colors.black,
-                ),
-              ),
-              const Spacer(),
-              IconButton(
-                icon: const Icon(Icons.edit, color: Colors.pink, size: 20),
-                onPressed: _isSaving ? null : () => _showEditGoalWeightDialog(),
-              ),
-            ],
-          ),
-          const SizedBox(height: 16),
           Container(
-            padding: const EdgeInsets.all(16),
+            padding: const EdgeInsets.all(8),
             decoration: BoxDecoration(
               color: Colors.pink.withOpacity(0.1),
-              borderRadius: BorderRadius.circular(12),
+              shape: BoxShape.circle,
             ),
-            child: Center(
-              child: Text(
-                '${_goalWeight.toStringAsFixed(1)} kg',
-                style: const TextStyle(
-                  fontSize: 28,
-                  fontWeight: FontWeight.bold,
-                  color: Colors.pink,
+            child: const Icon(
+              Icons.track_changes,
+              color: Colors.pink,
+              size: 24,
+            ),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text(
+                  'Goal Weight',
+                  style: TextStyle(
+                    fontSize: 14,
+                    fontWeight: FontWeight.w600,
+                    color: Colors.grey,
+                  ),
                 ),
-              ),
+                const SizedBox(height: 4),
+                Text(
+                  '${_goalWeight.toStringAsFixed(1)} kg',
+                  style: const TextStyle(
+                    fontSize: 18,
+                    fontWeight: FontWeight.bold,
+                    color: Colors.pink,
+                  ),
+                ),
+              ],
             ),
+          ),
+          IconButton(
+            icon: const Icon(Icons.edit, color: Colors.pink, size: 20),
+            onPressed: _isSaving ? null : () => _showEditGoalWeightDialog(),
           ),
         ],
       ),
     );
   }
 
-  Widget _buildActivityLevelCard() {
+  // NEW: Weight Pace Card
+  Widget _buildWeightPaceCard() {
+    final isLosingWeight = _currentWeight > _goalWeight;
+    final paceData = _getWeightPaceData(_weightPace, isLosingWeight);
+
     return Container(
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: Colors.orange, width: 2),
+        border: Border.all(color: paceData['color'] as Color, width: 2),
         boxShadow: [
           BoxShadow(
             color: Colors.grey.withOpacity(0.2),
@@ -1886,56 +1959,151 @@ class _ModifyGoalsScreenState extends State<ModifyGoalsScreen> {
           ),
         ],
       ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
+      child: Row(
         children: [
-          Row(
-            children: [
-              Container(
-                padding: const EdgeInsets.all(8),
-                decoration: BoxDecoration(
-                  color: Colors.orange.withOpacity(0.1),
-                  shape: BoxShape.circle,
-                ),
-                child: const Icon(
-                  Icons.directions_run,
-                  color: Colors.orange,
-                  size: 24,
-                ),
-              ),
-              const SizedBox(width: 12),
-              const Text(
-                'Activity Level',
-                style: TextStyle(
-                  fontSize: 16,
-                  fontWeight: FontWeight.bold,
-                  color: Colors.black,
-                ),
-              ),
-              const Spacer(),
-              IconButton(
-                icon: const Icon(Icons.edit, color: Colors.orange, size: 20),
-                onPressed: _isSaving ? null : () => _showActivityLevelDialog(),
-              ),
-            ],
-          ),
-          const SizedBox(height: 16),
           Container(
-            padding: const EdgeInsets.all(16),
+            padding: const EdgeInsets.all(8),
             decoration: BoxDecoration(
-              color: Colors.orange.withOpacity(0.1),
-              borderRadius: BorderRadius.circular(12),
+              color: (paceData['color'] as Color).withOpacity(0.1),
+              shape: BoxShape.circle,
             ),
-            child: Center(
-              child: Text(
-                _activityLevel,
-                style: const TextStyle(
-                  fontSize: 20,
-                  fontWeight: FontWeight.bold,
-                  color: Colors.orange,
+            child: Icon(
+              Icons.speed,
+              color: paceData['color'] as Color,
+              size: 24,
+            ),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  isLosingWeight ? 'Weight Loss Pace' : 'Weight Gain Pace',
+                  style: const TextStyle(
+                    fontSize: 14,
+                    fontWeight: FontWeight.w600,
+                    color: Colors.grey,
+                  ),
                 ),
-              ),
+                const SizedBox(height: 4),
+                Text(
+                  paceData['title'] as String,
+                  style: TextStyle(
+                    fontSize: 18,
+                    fontWeight: FontWeight.bold,
+                    color: paceData['color'] as Color,
+                  ),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  paceData['subtitle'] as String,
+                  style: TextStyle(fontSize: 12, color: Colors.grey[600]),
+                ),
+              ],
             ),
+          ),
+          IconButton(
+            icon: Icon(Icons.edit, color: paceData['color'] as Color, size: 20),
+            onPressed: _isSaving ? null : () => _showWeightPaceDialog(),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Map<String, dynamic> _getWeightPaceData(String pace, bool isLosingWeight) {
+    switch (pace) {
+      case 'relaxed':
+        return {
+          'title': 'Relaxed',
+          'subtitle': isLosingWeight ? 'Lose ½ kg a week' : 'Gain ½ kg a week',
+          'color': const Color(0xFF4CAF50),
+        };
+      case 'steady':
+        return {
+          'title': 'Steady',
+          'subtitle': isLosingWeight ? 'Lose ½ kg a week' : 'Gain ½ kg a week',
+          'color': Colors.blue,
+        };
+      case 'accelerated':
+        return {
+          'title': 'Accelerated',
+          'subtitle': isLosingWeight ? 'Lose ¾ kg a week' : 'Gain ¾ kg a week',
+          'color': Colors.orange,
+        };
+      case 'vigorous':
+        return {
+          'title': 'Vigorous',
+          'subtitle': isLosingWeight ? 'Lose 1 kg a week' : 'Gain 1 kg a week',
+          'color': Colors.red,
+        };
+      default:
+        return {
+          'title': 'Steady',
+          'subtitle': isLosingWeight ? 'Lose ½ kg a week' : 'Gain ½ kg a week',
+          'color': Colors.blue,
+        };
+    }
+  }
+
+  Widget _buildActivityLevelCard() {
+    return Container(
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: Colors.purple, width: 2),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.grey.withOpacity(0.2),
+            blurRadius: 8,
+            offset: const Offset(0, 2),
+          ),
+        ],
+      ),
+      child: Row(
+        children: [
+          Container(
+            padding: const EdgeInsets.all(8),
+            decoration: BoxDecoration(
+              color: Colors.purple.withOpacity(0.1),
+              shape: BoxShape.circle,
+            ),
+            child: const Icon(
+              Icons.directions_run,
+              color: Colors.purple,
+              size: 24,
+            ),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text(
+                  'Activity Level',
+                  style: TextStyle(
+                    fontSize: 14,
+                    fontWeight: FontWeight.w600,
+                    color: Colors.grey,
+                  ),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  _activityLevel,
+                  style: const TextStyle(
+                    fontSize: 18,
+                    fontWeight: FontWeight.bold,
+                    color: Colors.purple,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          IconButton(
+            icon: const Icon(Icons.edit, color: Colors.purple, size: 20),
+            onPressed: _isSaving ? null : () => _showActivityLevelDialog(),
           ),
         ],
       ),
@@ -1948,7 +2116,7 @@ class _ModifyGoalsScreenState extends State<ModifyGoalsScreen> {
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: Colors.blue, width: 2),
+        border: Border.all(color: Colors.teal, width: 2),
         boxShadow: [
           BoxShadow(
             color: Colors.grey.withOpacity(0.2),
@@ -1965,12 +2133,12 @@ class _ModifyGoalsScreenState extends State<ModifyGoalsScreen> {
               Container(
                 padding: const EdgeInsets.all(8),
                 decoration: BoxDecoration(
-                  color: Colors.blue.withOpacity(0.1),
+                  color: Colors.teal.withOpacity(0.1),
                   shape: BoxShape.circle,
                 ),
                 child: const Icon(
                   Icons.local_fire_department,
-                  color: Colors.blue,
+                  color: Colors.teal,
                   size: 24,
                 ),
               ),
@@ -1987,56 +2155,30 @@ class _ModifyGoalsScreenState extends State<ModifyGoalsScreen> {
           ),
           const SizedBox(height: 16),
           Container(
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 20),
             decoration: BoxDecoration(
-              color: Colors.blue.withOpacity(0.1),
+              color: Colors.teal.withOpacity(0.1),
               borderRadius: BorderRadius.circular(12),
             ),
             child: Center(
-              child: Text(
-                '${_dailyCalorieGoal.round()} kcal',
-                style: const TextStyle(
-                  fontSize: 28,
-                  fontWeight: FontWeight.bold,
-                  color: Colors.blue,
-                ),
+              child: Column(
+                children: [
+                  Text(
+                    '${_dailyCalorieGoal.round()} kcal',
+                    style: const TextStyle(
+                      fontSize: 32,
+                      fontWeight: FontWeight.bold,
+                      color: Colors.teal,
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    'Auto-calculated based on your pace',
+                    style: TextStyle(fontSize: 12, color: Colors.grey[600]),
+                  ),
+                ],
               ),
             ),
-          ),
-          const SizedBox(height: 20),
-          SliderTheme(
-            data: SliderTheme.of(context).copyWith(
-              activeTrackColor: Colors.blue,
-              inactiveTrackColor: Colors.blue.withOpacity(0.2),
-              thumbColor: Colors.blue,
-              overlayColor: Colors.blue.withOpacity(0.2),
-              thumbShape: const RoundSliderThumbShape(enabledThumbRadius: 14),
-              overlayShape: const RoundSliderOverlayShape(overlayRadius: 24),
-            ),
-            child: Slider(
-              value: _dailyCalorieGoal,
-              min: 1200,
-              max: 4000,
-              divisions: 280,
-              onChanged: _isSaving
-                  ? null
-                  : (value) {
-                      setState(() => _dailyCalorieGoal = value);
-                    },
-            ),
-          ),
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Text(
-                '1,200',
-                style: TextStyle(fontSize: 12, color: Colors.grey[600]),
-              ),
-              Text(
-                '4,000',
-                style: TextStyle(fontSize: 12, color: Colors.grey[600]),
-              ),
-            ],
           ),
         ],
       ),
@@ -2090,7 +2232,10 @@ class _ModifyGoalsScreenState extends State<ModifyGoalsScreen> {
             onPressed: () {
               final value = double.tryParse(_goalWeightController.text);
               if (value != null && value > 0) {
-                setState(() => _goalWeight = value);
+                setState(() {
+                  _goalWeight = value;
+                  _updateCalorieGoalFromPace();
+                });
                 Navigator.pop(context);
               }
             },
@@ -2103,6 +2248,222 @@ class _ModifyGoalsScreenState extends State<ModifyGoalsScreen> {
             child: const Text('Save', style: TextStyle(color: Colors.white)),
           ),
         ],
+      ),
+    );
+  }
+
+  // NEW: Show weight pace selection dialog
+  void _showWeightPaceDialog() {
+    final isLosingWeight = _currentWeight > _goalWeight;
+
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        backgroundColor: const Color(0xFFFFF5CF),
+        title: Row(
+          children: [
+            const Icon(Icons.speed, color: Colors.blue),
+            const SizedBox(width: 8),
+            Expanded(
+              child: Text(
+                isLosingWeight ? 'Weight Loss Pace' : 'Weight Gain Pace',
+                style: const TextStyle(
+                  fontWeight: FontWeight.bold,
+                  fontSize: 18,
+                ),
+              ),
+            ),
+          ],
+        ),
+        content: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              _buildPaceOption(
+                value: 'relaxed',
+                title: 'Relaxed',
+                subtitle: isLosingWeight
+                    ? 'Lose ½ kg per week'
+                    : 'Gain ½ kg per week',
+                description:
+                    '${isLosingWeight ? '-' : '+'}250 cal/day adjustment',
+                icon: Icons.spa,
+                color: const Color(0xFF4CAF50),
+                isRecommended: false,
+              ),
+              const SizedBox(height: 12),
+              _buildPaceOption(
+                value: 'steady',
+                title: 'Steady',
+                subtitle: isLosingWeight
+                    ? 'Lose ½ kg per week'
+                    : 'Gain ½ kg per week',
+                description:
+                    '${isLosingWeight ? '-' : '+'}500 cal/day adjustment',
+                icon: Icons.trending_up,
+                color: Colors.blue,
+                isRecommended: true,
+              ),
+              const SizedBox(height: 12),
+              _buildPaceOption(
+                value: 'accelerated',
+                title: 'Accelerated',
+                subtitle: isLosingWeight
+                    ? 'Lose ¾ kg per week'
+                    : 'Gain ¾ kg per week',
+                description:
+                    '${isLosingWeight ? '-' : '+'}750 cal/day adjustment',
+                icon: Icons.fast_forward,
+                color: Colors.orange,
+                isRecommended: false,
+              ),
+              const SizedBox(height: 12),
+              _buildPaceOption(
+                value: 'vigorous',
+                title: 'Vigorous',
+                subtitle: isLosingWeight
+                    ? 'Lose 1 kg per week'
+                    : 'Gain 1 kg per week',
+                description:
+                    '${isLosingWeight ? '-' : '+'}1000 cal/day adjustment',
+                icon: Icons.flash_on,
+                color: Colors.red,
+                isRecommended: false,
+                showWarning: true,
+              ),
+            ],
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Cancel', style: TextStyle(color: Colors.grey)),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildPaceOption({
+    required String value,
+    required String title,
+    required String subtitle,
+    required String description,
+    required IconData icon,
+    required Color color,
+    bool isRecommended = false,
+    bool showWarning = false,
+  }) {
+    final isSelected = _weightPace == value;
+
+    return InkWell(
+      onTap: () {
+        setState(() {
+          _weightPace = value;
+          _updateCalorieGoalFromPace();
+        });
+        Navigator.pop(context);
+      },
+      child: Container(
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          color: isSelected ? color.withOpacity(0.1) : Colors.white,
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(
+            color: isSelected ? color : Colors.grey[300]!,
+            width: isSelected ? 2 : 1,
+          ),
+        ),
+        child: Row(
+          children: [
+            Container(
+              padding: const EdgeInsets.all(8),
+              decoration: BoxDecoration(
+                color: color.withOpacity(0.1),
+                shape: BoxShape.circle,
+              ),
+              child: Icon(icon, color: color, size: 24),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      Text(
+                        title,
+                        style: TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.bold,
+                          color: isSelected ? color : Colors.black,
+                        ),
+                      ),
+                      if (isRecommended) ...[
+                        const SizedBox(width: 8),
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 8,
+                            vertical: 2,
+                          ),
+                          decoration: BoxDecoration(
+                            color: const Color(0xFF4CAF50),
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          child: const Text(
+                            'Recommended',
+                            style: TextStyle(
+                              fontSize: 10,
+                              fontWeight: FontWeight.bold,
+                              color: Colors.white,
+                            ),
+                          ),
+                        ),
+                      ],
+                      if (showWarning) ...[
+                        const SizedBox(width: 8),
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 8,
+                            vertical: 2,
+                          ),
+                          decoration: BoxDecoration(
+                            color: Colors.red,
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          child: const Text(
+                            'Not Recommended',
+                            style: TextStyle(
+                              fontSize: 10,
+                              fontWeight: FontWeight.bold,
+                              color: Colors.white,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ],
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    subtitle,
+                    style: TextStyle(
+                      fontSize: 13,
+                      color: Colors.grey[700],
+                      fontWeight: FontWeight.w500,
+                    ),
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    description,
+                    style: TextStyle(fontSize: 11, color: Colors.grey[600]),
+                  ),
+                ],
+              ),
+            ),
+            if (isSelected) Icon(Icons.check_circle, color: color, size: 24),
+          ],
+        ),
       ),
     );
   }
@@ -2122,7 +2483,7 @@ class _ModifyGoalsScreenState extends State<ModifyGoalsScreen> {
         backgroundColor: const Color(0xFFFFF5CF),
         title: const Row(
           children: [
-            Icon(Icons.directions_run, color: Colors.orange),
+            Icon(Icons.directions_run, color: Colors.purple),
             SizedBox(width: 8),
             Text(
               'Select Activity Level',
@@ -2137,10 +2498,13 @@ class _ModifyGoalsScreenState extends State<ModifyGoalsScreen> {
               title: Text(level),
               value: level,
               groupValue: _activityLevel,
-              activeColor: Colors.orange,
+              activeColor: Colors.purple,
               onChanged: (value) {
                 if (value != null) {
-                  setState(() => _activityLevel = value);
+                  setState(() {
+                    _activityLevel = value;
+                    _updateCalorieGoalFromPace();
+                  });
                   Navigator.pop(context);
                 }
               },
