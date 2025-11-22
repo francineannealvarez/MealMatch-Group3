@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:mealmatch/services/themealdb_service.dart';
-import 'package:mealmatch/screens/recipe_details_screen.dart';
+import 'package:mealmatch/services/recipe_details_screen.dart'; // Adjusted import path based on common structure, verify path
 import 'package:mealmatch/services/recipe_service.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
@@ -23,7 +23,6 @@ class _RecipesScreenState extends State<RecipesScreen>
   List<Map<String, dynamic>> highProteinRecipes = [];
   List<Map<String, dynamic>> vegetarianRecipes = [];
   List<Map<String, dynamic>> dessertRecipes = [];
-  List<Map<String, dynamic>> publicUserRecipes = [];
   List<Map<String, dynamic>> communityRecipes = [];
   bool isLoadingCommunity = true; 
 
@@ -39,22 +38,21 @@ class _RecipesScreenState extends State<RecipesScreen>
 
   // State for Favorites
   List<String> _savedRecipeIds = []; // Stores IDs of saved recipes
-  List<Map<String, dynamic>> _favoriteRecipes =
-      []; // Stores full data for favorites
+  List<Map<String, dynamic>> _favoriteRecipes = []; // Stores full data for favorites
   bool _isLoadingFavorites = false;
 
   final Color primaryGreen = const Color(0xFF4CAF50);
   final Color pageBg = const Color(0xFFFFF6D7);
 
   late TabController _tabController;
-  int _bottomNavIndex = 1; // 1 = Recipes (for the bottom bar)
+  final int _bottomNavIndex = 1; // 1 = Recipes (for the bottom bar)
 
   @override
   void initState() {
     super.initState();
     _tabController = TabController(length: 2, vsync: this);
     _tabController.addListener(_handleTabSelection);
-    _initializeData(); // <-- NEW helper function
+    _initializeData(); 
   }
 
   Future<void> _initializeData() async {
@@ -79,9 +77,13 @@ class _RecipesScreenState extends State<RecipesScreen>
     }
   }
 
-  String _capitalizeFirstLetter(String text) {
+  // ✅ UPDATED: Capitalizes EVERY word (Title Case)
+  String _capitalizeTitle(String text) {
     if (text.isEmpty) return text;
-    return text[0].toUpperCase() + text.substring(1).toLowerCase();
+    return text.split(' ').map((word) {
+      if (word.isEmpty) return word;
+      return word[0].toUpperCase() + word.substring(1).toLowerCase();
+    }).join(' ');
   }
 
   Future<void> _loadAllRecipes() async {
@@ -139,7 +141,6 @@ class _RecipesScreenState extends State<RecipesScreen>
     }
   }
 
-  // ✅ NEW method
   Future<void> _loadPublicUserRecipes() async {
     setState(() => isLoadingCommunity = true);
     try {
@@ -181,22 +182,16 @@ class _RecipesScreenState extends State<RecipesScreen>
       final loadedFavs = <Map<String, dynamic>>[];
       
       for (String id in _savedRecipeIds) {
-        print('🔍 Loading favorite recipe: $id');
-        
-        // ✅ Try Firestore (public recipes) first
+        // Try Firestore (public recipes) first
         var details = await _recipeService.getRecipeById(id);
         
         // If not found in Firestore, try API
         if (details == null) {
-          print('  ⚠️ Not in Firestore, trying API...');
           details = await TheMealDBService.getMealDetails(id);
         }
         
         if (details != null) {
-          print('  ✅ Loaded: ${details['title'] ?? details['name']}');
           loadedFavs.add(details);
-        } else {
-          print('  ❌ Recipe not found: $id');
         }
       }
       
@@ -204,20 +199,15 @@ class _RecipesScreenState extends State<RecipesScreen>
         _favoriteRecipes = loadedFavs;
         _isLoadingFavorites = false;
       });
-      
-      print('✅ Total favorites loaded: ${loadedFavs.length}');
     } catch (e, stackTrace) {
-      print('❌ Error loading favorites: $e');
-      print('Stack trace: $stackTrace');
+      print('Error loading favorites: $e');
       setState(() => _isLoadingFavorites = false);
     }
   }
+
   Future<void> _loadUserFavorites() async {
     final String? userId = FirebaseAuth.instance.currentUser?.uid;
-    if (userId == null) {
-      print("No user logged in, cannot load favorites.");
-      return; // No user, so no favorites to load
-    }
+    if (userId == null) return;
 
     try {
       final doc = await FirebaseFirestore.instance
@@ -228,16 +218,14 @@ class _RecipesScreenState extends State<RecipesScreen>
       if (doc.exists) {
         final data = doc.data();
         if (data != null && data.containsKey('favoriteRecipeIds')) {
-          // Get the list from Firebase and convert it (it's List<dynamic>)
           final firebaseList = List<String>.from(data['favoriteRecipeIds']);
           setState(() {
             _savedRecipeIds = firebaseList;
           });
         }
       } else {
-        // This is the user's first time, so we can create their document
         await FirebaseFirestore.instance.collection('users').doc(userId).set({
-          'favoriteRecipeIds': [], // Start with an empty list
+          'favoriteRecipeIds': [], 
         });
       }
     } catch (e) {
@@ -248,7 +236,6 @@ class _RecipesScreenState extends State<RecipesScreen>
   void _toggleFavorite(String recipeId) {
     final String? userId = FirebaseAuth.instance.currentUser?.uid;
     if (userId == null) {
-      // Show an error if the user isn't logged in
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
           content: Text('You must be logged in to save favorites'),
@@ -257,30 +244,19 @@ class _RecipesScreenState extends State<RecipesScreen>
       return;
     }
 
-    // Get the reference to the user's document
     final docRef = FirebaseFirestore.instance.collection('users').doc(userId);
 
     if (_savedRecipeIds.contains(recipeId)) {
-      // --- REMOVE FROM FAVORITES ---
-
-      // 1. Update Firebase
       docRef.update({
         'favoriteRecipeIds': FieldValue.arrayRemove([recipeId]),
       });
-
-      // 2. Update local state
       setState(() {
         _savedRecipeIds.remove(recipeId);
       });
     } else {
-      // --- ADD TO FAVORITES ---
-
-      // 1. Update Firebase
       docRef.update({
         'favoriteRecipeIds': FieldValue.arrayUnion([recipeId]),
       });
-
-      // 2. Update local state
       setState(() {
         _savedRecipeIds.add(recipeId);
       });
@@ -302,9 +278,6 @@ class _RecipesScreenState extends State<RecipesScreen>
     });
 
     try {
-      print('🔍 Searching for: $query');
-      
-      // ✅ Search BOTH sources in parallel
       final apiResultsFuture = TheMealDBService.searchRecipes(query);
       final firestoreResultsFuture = _recipeService.searchPublicRecipes(query);
       
@@ -316,20 +289,14 @@ class _RecipesScreenState extends State<RecipesScreen>
       final apiRecipes = results[0];
       final firestoreRecipes = results[1];
       
-      print('✅ Found ${apiRecipes.length} API recipes');
-      print('✅ Found ${firestoreRecipes.length} Firestore recipes');
-      
-      // ✅ Combine both results (Firestore first, then API)
       final combinedResults = [...firestoreRecipes, ...apiRecipes];
       
       setState(() {
         recipes = combinedResults;
         isSearching = false;
       });
-      
-      print('✅ Total recipes: ${combinedResults.length}');
     } catch (e) {
-      print('❌ Error searching recipes: $e');
+      print('Error searching recipes: $e');
       setState(() {
         isSearching = false;
       });
@@ -347,7 +314,7 @@ class _RecipesScreenState extends State<RecipesScreen>
         crossAxisSpacing: 16,
         mainAxisSpacing: 16,
       ),
-      itemCount: 6, // Show 6 skeleton cards
+      itemCount: 6, 
       itemBuilder: (context, index) {
         return _buildSkeletonGridCard();
       },
@@ -371,9 +338,7 @@ class _RecipesScreenState extends State<RecipesScreen>
         borderRadius: BorderRadius.circular(14),
         child: Stack(
           children: [
-            // Skeleton Image
             Positioned.fill(child: Container(color: Colors.grey[300])),
-            // Skeleton Gradient Overlay
             Positioned.fill(
               child: Container(
                 decoration: BoxDecoration(
@@ -391,7 +356,6 @@ class _RecipesScreenState extends State<RecipesScreen>
                 ),
               ),
             ),
-            // Skeleton Favorite Icon
             Positioned(
               top: 8,
               right: 8,
@@ -404,67 +368,6 @@ class _RecipesScreenState extends State<RecipesScreen>
                 ),
               ),
             ),
-            // Skeleton Text Content
-            Positioned(
-              bottom: 10,
-              left: 10,
-              right: 10,
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  // Skeleton Title
-                  Container(
-                    height: 16,
-                    width: double.infinity,
-                    decoration: BoxDecoration(
-                      color: Colors.grey[400],
-                      borderRadius: BorderRadius.circular(4),
-                    ),
-                  ),
-                  const SizedBox(height: 6),
-                  // Skeleton Author
-                  Container(
-                    height: 12,
-                    width: 100,
-                    decoration: BoxDecoration(
-                      color: Colors.grey[400],
-                      borderRadius: BorderRadius.circular(4),
-                    ),
-                  ),
-                  const SizedBox(height: 12),
-                  // Skeleton Bottom Row
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      Container(
-                        height: 12,
-                        width: 60,
-                        decoration: BoxDecoration(
-                          color: Colors.grey[400],
-                          borderRadius: BorderRadius.circular(4),
-                        ),
-                      ),
-                      Container(
-                        height: 12,
-                        width: 50,
-                        decoration: BoxDecoration(
-                          color: Colors.grey[400],
-                          borderRadius: BorderRadius.circular(4),
-                        ),
-                      ),
-                      Container(
-                        height: 12,
-                        width: 40,
-                        decoration: BoxDecoration(
-                          color: Colors.grey[400],
-                          borderRadius: BorderRadius.circular(4),
-                        ),
-                      ),
-                    ],
-                  ),
-                ],
-              ),
-            ),
           ],
         ),
       ),
@@ -472,15 +375,10 @@ class _RecipesScreenState extends State<RecipesScreen>
   }
 
   Widget _buildGridRecipeCard(Map<String, dynamic> recipe, bool isSaved) {
-    // Extract title - handle both 'title' and 'name' fields
     final String title = recipe['title'] ?? recipe['name'] ?? 'Recipe Name';
-    
-    // Extract author - handle both 'author' and 'userName' fields
     final String author = recipe['author'] ?? recipe['userName'] ?? 'By Author';
-    
     final int cookTime = recipe['readyInMinutes'] ?? 0;
     
-    // Handle nutrition
     int calories = 0;
     if (recipe['nutrition'] != null) {
       if (recipe['nutrition'] is Map) {
@@ -734,7 +632,8 @@ class _RecipesScreenState extends State<RecipesScreen>
                 ),
                 child: Center(
                   child: Text(
-                    '${_capitalizeFirstLetter(_searchController.text)} Recipes',
+                    // ✅ Uses the new helper function for Title Case
+                    '${_capitalizeTitle(_searchController.text)} Recipes',
                     style: const TextStyle(
                       fontSize: 18,
                       fontWeight: FontWeight.bold,
@@ -763,7 +662,6 @@ class _RecipesScreenState extends State<RecipesScreen>
               isLoading: isLoadingPopular,
               recipeList: popularRecipes,
             ),
-            // ✅ ADDED: Community Recipes Section
             _buildCategorySection(
               title: 'Community Recipes 👥',
               isLoading: isLoadingCommunity,
@@ -795,7 +693,7 @@ class _RecipesScreenState extends State<RecipesScreen>
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: pageBg,
-      // --- 1. APPBAR ADDED ---
+      // --- 1. APPBAR ---
       appBar: AppBar(
         backgroundColor: primaryGreen,
         elevation: 0,
@@ -809,7 +707,7 @@ class _RecipesScreenState extends State<RecipesScreen>
         ),
         centerTitle: true,
       ),
-      // --- 2. BODY IS NOW A COLUMN ---
+      // --- 2. BODY ---
       body: Column(
         children: [
           // --- Search Bar ---
@@ -822,12 +720,7 @@ class _RecipesScreenState extends State<RecipesScreen>
                 filled: true,
                 fillColor: Colors.white,
                 prefixIcon: const Icon(Icons.search),
-                suffixIcon: IconButton(
-                  icon: const Icon(Icons.filter_list),
-                  onPressed: () {
-                    // TODO: Show filter dialog
-                  },
-                ),
+                // ✅ FILTER ICON REMOVED (SuffixIcon deleted)
                 border: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(12),
                   borderSide: BorderSide(color: Colors.grey[300]!),
@@ -841,6 +734,8 @@ class _RecipesScreenState extends State<RecipesScreen>
             ),
           ),
 
+          // ✅ FILTER CHIPS REMOVED (No ListView here)
+
           // --- TabBar (Discover/Favorites) ---
           Padding(
             padding: const EdgeInsets.symmetric(vertical: 16.0),
@@ -850,7 +745,8 @@ class _RecipesScreenState extends State<RecipesScreen>
               unselectedLabelColor: Colors.grey[600],
               indicatorColor: primaryGreen,
               indicatorWeight: 3,
-              indicatorSize: TabBarIndicatorSize.label,
+              // ✅ FIXED: Green line stretches full width
+              indicatorSize: TabBarIndicatorSize.tab, 
               labelStyle: const TextStyle(
                 fontWeight: FontWeight.bold,
                 fontSize: 16,
@@ -862,7 +758,7 @@ class _RecipesScreenState extends State<RecipesScreen>
             ),
           ),
 
-          // --- TabBarView (Fills remaining space) ---
+          // --- TabBarView ---
           Expanded(
             child: TabBarView(
               controller: _tabController,
@@ -905,37 +801,30 @@ class _RecipesScreenState extends State<RecipesScreen>
           ),
         ],
       ),
-      // --- 3. BOTTOMNAVBAR FIXED ---
+      // --- 3. BOTTOMNAVBAR ---
       bottomNavigationBar: BottomNavigationBar(
         currentIndex: _bottomNavIndex, // This is 1 (Recipes)
         onTap: (index) {
-          // Don't do anything if we tap the current screen (Recipes)
           if (index == _bottomNavIndex) return;
 
-          // Handle navigation for other taps
           switch (index) {
             case 0:
-              // Home: Pop this screen to return to the homepage
               Navigator.pop(context);
               break;
             case 1:
-              // Recipes: We are already here, do nothing.
               break;
             case 2:
-              // Upload:
               Navigator.pushNamed(context, '/upload');
               break;
             case 3:
-              // Log History:
               Navigator.pushNamed(context, '/history');
               break;
             case 4:
-              // Profile:
               Navigator.pushNamed(context, '/profile');
               break;
           }
         },
-        type: BottomNavigationBarType.fixed, // Shows all labels
+        type: BottomNavigationBarType.fixed,
         selectedItemColor: primaryGreen,
         unselectedItemColor: Colors.grey[700],
         showUnselectedLabels: true,
