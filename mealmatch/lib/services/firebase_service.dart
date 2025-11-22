@@ -7,7 +7,7 @@ class FirebaseService {
   final FirebaseAuth _auth = FirebaseAuth.instance;
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
 
-// ✅ MAIN: Sign in with email & password (with deletion check)
+  // ✅ MAIN: Sign in with email & password (with deletion check)
   Future<Map<String, dynamic>> signInUser({
     required String email,
     required String password,
@@ -36,7 +36,8 @@ class FirebaseService {
 
           return {
             'success': false,
-            'message': 'Your account has been permanently deleted. Please create a new account to continue.',
+            'message':
+                'Your account has been permanently deleted. Please create a new account to continue.',
             'accountDeleted': true,
           };
         }
@@ -44,7 +45,8 @@ class FirebaseService {
         // If still within grace period, inform user
         return {
           'success': false,
-          'message': 'Your account is scheduled for deletion in $daysRemaining days. Cancel the deletion to continue.',
+          'message':
+              'Your account is scheduled for deletion in $daysRemaining days. Cancel the deletion to continue.',
           'scheduledForDeletion': true,
           'daysRemaining': daysRemaining,
           'deletionDate': deletionStatus['deletionDate'],
@@ -55,11 +57,7 @@ class FirebaseService {
       _batchDeleteExpiredAccounts();
 
       // Step 4: Normal sign in success
-      return {
-        'success': true,
-        'message': 'Sign in successful',
-        'user': user,
-      };
+      return {'success': true, 'message': 'Sign in successful', 'user': user};
     } on FirebaseAuthException catch (e) {
       if (e.code == 'user-not-found') {
         return {'success': false, 'message': 'No user found with this email'};
@@ -96,7 +94,9 @@ class FirebaseService {
         return;
       }
 
-      print('🗑️ Found ${expiredAccounts.docs.length} expired accounts to delete');
+      print(
+        '🗑️ Found ${expiredAccounts.docs.length} expired accounts to delete',
+      );
 
       for (var doc in expiredAccounts.docs) {
         try {
@@ -145,7 +145,9 @@ class FirebaseService {
           }
 
           if (snapshot.docs.isNotEmpty) {
-            print('✅ Deleted ${snapshot.docs.length} documents from users/$userId/$subcollectionName');
+            print(
+              '✅ Deleted ${snapshot.docs.length} documents from users/$userId/$subcollectionName',
+            );
           }
         } catch (e) {
           print('❌ Error deleting subcollection $subcollectionName: $e');
@@ -154,9 +156,12 @@ class FirebaseService {
 
       // Delete meal_logs subcollection (your main data)
       await deleteSubcollection('meal_logs');
-      
-      // Add more subcollections here if you create them in the future:
-      
+
+      // Delete weight_history subcollection
+      await deleteSubcollection('weight_history');
+
+      // Add more subcollections here if you create them in the future
+
       // Commit any remaining operations
       if (operationCount > 0) {
         await batch.commit();
@@ -168,7 +173,7 @@ class FirebaseService {
     }
   }
 
-  // Create user with email & password
+  // ✅ UPDATED: Create user with email & password (now includes weightPace)
   Future<bool> saveUserProfile({
     required String name,
     String? avatar,
@@ -182,20 +187,27 @@ class FirebaseService {
   }) async {
     try {
       final user = _auth.currentUser;
-      
+
       if (user == null) {
         print('❌ No authenticated user found');
         return false;
       }
 
-      // Calculate daily calorie goal
-      int dailyCalorieGoal = _calculateDailyCalorieGoal(
+      // Determine default weight pace based on goals
+      String defaultWeightPace = _determineDefaultWeightPace(
+        weight,
+        goalWeight,
+      );
+
+      // Calculate daily calorie goal with weight pace
+      int dailyCalorieGoal = _calculateDailyCalorieGoalWithPace(
         gender: gender,
         age: age,
         height: height,
         weight: weight,
         activityLevel: activityLevel,
         goals: goals,
+        weightPace: defaultWeightPace,
       );
 
       // Prepare user data
@@ -210,6 +222,7 @@ class FirebaseService {
         'weight': weight,
         'goalWeight': goalWeight,
         'dailyCalorieGoal': dailyCalorieGoal,
+        'weightPace': defaultWeightPace, // ✅ NEW: Add weight pace
         'createdAt': FieldValue.serverTimestamp(),
       };
 
@@ -220,7 +233,9 @@ class FirebaseService {
       // Save to Firestore
       await _firestore.collection('users').doc(user.uid).set(userData);
 
-      print('✅ User profile saved successfully');
+      print(
+        '✅ User profile saved successfully with weight pace: $defaultWeightPace',
+      );
       return true;
     } catch (e) {
       print('❌ saveUserProfile error: $e');
@@ -228,7 +243,7 @@ class FirebaseService {
     }
   }
 
-  // Save user data (for Google sign-ins) with avatar
+  // ✅ UPDATED: Save user data (for Google sign-ins) with weight pace
   Future<void> saveUserData({
     required String email,
     required String name,
@@ -244,17 +259,21 @@ class FirebaseService {
     final user = _auth.currentUser;
     if (user == null) return;
 
-    // Calculate daily calorie goal automatically
-    int dailyCalorieGoal = _calculateDailyCalorieGoal(
+    // Determine default weight pace based on goals
+    String defaultWeightPace = _determineDefaultWeightPace(weight, goalWeight);
+
+    // Calculate daily calorie goal with weight pace
+    int dailyCalorieGoal = _calculateDailyCalorieGoalWithPace(
       gender: gender,
       age: age,
       height: height,
       weight: weight,
       activityLevel: activityLevel,
       goals: goals,
+      weightPace: defaultWeightPace,
     );
 
-    // Prepare user data with avatar
+    // Prepare user data with avatar and weight pace
     Map<String, dynamic> userData = {
       'email': email,
       'name': name,
@@ -266,6 +285,7 @@ class FirebaseService {
       'weight': weight,
       'goalWeight': goalWeight,
       'dailyCalorieGoal': dailyCalorieGoal,
+      'weightPace': defaultWeightPace, // ✅ NEW: Add weight pace
       'createdAt': FieldValue.serverTimestamp(),
     };
 
@@ -277,6 +297,10 @@ class FirebaseService {
         .collection('users')
         .doc(user.uid)
         .set(userData, SetOptions(merge: true));
+
+    print(
+      '✅ User data saved successfully with weight pace: $defaultWeightPace',
+    );
   }
 
   // ✅ NEW: Change user password
@@ -344,7 +368,7 @@ class FirebaseService {
     }
   }
 
-  // ✅ NEW: Sign out user
+  // ✅ Sign out user
   Future<void> signOut() async {
     try {
       await _auth.signOut();
@@ -353,12 +377,12 @@ class FirebaseService {
     }
   }
 
-  // ✅ NEW: Get current user
+  // ✅ Get current user
   User? getCurrentUser() {
     return _auth.currentUser;
   }
 
-  // ✅ NEW: Get user's daily calorie goal
+  // ✅ Get user's daily calorie goal
   Future<int?> getUserCalorieGoal() async {
     try {
       final user = _auth.currentUser;
@@ -376,7 +400,7 @@ class FirebaseService {
     }
   }
 
-  // ✅ NEW: Get complete user data
+  // ✅ Get complete user data
   Future<Map<String, dynamic>?> getUserData() async {
     try {
       final user = _auth.currentUser;
@@ -394,7 +418,7 @@ class FirebaseService {
     }
   }
 
-  // ✅ NEW: Update user weight (recalculates calorie goal)
+  // ✅ UPDATED: Update user weight (recalculates calorie goal with pace)
   Future<void> updateUserWeight(double newWeight) async {
     try {
       final user = _auth.currentUser;
@@ -403,14 +427,18 @@ class FirebaseService {
       final userData = await getUserData();
       if (userData == null) return;
 
-      // Recalculate calorie goal with new weight
-      int newCalorieGoal = _calculateDailyCalorieGoal(
+      // Get weight pace or default to 'steady'
+      String weightPace = userData['weightPace'] ?? 'steady';
+
+      // Recalculate calorie goal with new weight and existing pace
+      int newCalorieGoal = _calculateDailyCalorieGoalWithPace(
         gender: userData['gender'],
         age: userData['age'],
         height: userData['height'],
         weight: newWeight,
         activityLevel: userData['activityLevel'],
         goals: List<String>.from(userData['goals']),
+        weightPace: weightPace,
       );
 
       await _firestore.collection('users').doc(user.uid).update({
@@ -423,7 +451,7 @@ class FirebaseService {
     }
   }
 
-  // ✅ NEW: Update activity level (recalculates calorie goal)
+  // ✅ UPDATED: Update activity level (recalculates calorie goal with pace)
   Future<void> updateActivityLevel(String newActivityLevel) async {
     try {
       final user = _auth.currentUser;
@@ -432,13 +460,17 @@ class FirebaseService {
       final userData = await getUserData();
       if (userData == null) return;
 
-      int newCalorieGoal = _calculateDailyCalorieGoal(
+      // Get weight pace or default to 'steady'
+      String weightPace = userData['weightPace'] ?? 'steady';
+
+      int newCalorieGoal = _calculateDailyCalorieGoalWithPace(
         gender: userData['gender'],
         age: userData['age'],
         height: userData['height'],
         weight: userData['weight'],
         activityLevel: newActivityLevel,
         goals: List<String>.from(userData['goals']),
+        weightPace: weightPace,
       );
 
       await _firestore.collection('users').doc(user.uid).update({
@@ -451,7 +483,105 @@ class FirebaseService {
     }
   }
 
-  // ✅ NEW: Calculate BMR using Mifflin-St Jeor Equation
+  // ✅ NEW: Determine default weight pace based on current vs goal weight
+  String _determineDefaultWeightPace(double currentWeight, double goalWeight) {
+    // If trying to lose or gain weight, default to 'steady' (recommended)
+    // If maintaining weight, still default to 'steady'
+    return 'steady';
+  }
+
+  // ✅ NEW: Get calorie adjustment based on weight pace
+  int _getCalorieAdjustmentForPace(String weightPace, bool isLosingWeight) {
+    switch (weightPace.toLowerCase()) {
+      case 'relaxed':
+        return isLosingWeight ? -250 : 250; // 0.5 kg/week
+      case 'steady':
+        return isLosingWeight ? -500 : 500; // 0.5 kg/week
+      case 'accelerated':
+        return isLosingWeight ? -750 : 750; // 0.75 kg/week
+      case 'vigorous':
+        return isLosingWeight ? -1000 : 1000; // 1 kg/week
+      default:
+        return isLosingWeight ? -500 : 500;
+    }
+  }
+
+  // ✅ NEW: Calculate daily calorie goal with weight pace consideration
+  int _calculateDailyCalorieGoalWithPace({
+    required String gender,
+    required int age,
+    required double height,
+    required double weight,
+    required String activityLevel,
+    required List<String> goals,
+    required String weightPace,
+  }) {
+    // Calculate TDEE (maintenance calories)
+    double tdee = _calculateTDEE(
+      gender: gender,
+      age: age,
+      height: height,
+      weight: weight,
+      activityLevel: activityLevel,
+    );
+
+    // Determine if user wants to lose or gain weight
+    bool hasLoseWeight = goals.any(
+      (g) =>
+          g.toLowerCase().contains('lose') ||
+          g.toLowerCase().contains('weight loss'),
+    );
+    bool hasGainWeight = goals.any(
+      (g) =>
+          g.toLowerCase().contains('gain') ||
+          g.toLowerCase().contains('muscle'),
+    );
+
+    // Apply calorie adjustment based on weight pace
+    int targetCalories;
+    if (hasLoseWeight) {
+      int adjustment = _getCalorieAdjustmentForPace(weightPace, true);
+      targetCalories = (tdee + adjustment).round();
+    } else if (hasGainWeight) {
+      int adjustment = _getCalorieAdjustmentForPace(weightPace, false);
+      targetCalories = (tdee + adjustment).round();
+    } else {
+      // Maintain weight - use TDEE
+      targetCalories = tdee.round();
+    }
+
+    // Apply safety limits
+    if (gender.toLowerCase() == 'male') {
+      targetCalories = targetCalories.clamp(1500, 4000);
+    } else {
+      targetCalories = targetCalories.clamp(1200, 4000);
+    }
+
+    return targetCalories;
+  }
+
+  // Keep existing _calculateDailyCalorieGoal for backward compatibility
+  int _calculateDailyCalorieGoal({
+    required String gender,
+    required int age,
+    required double height,
+    required double weight,
+    required String activityLevel,
+    required List<String> goals,
+  }) {
+    // Default to 'steady' pace if not specified
+    return _calculateDailyCalorieGoalWithPace(
+      gender: gender,
+      age: age,
+      height: height,
+      weight: weight,
+      activityLevel: activityLevel,
+      goals: goals,
+      weightPace: 'steady',
+    );
+  }
+
+  // ✅ Calculate BMR using Mifflin-St Jeor Equation
   double _calculateBMR({
     required String gender,
     required int age,
@@ -469,7 +599,7 @@ class FirebaseService {
     }
   }
 
-  // ✅ NEW: Get activity multiplier
+  // ✅ Get activity multiplier
   double _getActivityMultiplier(String activityLevel) {
     switch (activityLevel.toLowerCase()) {
       case 'sedentary':
@@ -485,7 +615,7 @@ class FirebaseService {
     }
   }
 
-  // ✅ NEW: Calculate TDEE (Total Daily Energy Expenditure)
+  // ✅ Calculate TDEE (Total Daily Energy Expenditure)
   double _calculateTDEE({
     required String gender,
     required int age,
@@ -505,54 +635,13 @@ class FirebaseService {
     return bmr * activityMultiplier;
   }
 
-  // ✅ NEW: Calculate daily calorie goal based on user's goals
-  int _calculateDailyCalorieGoal({
-    required String gender,
-    required int age,
-    required double height,
-    required double weight,
-    required String activityLevel,
-    required List<String> goals,
-  }) {
-    double tdee = _calculateTDEE(
-      gender: gender,
-      age: age,
-      height: height,
-      weight: weight,
-      activityLevel: activityLevel,
-    );
-
-    // Adjust based on goals
-    bool hasLoseWeight = goals.any(
-      (g) =>
-          g.toLowerCase().contains('lose') ||
-          g.toLowerCase().contains('weight loss'),
-    );
-    bool hasGainWeight = goals.any(
-      (g) =>
-          g.toLowerCase().contains('gain') ||
-          g.toLowerCase().contains('muscle'),
-    );
-
-    if (hasLoseWeight) {
-      // Create 500 calorie deficit for weight loss (~0.5 kg per week)
-      return (tdee - 500).round();
-    } else if (hasGainWeight) {
-      // Create 300-500 calorie surplus for weight gain
-      return (tdee + 400).round();
-    } else {
-      // Maintain weight
-      return tdee.round();
-    }
-  }
-
-  // ✅ NEW: Calculate BMI
+  // ✅ Calculate BMI
   double calculateBMI(double weight, double height) {
     double heightInMeters = height / 100;
     return weight / (heightInMeters * heightInMeters);
   }
 
-  // ✅ NEW: Get BMI category
+  // ✅ Get BMI category
   String getBMICategory(double bmi) {
     if (bmi < 18.5) return 'Underweight';
     if (bmi < 25) return 'Normal';
@@ -675,15 +764,13 @@ class FirebaseService {
 
       print('✅ Permanently deleted account and all data for: $uid');
 
-      return {
-        'success': true,
-        'message': 'Account permanently deleted',
-      };
+      return {'success': true, 'message': 'Account permanently deleted'};
     } on FirebaseAuthException catch (e) {
       if (e.code == 'requires-recent-login') {
         return {
           'success': false,
-          'message': 'For security reasons, please log in again before deleting your account',
+          'message':
+              'For security reasons, please log in again before deleting your account',
           'requiresReauth': true,
         };
       }
@@ -694,10 +781,7 @@ class FirebaseService {
       };
     } catch (e) {
       print('❌ permanentlyDeleteAccount error: $e');
-      return {
-        'success': false,
-        'message': 'Failed to delete account: $e',
-      };
+      return {'success': false, 'message': 'Failed to delete account: $e'};
     }
   }
 }
