@@ -1,10 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
-import 'package:image_picker/image_picker.dart';
+import 'package:image_picker/image_picker.dart'; 
 import 'dart:io';
 import 'dart:math' as math;
 import '../models/user_recipe.dart';
-import '../services/firebase_service.dart';
+import '../services/recipe_service.dart';
 
 class UploadRecipeScreen extends StatefulWidget {
   const UploadRecipeScreen({super.key});
@@ -14,7 +14,7 @@ class UploadRecipeScreen extends StatefulWidget {
 }
 
 class _UploadRecipeScreenState extends State<UploadRecipeScreen> {
-  final FirebaseService _firebaseService = FirebaseService();
+  final RecipeService _recipeService = RecipeService();
   final TextEditingController _recipeNameController = TextEditingController();
   final TextEditingController _servingsController = TextEditingController(text: '4');
 
@@ -397,25 +397,24 @@ class _UploadRecipeScreenState extends State<UploadRecipeScreen> {
 
   // --- SAVE TO FIREBASE LOGIC ---
   Future<void> _uploadRecipe() async {
-    // Validation
     if (_recipeNameController.text.trim().isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Please enter recipe name')),
-      );
+      _showErrorSnackBar('Please enter recipe name');
       return;
     }
 
     if (ingredients.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Please add at least one ingredient')),
-      );
+      _showErrorSnackBar('Please add at least one ingredient');
       return;
     }
 
     if (instructions.any((step) => step.text.trim().isEmpty)) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Please fill in all instruction steps')),
-      );
+      _showErrorSnackBar('Please fill in all instruction steps');
+      return;
+    }
+
+    final servings = int.tryParse(_servingsController.text);
+    if (servings == null || servings < 1) {
+      _showErrorSnackBar('Please enter a valid number of servings');
       return;
     }
 
@@ -429,13 +428,15 @@ class _UploadRecipeScreenState extends State<UploadRecipeScreen> {
         throw Exception('User not logged in');
       }
 
-      // Prepare model
+      String prepTimeMinutes = _timeStringToMinutesString(prepTime);
+      String cookTimeMinutes = _timeStringToMinutesString(cookTime);
+
       final newRecipe = UserRecipe(
         userId: user.uid,
         name: _recipeNameController.text.trim(),
-        servings: int.tryParse(_servingsController.text) ?? 1,
-        prepTime: prepTime,
-        cookTime: cookTime,
+        servings: servings,
+        prepTime: prepTimeMinutes.toString(),
+        cookTime: cookTimeMinutes.toString(),
         ingredients: ingredients,
         instructions: instructions
             .map((step) => InstructionStepModel(
@@ -445,43 +446,25 @@ class _UploadRecipeScreenState extends State<UploadRecipeScreen> {
                 ))
             .toList(),
         nutrients: nutrients,
-        localImagePath: _selectedImage?.path, // Added this
+        localImagePath: _selectedImage?.path,
         createdAt: DateTime.now(),
       );
 
-      // Call Service
-      await _firebaseService.saveUserRecipe(newRecipe.toMap());
+      final result = await _recipeService.saveUserRecipe(newRecipe);
 
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Recipe uploaded successfully!'),
-            backgroundColor: Color(0xFF8BC34A),
-          ),
-        );
-        
-        // Reset Form
-        _recipeNameController.clear();
-        _servingsController.text = '4';
-        setState(() {
-          prepTime = '00:00';
-          cookTime = '00:00';
-          ingredients = [];
-          instructions = [InstructionStep(stepNumber: 1, text: '', timer: null)];
-          nutrients.updateAll((key, value) => 0);
-          _selectedImage = null;
-        });
-        
-        Navigator.pop(context); // Go back
+        if (result['success'] == true) {
+          _showSuccessSnackBar(result['message'] ?? 'Recipe uploaded successfully!');
+          _resetForm();
+          Navigator.pop(context, true);
+        } else {
+          _showErrorSnackBar(result['message'] ?? 'Failed to upload recipe');
+        }
       }
     } catch (e) {
+      print('❌ Upload error: $e');
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Error uploading recipe: $e'),
-            backgroundColor: Colors.red,
-          ),
-        );
+        _showErrorSnackBar('An unexpected error occurred. Please try again.');
       }
     } finally {
       if (mounted) {
@@ -491,6 +474,55 @@ class _UploadRecipeScreenState extends State<UploadRecipeScreen> {
       }
     }
   }
+
+  String _timeStringToMinutesString(String timeString) {
+    try {
+      if (timeString.isEmpty || timeString == '00:00') return '0';
+      
+      final parts = timeString.split(':');
+      if (parts.length != 2) return '0';
+      
+      final minutes = int.tryParse(parts[0]) ?? 0;
+      return minutes.toString();
+    } catch (e) {
+      print('❌ Error parsing time: $e');
+      return '0';
+    }
+  }
+
+  void _resetForm() {
+    _recipeNameController.clear();
+    _servingsController.text = '4';
+    setState(() {
+      prepTime = '00:00';
+      cookTime = '00:00';
+      ingredients = [];
+      instructions = [InstructionStep(stepNumber: 1, text: '', timer: null)];
+      nutrients.updateAll((key, value) => 0);
+      _selectedImage = null;
+    });
+  }
+
+  void _showErrorSnackBar(String message) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(message),
+        backgroundColor: Colors.red,
+        behavior: SnackBarBehavior.floating,
+      ),
+    );
+  }
+
+  void _showSuccessSnackBar(String message) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(message),
+        backgroundColor: const Color(0xFF8BC34A),
+        behavior: SnackBarBehavior.floating,
+      ),
+    );
+  }
+  
 
   @override
   Widget build(BuildContext context) {
@@ -818,7 +850,7 @@ class _UploadRecipeScreenState extends State<UploadRecipeScreen> {
                           child: CustomPaint(
                             painter: NutritionChartPainter(
                               protein: nutrients['Protein'] ?? 0,
-                              carbs: nutrients['Carbs'] ?? 0,
+                              carbs: nutrients['Carbs'] ? 0,
                               fat: nutrients['Fat'] ?? 0,
                               fiber: nutrients['Fiber'] ?? 0,
                               sugar: nutrients['Sugar'] ?? 0,
@@ -968,23 +1000,15 @@ class NutritionChartPainter extends CustomPainter {
   final double fiber;
   final double sugar;
   final double sodium;
-
-  NutritionChartPainter({
-    required this.protein,
-    required this.carbs,
-    required this.fat,
-    required this.fiber,
-    required this.sugar,
-    required this.sodium,
-  });
+  
+  NutritionChartPainter(
+      {required this.protein, required this.carbs, required this.fat, required this.fiber, required this.sugar, required this.sodium});
 
   @override
   void paint(Canvas canvas, Size size) {
     final center = Offset(size.width / 2, size.height / 2);
     final radius = size.width / 2;
-    
-    // Calculate total including new nutrients
-    final total = protein + carbs + fat + fiber + sugar + sodium;
+    final total = protein + carbs + fat;
 
     if (total == 0) {
       final paint = Paint()
@@ -1005,32 +1029,25 @@ class NutritionChartPainter extends CustomPainter {
           ..style = PaintingStyle.stroke
           ..strokeWidth = 20
           ..strokeCap = StrokeCap.round;
-        
-        canvas.drawArc(
-          Rect.fromCircle(center: center, radius: radius - 10),
-          startAngle,
-          sweepAngle,
-          false,
-          paint,
-        );
+        canvas.drawArc(Rect.fromCircle(center: center, radius: radius - 10),
+            startAngle, sweepAngle, false, paint);
         startAngle += sweepAngle;
       }
     }
 
-    // Draw all sections matching your nutrientColors map
-    drawSection(protein, const Color(0xFFFDD835)); // Protein
-    drawSection(carbs, const Color(0xFFFF9800));   // Carbs
-    drawSection(fat, const Color(0xFFEF5350));     // Fat
-    drawSection(fiber, const Color(0xFF8BC34A));   // Fiber
-    drawSection(sugar, const Color(0xFF42A5F5));   // Sugar
-    drawSection(sodium, const Color(0xFF9C27B0));  // Sodium
+    drawSection(protein, const Color(0xFFFDD835));
+    drawSection(carbs, const Color(0xFFFF9800));
+    drawSection(fat, const Color(0xFFEF5350));
+    drawSection(fiber, const Color(0xFF8BC34A));   
+    drawSection(sugar, const Color(0xFF42A5F5));  
+    drawSection(sodium, const Color(0xFF9C27B0));
   }
 
   @override
   bool shouldRepaint(NutritionChartPainter oldDelegate) {
     return oldDelegate.protein != protein ||
         oldDelegate.carbs != carbs ||
-        oldDelegate.fat != fat ||
+        oldDelegate.fat != fat;
         oldDelegate.fiber != fiber ||
         oldDelegate.sugar != sugar ||
         oldDelegate.sodium != sodium;
