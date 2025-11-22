@@ -24,6 +24,8 @@ class _RecipesScreenState extends State<RecipesScreen>
   List<Map<String, dynamic>> vegetarianRecipes = [];
   List<Map<String, dynamic>> dessertRecipes = [];
   List<Map<String, dynamic>> publicUserRecipes = [];
+  List<Map<String, dynamic>> communityRecipes = [];
+  bool isLoadingCommunity = true; 
 
   // Loading states for each category
   bool isLoadingPopular = true;
@@ -139,16 +141,16 @@ class _RecipesScreenState extends State<RecipesScreen>
 
   // ✅ NEW method
   Future<void> _loadPublicUserRecipes() async {
-    setState(() => isLoadingPublic = true);
+    setState(() => isLoadingCommunity = true);
     try {
       final userRecipes = await _recipeService.getPublicRecipes(limit: 6);
       setState(() {
-        publicUserRecipes = userRecipes;
-        isLoadingPublic = false;
+        communityRecipes = userRecipes;
+        isLoadingCommunity = false;
       });
     } catch (e) {
-      print('Error loading user recipes: $e');
-      setState(() => isLoadingPublic = false);
+      print('Error loading community recipes: $e');
+      setState(() => isLoadingCommunity = false);
     }
   }
 
@@ -283,13 +285,34 @@ class _RecipesScreenState extends State<RecipesScreen>
     });
 
     try {
-      final results = await TheMealDBService.searchRecipes(query);
+      print('🔍 Searching for: $query');
+      
+      // ✅ Search BOTH sources in parallel
+      final apiResultsFuture = TheMealDBService.searchRecipes(query);
+      final firestoreResultsFuture = _recipeService.searchPublicRecipes(query);
+      
+      final results = await Future.wait([
+        apiResultsFuture,
+        firestoreResultsFuture,
+      ]);
+      
+      final apiRecipes = results[0];
+      final firestoreRecipes = results[1];
+      
+      print('✅ Found ${apiRecipes.length} API recipes');
+      print('✅ Found ${firestoreRecipes.length} Firestore recipes');
+      
+      // ✅ Combine both results (Firestore first, then API)
+      final combinedResults = [...firestoreRecipes, ...apiRecipes];
+      
       setState(() {
-        recipes = results;
+        recipes = combinedResults;
         isSearching = false;
       });
+      
+      print('✅ Total recipes: ${combinedResults.length}');
     } catch (e) {
-      print('Error searching recipes: $e');
+      print('❌ Error searching recipes: $e');
       setState(() {
         isSearching = false;
       });
@@ -432,11 +455,26 @@ class _RecipesScreenState extends State<RecipesScreen>
   }
 
   Widget _buildGridRecipeCard(Map<String, dynamic> recipe, bool isSaved) {
-    final String title = recipe['title'] ?? 'Recipe Name';
-    final String author = recipe['author'] ?? 'By Author';
+    // Extract title - handle both 'title' and 'name' fields
+    final String title = recipe['title'] ?? recipe['name'] ?? 'Recipe Name';
+    
+    // Extract author - handle both 'author' and 'userName' fields
+    final String author = recipe['author'] ?? recipe['userName'] ?? 'By Author';
+    
     final int cookTime = recipe['readyInMinutes'] ?? 0;
-    final int calories = recipe['nutrition']?['calories'] ?? 0;
-    final double rating = recipe['rating']?.toDouble() ?? 4.5;
+    
+    // Handle nutrition
+    int calories = 0;
+    if (recipe['nutrition'] != null) {
+      if (recipe['nutrition'] is Map) {
+        final caloriesVal = recipe['nutrition']['calories'];
+        calories = caloriesVal is int ? caloriesVal : int.tryParse(caloriesVal.toString()) ?? 0;
+      }
+    } else {
+      calories = recipe['calories'] ?? 0;
+    }
+    
+    final double rating = (recipe['rating'] ?? 4.5).toDouble();
 
     return GestureDetector(
       onTap: () async {
@@ -557,14 +595,15 @@ class _RecipesScreenState extends State<RecipesScreen>
                     Row(
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
-                        Text(
-                          '$calories kcal',
-                          style: const TextStyle(
-                            color: Colors.white,
-                            fontSize: 11,
-                            fontWeight: FontWeight.w600,
+                        if (calories > 0)
+                          Text(
+                            '$calories kcal',
+                            style: const TextStyle(
+                              color: Colors.white,
+                              fontSize: 11,
+                              fontWeight: FontWeight.w600,
+                            ),
                           ),
-                        ),
                         Text(
                           '$cookTime mins',
                           style: const TextStyle(
@@ -660,7 +699,7 @@ class _RecipesScreenState extends State<RecipesScreen>
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const SizedBox(height: 8), // Add spacing from TabBar
+          const SizedBox(height: 8),
 
           if (showSearchResults) ...[
             // --- Search Results ---
@@ -706,6 +745,12 @@ class _RecipesScreenState extends State<RecipesScreen>
               title: 'Popular Recipes',
               isLoading: isLoadingPopular,
               recipeList: popularRecipes,
+            ),
+            // ✅ ADDED: Community Recipes Section
+            _buildCategorySection(
+              title: 'Community Recipes 👥',
+              isLoading: isLoadingCommunity,
+              recipeList: communityRecipes,
             ),
             _buildCategorySection(
               title: 'Discover High Protein Recipes',

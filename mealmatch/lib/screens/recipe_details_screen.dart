@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:mealmatch/services/themealdb_service.dart';
 import 'package:mealmatch/services/cooked_recipes_service.dart';
 import 'dart:async';
+import '../services/recipe_service.dart';
 
 // --- 1. FIREBASE IMPORTS ADDED ---
 import 'package:firebase_auth/firebase_auth.dart';
@@ -18,6 +19,8 @@ class RecipeDetailsScreen extends StatefulWidget {
 class _RecipeDetailsScreenState extends State<RecipeDetailsScreen> {
   Map<String, dynamic>? data; // Changed from recipeDetails
   bool loading = true; // Changed from isLoading
+
+  final RecipeService _recipeService = RecipeService();
 
   Map<int, bool> ingredientChecklist = {};
 
@@ -71,6 +74,7 @@ class _RecipeDetailsScreenState extends State<RecipeDetailsScreen> {
         final favorites = List<String>.from(
           doc.data()!['favoriteRecipeIds'] ?? [],
         );
+        
         return favorites.contains(widget.recipeId);
       }
       return false;
@@ -89,70 +93,175 @@ class _RecipeDetailsScreenState extends State<RecipeDetailsScreen> {
   Future<void> _loadRecipeDetails() async {
     setState(() => loading = true);
     try {
-      // Load details and check status at the same time
-      final detailsFuture = TheMealDBService.getMealDetails(widget.recipeId);
-      final isFavFuture = _checkFavoriteStatus();
-      final hasCookedFuture = _checkCookedStatus();
+      _userId = FirebaseAuth.instance.currentUser?.uid;
+      
+      print('🔍 Loading recipe details for ID: ${widget.recipeId}');
 
-      final details = await detailsFuture;
-      final isFav = await isFavFuture; // Get the boolean result
-      final hasCooked = await hasCookedFuture;
+      Map<String, dynamic>? details;
 
-      if (details != null) {
-        // --- Nutrition Parsing ---
-        originalServings = details['servings'] ?? 1;
-        currentServings = originalServings;
-        originalCalories = _parseNutritionValue(
-          details['nutrition']?['calories'],
-        );
-        originalProtein = _parseNutritionValue(
-          details['nutrition']?['protein'],
-        );
-        originalCarbs = _parseNutritionValue(details['nutrition']?['carbs']);
-        originalFat = _parseNutritionValue(details['nutrition']?['fat']);
-
-        // --- Ingredient Parsing ---
-        final originalIngredients = details['ingredients'] as List;
-        final newIngredientsList = <Map<String, dynamic>>[];
-
-        for (int i = 0; i < originalIngredients.length; i++) {
-          final newIngredientMap = Map<String, dynamic>.from(
-            originalIngredients[i],
-          );
-          newIngredientMap['parsedAmount'] = _parseIngredientAmount(
-            newIngredientMap['original'] ?? '',
-          );
-          newIngredientsList.add(newIngredientMap);
-          ingredientChecklist[i] = false;
+      // ✅ TRY USER RECIPES FIRST (Firestore)
+      try {
+        details = await _recipeService.getRecipeById(widget.recipeId);
+        if (details != null) {
+          print('✅ Found in public recipes (Firestore)');
         }
-
-        details['ingredients'] = newIngredientsList;
-
-        // --- Initialize Countdown Timer ---
-        int cookTimeMinutes = (details['readyInMinutes'] ?? 0).toInt();
-        originalCookTimeSeconds = cookTimeMinutes * 60;
-        timerSeconds = originalCookTimeSeconds;
+      } catch (e) {
+        print('⚠️ Not found in public recipes: $e');
       }
 
-      setState(() {
-        data = details;
-        _isFavorite = isFav; 
-        _hasCooked = hasCooked;
-        loading = false;
-      });
+      // If not found, try TheMealDB (API)
+      if (details == null) {
+        try {
+          details = await TheMealDBService.getMealDetails(widget.recipeId);
+          if (details != null) {
+            print('✅ Found in TheMealDB (API)');
+          }
+        } catch (e) {
+          print('⚠️ Not found in API: $e');
+        }
+      }
+
+      if (details != null) {
+        // --- Extract Servings ---
+        originalServings = _extractInt(details['servings'], 1);
+        currentServings = originalServings;
+
+        // --- Extract Nutrition ---
+        Map<String, dynamic> nutrition = {};
+        if (details['nutrition'] != null) {
+          if (details['nutrition'] is Map) {
+            nutrition = Map<String, dynamic>.from(details['nutrition']);
+          }
+        }
+
+        originalCalories = _parseNutritionValue(nutrition['calories'] ?? details['calories']);
+        originalProtein = _parseNutritionValue(nutrition['Protein'] ?? nutrition['protein']);
+        originalCarbs = _parseNutritionValue(nutrition['Carbs'] ?? nutrition['carbs']);
+        originalFat = _parseNutritionValue(nutrition['Fat'] ?? nutrition['fat']);
+
+        print('📊 Nutrition: Cal=$originalCalories, Pro=$originalProtein, Carb=$originalCarbs, Fat=$originalFat');
+
+        // --- ✅ FIX: Handle ingredients properly ---
+        List<Map<String, dynamic>> processedIngredients = [];
+        
+        if (details['ingredients'] != null) {
+          final rawIngredients = details['ingredients'];
+          
+          // Handle if ingredients is already a List
+          if (rawIngredients is List) {
+            for (int i = 0; i < rawIngredients.length; i++) {
+              try {
+                final ing = rawIngredients[i];
+                final ingredientMap = <String, dynamic>{};
+
+                if (ing is Map) {
+                  // Already a map, copy it
+                  ingredientMap.addAll(Map<String, dynamic>.from(ing));
+                } else if (ing is String) {
+                  // Just a string, create basic structure
+                  ingredientMap['name'] = ing;
+                  ingredientMap['original'] = ing;
+                  ingredientMap['measure'] = '';
+                } else {
+                  // Unknown type, convert to string
+                  final stringValue = ing.toString();
+                  ingredientMap['name'] = stringValue;
+                  ingredientMap['original'] = stringValue;
+                  ingredientMap['measure'] = '';
+                }
+
+                // Ensure required fields exist
+                if (!ingredientMap.containsKey('name')) {
+                  ingredientMap['name'] = ingredientMap['original'] ?? 'Ingredient';
+                }
+                if (!ingredientMap.containsKey('original')) {
+                  ingredientMap['original'] = ingredientMap['name'] ?? 'Ingredient';
+                }
+                if (!ingredientMap.containsKey('measure')) {
+                  ingredientMap['measure'] = '';
+                }
+
+                ingredientMap['parsedAmount'] = _parseIngredientAmount(
+                  ingredientMap['original']?.toString() ?? '',
+                );
+
+                processedIngredients.add(ingredientMap);
+                ingredientChecklist[i] = false;
+              } catch (e) {
+                print('⚠️ Error processing ingredient $i: $e');
+                continue;
+              }
+            }
+          } else if (rawIngredients is String) {
+            // Unlikely but handle string case
+            print('⚠️ Ingredients is a String, not a List: $rawIngredients');
+            processedIngredients.add({
+              'name': rawIngredients,
+              'original': rawIngredients,
+              'measure': '',
+              'parsedAmount': 1.0,
+            });
+            ingredientChecklist[0] = false;
+          }
+        }
+
+        details['ingredients'] = processedIngredients;
+        print('✅ Processed ${processedIngredients.length} ingredients');
+
+        // --- Extract Cook Time ---
+        int cookTimeMinutes = _extractInt(details['readyInMinutes'], 30);
+        originalCookTimeSeconds = cookTimeMinutes * 60;
+        timerSeconds = originalCookTimeSeconds;
+
+        print('⏱️ Cook time: $cookTimeMinutes minutes');
+
+        // Load favorite and cooked status
+        final isFav = await _checkFavoriteStatus();
+        final hasCooked = await _checkCookedStatus();
+
+        setState(() {
+          data = details;
+          _isFavorite = isFav;
+          _hasCooked = hasCooked;
+          loading = false;
+        });
+
+        print('✅ Recipe loaded successfully');
+      } else {
+        print('❌ Recipe not found in any source');
+        setState(() => loading = false);
+      }
     } catch (e, stackTrace) {
-      print('Error loading recipe: $e');
+      print('❌ Error loading recipe: $e');
       print('Stack Trace: $stackTrace');
       setState(() => loading = false);
     }
+  }
+  
+  int _extractInt(dynamic value, int defaultValue) {
+    if (value == null) return defaultValue;
+    if (value is int) return value;
+    if (value is String) return int.tryParse(value) ?? defaultValue;
+    if (value is double) return value.toInt();
+    return defaultValue;
   }
 
   /// Safely parses a number from a string like "52g" or "400".
   double _parseNutritionValue(dynamic value) {
     if (value == null) return 0.0;
-    String stringValue = value.toString();
+    if (value is double) return value;
+    if (value is int) return value.toDouble();
+    
+    String stringValue = value.toString().toLowerCase().trim();
+    
+    // Remove common units
+    stringValue = stringValue.replaceAll(RegExp(r'[a-z%]'), '').trim();
+    
+    if (stringValue.isEmpty) return 0.0;
+    
     final match = RegExp(r'(\d*\.?\d+)').firstMatch(stringValue);
     if (match == null) return 0.0;
+    
     return double.tryParse(match.group(1) ?? '') ?? 0.0;
   }
 
@@ -359,6 +468,42 @@ class _RecipeDetailsScreenState extends State<RecipeDetailsScreen> {
     setState(() => currentServings = newServings);
   }
 
+// ✅ NEW: Safely extract instructions string
+  String _getInstructionsString(dynamic instructions) {
+    if (instructions == null) return '';
+    
+    if (instructions is String) {
+      return instructions;
+    } else if (instructions is List) {
+      // If it's a List of instruction steps
+      return instructions.map((step) {
+        if (step is Map) {
+          return step['text']?.toString() ?? step.toString();
+        }
+        return step.toString();
+      }).join('\n\n');
+    } else if (instructions is Map) {
+      // If it's a single instruction map
+      return instructions['text']?.toString() ?? instructions.toString();
+    }
+    
+    return instructions.toString();
+  }
+
+  // ✅ NEW: Safely extract string value (handles List<dynamic>)
+  String _getStringValue(dynamic value, String defaultValue) {
+    if (value == null) return defaultValue;
+    
+    if (value is String) {
+      return value;
+    } else if (value is List) {
+      if (value.isEmpty) return defaultValue;
+      return value[0].toString();
+    }
+    
+    return value.toString();
+  }
+
   @override
   Widget build(BuildContext context) {
     final multiplier = _getMultiplier();
@@ -464,7 +609,7 @@ class _RecipeDetailsScreenState extends State<RecipeDetailsScreen> {
 
                         // Author
                         Text(
-                          'By ${data!['author'] ?? 'Unknown Author'}',
+                          'By ${_getStringValue(data!['author'], 'Unknown Author')}',
                           style: TextStyle(
                             fontSize: 14,
                             color: Colors.grey[600],
@@ -772,7 +917,7 @@ class _RecipeDetailsScreenState extends State<RecipeDetailsScreen> {
                             ],
                           ),
                           child: Text(
-                            _formatInstructions(data!['instructions']),
+                            _formatInstructions(_getInstructionsString(data!['instructions'])),
                             style: const TextStyle(fontSize: 15, height: 1.6),
                           ),
                         ),

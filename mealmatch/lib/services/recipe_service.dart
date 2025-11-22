@@ -1,5 +1,4 @@
 // lib/services/recipe_service.dart
-// ✅ NEW: Dedicated service for recipe operations
 
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
@@ -9,7 +8,7 @@ class RecipeService {
   final FirebaseAuth _auth = FirebaseAuth.instance;
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
 
-  // ✅ ADDED: App ID constant for consistency
+  // App ID constant for consistency
   static const String appId = 'mealmatch-app';
 
   // Save user recipe both private and public
@@ -24,11 +23,48 @@ class RecipeService {
       final calories = _calculateCalories(recipe.nutrients);
       recipeData['calories'] = calories;
       recipeData['createdAt'] = FieldValue.serverTimestamp();
-      recipeData['userId'] = user.uid; // ✅ IMPORTANT: Track owner
-      recipeData['userName'] = user.displayName ?? 'Anonymous'; // Add user name
-      recipeData['userEmail'] = user.email ?? ''; // Add email for contact
+      recipeData['userId'] = user.uid;
+      recipeData['userName'] = user.displayName ?? 'Anonymous';
+      recipeData['userEmail'] = user.email ?? '';
 
-      // ✅ NEW: Save to private collection (user's own recipes)
+      // ✅ IMPORTANT: Ensure ingredients are in correct format
+      if (recipeData['ingredients'] is List) {
+        final ingredients = recipeData['ingredients'] as List;
+        recipeData['ingredients'] = ingredients.map((ing) {
+          if (ing is String) {
+            // Convert string to proper map format
+            return {
+              'name': ing,
+              'original': ing,
+              'measure': '',
+            };
+          } else if (ing is Map) {
+            // Ensure map has required fields
+            final ingMap = Map<String, dynamic>.from(ing);
+            if (!ingMap.containsKey('name')) {
+              ingMap['name'] = ingMap['original'] ?? 'Ingredient';
+            }
+            if (!ingMap.containsKey('original')) {
+              ingMap['original'] = ingMap['name'] ?? 'Ingredient';
+            }
+            if (!ingMap.containsKey('measure')) {
+              ingMap['measure'] = '';
+            }
+            return ingMap;
+          }
+          return ing;
+        }).toList();
+      }
+
+      // ✅ Ensure nutrition is in correct format
+      if (recipeData['nutrients'] != null) {
+        recipeData['nutrition'] = recipeData['nutrients'];
+      }
+
+      recipeData['isPublic'] = true;
+      recipeData['source'] = 'public';
+
+      // Save to private collection (user's own recipes)
       final privateRecipesRef = _firestore
           .collection('users')
           .doc(user.uid)
@@ -37,16 +73,16 @@ class RecipeService {
       final privateDocRef = await privateRecipesRef.add(recipeData);
       print('✅ Recipe saved to private collection: ${privateDocRef.id}');
 
-      // ✅ NEW: Also save to PUBLIC collection (all users can see)
+      // Also save to PUBLIC collection (all users can see)
       final publicRecipesRef = _firestore.collection('public_recipes');
-      recipeData['privateRecipeId'] = privateDocRef.id; // Link to private copy
+      recipeData['privateRecipeId'] = privateDocRef.id;
       
       final publicDocRef = await publicRecipesRef.add(recipeData);
       print('✅ Recipe saved to public collection: ${publicDocRef.id}');
 
       return {
         'success': true,
-        'message': 'Recipe uploaded and shared with community!',
+        'message': 'Recipe uploaded and shared publicly!',
         'recipeId': publicDocRef.id,
       };
     } on FirebaseException catch (e) {
@@ -64,7 +100,7 @@ class RecipeService {
     }
   }
 
-  // ✅ ADDED: Helper function to calculate total calories
+  // Helper function to calculate total calories
   int _calculateCalories(Map<String, double> nutrients) {
     final protein = nutrients['Protein'] ?? 0.0;
     final carbs = nutrients['Carbs'] ?? 0.0;
@@ -75,7 +111,7 @@ class RecipeService {
     return ((protein * 4) + (carbs * 4) + (fat * 9)).round();
   }
 
-  // ✅ IMPROVED: Fetch user recipes with better error handling
+  // Fetch user recipes with better error handling
   Future<List<Map<String, dynamic>>> getUserRecipes() async {
     try {
       final user = _auth.currentUser;
@@ -91,16 +127,17 @@ class RecipeService {
         .orderBy('createdAt', descending: true)
         .get();
 
-      // ✅ IMPROVED: Convert documents to list with proper data handling
       return snapshot.docs.map((doc) {
         final data = doc.data();
-        data['id'] = doc.id; // Add document ID
+        data['id'] = doc.id;
 
-        // ✅ ADDED: Ensure calories field exists
         if (!data.containsKey('calories') && data['nutrients'] != null) {
           final nutrients = Map<String, double>.from(data['nutrients']);
           data['calories'] = _calculateCalories(nutrients);
         }
+
+        // ✅ Normalize field names
+        _normalizeRecipeData(data);
 
         return data;
       }).toList();
@@ -113,7 +150,38 @@ class RecipeService {
     }
   }
 
-  // ✅ ADDED: Delete a recipe
+  // Get a specific recipe by ID (works for both API and user recipes)
+  Future<Map<String, dynamic>?> getRecipeById(String recipeId) async {
+    try {
+      // Try to get from public_recipes first
+      final publicDoc = await _firestore
+          .collection('public_recipes')
+          .doc(recipeId)
+          .get();
+
+      if (publicDoc.exists) {
+        final data = publicDoc.data()!;
+        data['id'] = recipeId;
+        
+        if (!data.containsKey('calories') && data['nutrients'] != null) {
+          final nutrients = Map<String, double>.from(data['nutrients']);
+          data['calories'] = _calculateCalories(nutrients);
+        }
+        
+        // ✅ Normalize field names
+        _normalizeRecipeData(data);
+        
+        return data;
+      }
+
+      return null;
+    } catch (e) {
+      print('❌ Error fetching recipe by ID: $e');
+      return null;
+    }
+  }
+
+  // Delete a recipe
   Future<Map<String, dynamic>> deleteRecipe(String recipeId) async {
     try {
       final user = _auth.currentUser;
@@ -179,11 +247,13 @@ class RecipeService {
         final data = doc.data();
         data['id'] = doc.id;
         
-        // Ensure calories exist
         if (!data.containsKey('calories') && data['nutrients'] != null) {
           final nutrients = Map<String, double>.from(data['nutrients']);
           data['calories'] = _calculateCalories(nutrients);
         }
+        
+        // ✅ Normalize field names
+        _normalizeRecipeData(data);
         
         return data;
       }).toList();
@@ -196,7 +266,7 @@ class RecipeService {
     }
   }
 
-  // ✅ NEW: Search public recipes by name
+  // Search public recipes by name
   Future<List<Map<String, dynamic>>> searchPublicRecipes(String query) async {
     try {
       if (query.trim().isEmpty) return [];
@@ -211,6 +281,9 @@ class RecipeService {
       return snapshot.docs.map((doc) {
         final data = doc.data();
         data['id'] = doc.id;
+        
+        _normalizeRecipeData(data);
+        
         return data;
       }).toList();
     } catch (e) {
@@ -219,14 +292,12 @@ class RecipeService {
     }
   }
 
-  // ✅ NEW: Get public recipes by ingredient (for "What Can I Cook")
+  // Get public recipes by ingredient
   Future<List<Map<String, dynamic>>> getPublicRecipesByIngredient(
     List<String> ingredients, {
     int limit = 10,
   }) async {
     try {
-      // Get all public recipes and filter locally
-      // (Firestore doesn't support array-contains multiple values)
       final snapshot = await _firestore
           .collection('public_recipes')
           .limit(100)
@@ -238,10 +309,13 @@ class RecipeService {
         final data = doc.data();
         final recipeIngredients = 
             (data['ingredients'] as List<dynamic>? ?? [])
-                .map((ing) => ing.toString().toLowerCase())
+                .map((ing) {
+                  if (ing is String) return ing.toLowerCase();
+                  if (ing is Map) return (ing['name'] ?? ing['original'] ?? '').toString().toLowerCase();
+                  return ing.toString().toLowerCase();
+                })
                 .toList();
 
-        // Check if any user ingredient matches recipe ingredient
         bool hasMatch = ingredients.any((userIng) =>
             recipeIngredients.any((recipeIng) =>
                 recipeIng.contains(userIng.toLowerCase()) ||
@@ -249,6 +323,9 @@ class RecipeService {
 
         if (hasMatch) {
           data['id'] = doc.id;
+          
+          _normalizeRecipeData(data);
+          
           matching.add(data);
           if (matching.length >= limit) break;
         }
@@ -261,4 +338,119 @@ class RecipeService {
     }
   }
 
+  // ✅ NEW: Helper function to normalize recipe data fields
+  void _normalizeRecipeData(Map<String, dynamic> data) {
+    // ✅ FIX: Safely handle title field
+    if (!data.containsKey('title') && data.containsKey('name')) {
+      data['title'] = data['name']?.toString() ?? 'Recipe';
+    }
+    if (data['title'] == null) {
+      data['title'] = data['name']?.toString() ?? 'Recipe';
+    }
+    
+    // ✅ FIX: Safely handle author field
+    if (!data.containsKey('author')) {
+      data['author'] = data['userName']?.toString() ?? 'Public Recipe';
+    }
+    if (data['author'] is List) {
+      // If author is accidentally a List, take first item
+      data['author'] = (data['author'] as List).isNotEmpty 
+          ? (data['author'] as List)[0].toString() 
+          : 'Public Recipe';
+    }
+    
+    // ✅ FIX: Safely handle readyInMinutes
+    if (!data.containsKey('readyInMinutes')) {
+      final cookTime = data['cookTime'];
+      if (cookTime is int) {
+        data['readyInMinutes'] = cookTime;
+      } else if (cookTime is String) {
+        data['readyInMinutes'] = int.tryParse(cookTime) ?? 30;
+      } else {
+        data['readyInMinutes'] = 30;
+      }
+    }
+    
+    // Ensure rating exists
+    if (!data.containsKey('rating')) {
+      data['rating'] = 4.5;
+    }
+    
+    // Ensure servings exists
+    if (!data.containsKey('servings')) {
+      data['servings'] = 4;
+    }
+    
+    // Normalize nutrition field
+    if (data['nutrients'] != null && data['nutrition'] == null) {
+      data['nutrition'] = data['nutrients'];
+    }
+    
+    // ✅ FIX: Ensure ingredients is a List of Maps (handle List<dynamic> safely)
+    if (data['ingredients'] != null) {
+      try {
+        // Convert List<dynamic> to List safely
+        final ingredientsRaw = data['ingredients'];
+        
+        if (ingredientsRaw is List) {
+          // ✅ Safe conversion from List<dynamic>
+          final ingredientsList = List.from(ingredientsRaw);
+          
+          data['ingredients'] = ingredientsList.map((ing) {
+            if (ing is String) {
+              return {
+                'name': ing,
+                'original': ing,
+                'measure': '',
+              };
+            } else if (ing is Map) {
+              final ingMap = Map<String, dynamic>.from(ing);
+              
+              // Ensure name is a String, not List
+              if (ingMap['name'] is List) {
+                ingMap['name'] = (ingMap['name'] as List).isNotEmpty
+                    ? (ingMap['name'] as List)[0].toString()
+                    : 'Ingredient';
+              }
+              
+              if (!ingMap.containsKey('name') || ingMap['name'] == null) {
+                ingMap['name'] = ingMap['original']?.toString() ?? 'Ingredient';
+              }
+              
+              if (!ingMap.containsKey('original') || ingMap['original'] == null) {
+                ingMap['original'] = ingMap['name']?.toString() ?? 'Ingredient';
+              }
+              
+              if (!ingMap.containsKey('measure')) {
+                ingMap['measure'] = '';
+              }
+              
+              return ingMap;
+            }
+            // Unknown type, convert to string
+            return {
+              'name': ing.toString(),
+              'original': ing.toString(),
+              'measure': '',
+            };
+          }).toList();
+        }
+      } catch (e) {
+        print('⚠️ Error normalizing ingredients: $e');
+        // Set empty list as fallback
+        data['ingredients'] = [];
+      }
+    }
+    
+    // ✅ FIX: Ensure instructions is safe
+    if (data['instructions'] != null) {
+      if (data['instructions'] is List) {
+        // Keep as is
+      } else if (data['instructions'] is String) {
+        // Keep as string
+      } else {
+        data['instructions'] = data['instructions'].toString();
+      }
+    }
+  }
 }

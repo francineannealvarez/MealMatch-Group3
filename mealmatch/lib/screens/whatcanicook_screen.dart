@@ -377,12 +377,22 @@ class _WhatCanICookScreenState extends State<WhatCanICookScreen> {
   Widget _buildRecipeCard(Map<String, dynamic> recipe, {bool isPartial = false}) {
     final missing = recipe['missedIngredients'] as List<dynamic>? ?? [];
 
-    // --- GET THE NEW FAKE DATA ---
-    final cookTime = recipe['readyInMinutes'] ?? 0;
-    final author = recipe['author'] ?? 'Author';
-    final rating = recipe['rating'] ?? 4.5;
-    // ----------------------------
+    // Extract data with fallbacks
+    final cookTime = recipe['readyInMinutes'] ?? 30;
+    final author = recipe['author'] ?? recipe['userName'] ?? 'Author';
+    final rating = (recipe['rating'] ?? 4.5).toDouble();
     
+    // Handle nutrition for display
+    int calories = 0;
+    if (recipe['nutrition'] != null) {
+      if (recipe['nutrition'] is Map) {
+        final caloriesVal = recipe['nutrition']['calories'];
+        calories = caloriesVal is int ? caloriesVal : int.tryParse(caloriesVal.toString()) ?? 0;
+      }
+    } else {
+      calories = recipe['calories'] ?? 0;
+    }
+      
     return Container(
       margin: const EdgeInsets.only(bottom: 16),
       decoration: BoxDecoration(
@@ -411,7 +421,7 @@ class _WhatCanICookScreenState extends State<WhatCanICookScreen> {
                       height: 160,
                       color: Colors.grey[200],
                       child: const Center(
-                        child: Text('Insert Picture Here'),
+                        child: Icon(Icons.restaurant, size: 40),
                       ),
                     ),
                   )
@@ -419,7 +429,7 @@ class _WhatCanICookScreenState extends State<WhatCanICookScreen> {
                     height: 160,
                     color: Colors.grey[200],
                     child: const Center(
-                      child: Text('Insert Picture Here'),
+                      child: Icon(Icons.restaurant, size: 40),
                     ),
                   ),
           ),
@@ -429,25 +439,23 @@ class _WhatCanICookScreenState extends State<WhatCanICookScreen> {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  recipe['title'] ?? 'Recipe Name',
+                  recipe['title'] ?? recipe['name'] ?? 'Recipe Name',
                   style: const TextStyle(
                     fontSize: 16,
                     fontWeight: FontWeight.bold,
                   ),
                 ),
                 const SizedBox(height: 4),
-                // --- UPDATE AUTHOR ---
                 Text(
-                  author, // <-- UPDATED
+                  author,
                   style: const TextStyle(fontSize: 12, color: Colors.grey),
                 ),
                 const SizedBox(height: 4),
-                // --- UPDATE COOK TIME ---
                 Row(
                   children: [
                     const Icon(Icons.access_time, size: 14, color: Colors.grey),
                     const SizedBox(width: 4),
-                    Text('$cookTime min', style: const TextStyle(fontSize: 12)), // <-- UPDATED
+                    Text('$cookTime min', style: const TextStyle(fontSize: 12)),
                   ],
                 ),
                 if (isPartial && missing.isNotEmpty) ...[
@@ -459,11 +467,13 @@ class _WhatCanICookScreenState extends State<WhatCanICookScreen> {
                       borderRadius: BorderRadius.circular(4),
                     ),
                     child: Text(
-                      'Must Have Ingredients: ${missing.join(", ")}',
+                      'Missing: ${missing.join(", ")}',
                       style: TextStyle(
                         fontSize: 11,
                         color: Colors.orange[800],
                       ),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
                     ),
                   ),
                 ],
@@ -504,13 +514,24 @@ class _WhatCanICookScreenState extends State<WhatCanICookScreen> {
                   ],
                 ),
                 const SizedBox(height: 4),
-                // --- UPDATE RATINGS ---
                 Row(
-                  mainAxisAlignment: MainAxisAlignment.end,
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
-                    const Icon(Icons.star, size: 14, color: Colors.amber),
-                    const SizedBox(width: 4),
-                    Text(rating.toStringAsFixed(1), style: const TextStyle(fontSize: 11)), // <-- UPDATED
+                    if (calories > 0)
+                      Row(
+                        children: [
+                          const Icon(Icons.local_fire_department, size: 12, color: Colors.orange),
+                          const SizedBox(width: 2),
+                          Text('$calories kcal', style: const TextStyle(fontSize: 11)),
+                        ],
+                      ),
+                    Row(
+                      children: [
+                        const Icon(Icons.star, size: 14, color: Colors.amber),
+                        const SizedBox(width: 4),
+                        Text(rating.toStringAsFixed(1), style: const TextStyle(fontSize: 11)),
+                      ],
+                    ),
                   ],
                 ),
               ],

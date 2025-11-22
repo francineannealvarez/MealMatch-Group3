@@ -32,19 +32,39 @@ class UserRecipe {
 
   // ✅ IMPROVED: toMap with calories calculation
   Map<String, dynamic> toMap() {
+    final totalMinutes = _parseTimeToMinutes(prepTime) + _parseTimeToMinutes(cookTime);
+
     return {
       'userId': userId,
       'name': name,
       'servings': servings,
       'prepTime': prepTime,
       'cookTime': cookTime,
+      'readyInMinutes': totalMinutes,
       'ingredients': ingredients,
       'instructions': instructions.map((x) => x.toMap()).toList(),
       'nutrients': nutrients,
+      'nutrition': nutrients,
       'localImagePath': localImagePath,
+      'image': localImagePath ?? '',
       'calories': calories ?? _calculateCalories(), // ✅ ADDED: Auto-calculate if null
       'createdAt': createdAt.toIso8601String(),
     };
+  }
+
+  int _parseTimeToMinutes(String time) {
+    try {
+      if (time.contains(':')) {
+        final parts = time.split(':');
+        final hours = int.tryParse(parts[0]) ?? 0;
+        final minutes = int.tryParse(parts[1]) ?? 0;
+        return (hours * 60) + minutes;
+      } else {
+        return int.tryParse(time) ?? 0;
+      }
+    } catch (e) {
+      return 0;
+    }
   }
 
   // ✅ ADDED: Calculate calories from nutrients
@@ -60,7 +80,7 @@ class UserRecipe {
     return UserRecipe(
       id: id,
       userId: map['userId'] ?? '',
-      name: map['name'] ?? '',
+      name: map['name'] ?? map['title'] ?? '',
       servings: map['servings']?.toInt() ?? 1,
       prepTime: map['prepTime'] ?? '00:00',
       cookTime: map['cookTime'] ?? '00:00',
