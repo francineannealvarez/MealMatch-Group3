@@ -179,22 +179,39 @@ class _RecipesScreenState extends State<RecipesScreen>
     setState(() => _isLoadingFavorites = true);
     try {
       final loadedFavs = <Map<String, dynamic>>[];
+      
       for (String id in _savedRecipeIds) {
-        final details = await TheMealDBService.getMealDetails(id);
+        print('🔍 Loading favorite recipe: $id');
+        
+        // ✅ Try Firestore (public recipes) first
+        var details = await _recipeService.getRecipeById(id);
+        
+        // If not found in Firestore, try API
+        if (details == null) {
+          print('  ⚠️ Not in Firestore, trying API...');
+          details = await TheMealDBService.getMealDetails(id);
+        }
+        
         if (details != null) {
+          print('  ✅ Loaded: ${details['title'] ?? details['name']}');
           loadedFavs.add(details);
+        } else {
+          print('  ❌ Recipe not found: $id');
         }
       }
+      
       setState(() {
         _favoriteRecipes = loadedFavs;
         _isLoadingFavorites = false;
       });
-    } catch (e) {
-      print('Error loading favorites: $e');
+      
+      print('✅ Total favorites loaded: ${loadedFavs.length}');
+    } catch (e, stackTrace) {
+      print('❌ Error loading favorites: $e');
+      print('Stack trace: $stackTrace');
       setState(() => _isLoadingFavorites = false);
     }
   }
-
   Future<void> _loadUserFavorites() async {
     final String? userId = FirebaseAuth.instance.currentUser?.uid;
     if (userId == null) {
