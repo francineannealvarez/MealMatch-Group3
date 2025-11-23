@@ -2017,19 +2017,25 @@ class _ModifyGoalsScreenState extends State<ModifyGoalsScreen> {
       case 'relaxed':
         return {
           'title': 'Relaxed',
-          'subtitle': isLosingWeight ? 'Lose ½ kg a week' : 'Gain ½ kg a week',
+          'subtitle': isLosingWeight
+              ? 'Lose 0.25 kg a week'
+              : 'Gain 0.25 kg a week',
           'color': const Color(0xFF4CAF50),
         };
       case 'steady':
         return {
           'title': 'Steady',
-          'subtitle': isLosingWeight ? 'Lose ½ kg a week' : 'Gain ½ kg a week',
+          'subtitle': isLosingWeight
+              ? 'Lose 0.5 kg a week'
+              : 'Gain 0.5 kg a week',
           'color': Colors.blue,
         };
       case 'accelerated':
         return {
           'title': 'Accelerated',
-          'subtitle': isLosingWeight ? 'Lose ¾ kg a week' : 'Gain ¾ kg a week',
+          'subtitle': isLosingWeight
+              ? 'Lose 0.75 kg a week'
+              : 'Gain 0.75 kg a week',
           'color': Colors.orange,
         };
       case 'vigorous':
@@ -2041,7 +2047,9 @@ class _ModifyGoalsScreenState extends State<ModifyGoalsScreen> {
       default:
         return {
           'title': 'Steady',
-          'subtitle': isLosingWeight ? 'Lose ½ kg a week' : 'Gain ½ kg a week',
+          'subtitle': isLosingWeight
+              ? 'Lose 0.5 kg a week'
+              : 'Gain 0.5 kg a week',
           'color': Colors.blue,
         };
     }
@@ -2284,8 +2292,8 @@ class _ModifyGoalsScreenState extends State<ModifyGoalsScreen> {
                 value: 'relaxed',
                 title: 'Relaxed',
                 subtitle: isLosingWeight
-                    ? 'Lose ½ kg per week'
-                    : 'Gain ½ kg per week',
+                    ? 'Lose 0.25 kg per week'
+                    : 'Gain 0.25 kg per week',
                 description:
                     '${isLosingWeight ? '-' : '+'}250 cal/day adjustment',
                 icon: Icons.spa,
@@ -2297,8 +2305,8 @@ class _ModifyGoalsScreenState extends State<ModifyGoalsScreen> {
                 value: 'steady',
                 title: 'Steady',
                 subtitle: isLosingWeight
-                    ? 'Lose ½ kg per week'
-                    : 'Gain ½ kg per week',
+                    ? 'Lose 0.5 kg per week'
+                    : 'Gain 0.5 kg per week',
                 description:
                     '${isLosingWeight ? '-' : '+'}500 cal/day adjustment',
                 icon: Icons.trending_up,
@@ -2310,8 +2318,8 @@ class _ModifyGoalsScreenState extends State<ModifyGoalsScreen> {
                 value: 'accelerated',
                 title: 'Accelerated',
                 subtitle: isLosingWeight
-                    ? 'Lose ¾ kg per week'
-                    : 'Gain ¾ kg per week',
+                    ? 'Lose 0.75 kg per week'
+                    : 'Gain 0.75 kg per week',
                 description:
                     '${isLosingWeight ? '-' : '+'}750 cal/day adjustment',
                 icon: Icons.fast_forward,
