@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:mealmatch/services/themealdb_service.dart';
-import 'package:mealmatch/services/recipe_details_screen.dart'; // Adjusted import path based on common structure, verify path
+import 'package:mealmatch/screens/recipe_details_screen.dart'; // Adjusted import path based on common structure, verify path
 import 'package:mealmatch/services/recipe_service.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
