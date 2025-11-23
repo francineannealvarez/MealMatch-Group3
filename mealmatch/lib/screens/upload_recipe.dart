@@ -850,7 +850,7 @@ class _UploadRecipeScreenState extends State<UploadRecipeScreen> {
                           child: CustomPaint(
                             painter: NutritionChartPainter(
                               protein: nutrients['Protein'] ?? 0,
-                              carbs: nutrients['Carbs'] ? 0,
+                              carbs: nutrients['Carbs'] ?? 0,
                               fat: nutrients['Fat'] ?? 0,
                               fiber: nutrients['Fiber'] ?? 0,
                               sugar: nutrients['Sugar'] ?? 0,
