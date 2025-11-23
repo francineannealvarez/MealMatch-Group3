@@ -25,12 +25,12 @@ class _ProfileScreenState extends State<ProfileScreen> {
   int avgDailyCalories = 0;
   int weeklyGoalDays = 0;
   int recipeCount = 0;
-  int totalLikes = 0;
+  int totalRatings = 0;
   String? avatarPath;
 
   // Lists
   List<Map<String, dynamic>> achievements = [];
-  List<Map<String, dynamic>> _userRecipes = []; // Fetched from Firebase
+  List<Map<String, dynamic>> _userRecipes = []; 
 
   @override
   void initState() {
@@ -58,6 +58,24 @@ class _ProfileScreenState extends State<ProfileScreen> {
       // 2. Load User Recipes from RecipeService
       final recipes = await _recipeService.getUserRecipes();
 
+      // 🔥 NEW: Pre-load ratings for each recipe
+      for (var recipe in recipes) {
+        try {
+          final recipeId = recipe['id'].toString();
+          final ratings = await _profileService.getRecipeRatings(recipeId);
+          
+          // Add ratings to recipe data
+          recipe['averageRating'] = ratings['averageRating'];
+          recipe['totalRatings'] = ratings['totalRatings'];
+          
+          print('✅ Loaded ratings for ${recipe['title']}: ${ratings['averageRating']} (${ratings['totalRatings']} total)');
+        } catch (e) {
+          print('⚠️ Error loading ratings for recipe: $e');
+          recipe['averageRating'] = 0.0;
+          recipe['totalRatings'] = 0;
+        }
+      }
+
       // 3. Load Achievements
       final loadedAchievements = await _profileService.getAchievements();
 
@@ -73,10 +91,10 @@ class _ProfileScreenState extends State<ProfileScreen> {
           currentStreak = profileData['streak'] ?? 0;
           avgDailyCalories = profileData['avgCalories'] ?? 0;
           weeklyGoalDays = profileData['weeklyGoalDays'] ?? 0;
-          totalLikes = profileData['totalLikes'] ?? 0;
+          totalRatings = profileData['totalRatings'] ?? 0;
           avatarPath = profileData['avatar'];
           
-          // Update recipe data
+          // Update recipe data (NOW WITH RATINGS!)
           _userRecipes = recipes;
           recipeCount = recipes.length;
 
@@ -249,7 +267,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
           children: [
             _StatItem(label: 'Recipes', value: '$recipeCount'),
             const SizedBox(width: 48),
-            _StatItem(label: 'Likes', value: '$totalLikes'),
+            _StatItem(label: 'Likes', value: '$totalRatings'),
             // Optional: Add Followers SOON
             // const SizedBox(width: 48),
             // const _StatItem(label: 'Followers', value: '0'),
@@ -621,18 +639,24 @@ class _ProfileScreenState extends State<ProfileScreen> {
       }
       print('✅ Calories: $calories');
 
-      // Extract rating
-      double rating = 5.0;
-      if (recipe['rating'] != null) {
-        if (recipe['rating'] is double) {
-          rating = recipe['rating'] as double;
-        } else if (recipe['rating'] is int) {
-          rating = (recipe['rating'] as int).toDouble();
-        } else {
-          rating = double.tryParse(recipe['rating'].toString()) ?? 5.0;
+      double rating = 0.0;
+      int totalRatings = 0;
+
+      if (recipe['averageRating'] != null) {
+        if (recipe['averageRating'] is double) {
+          rating = recipe['averageRating'];
+        } else if (recipe['averageRating'] is int) {
+          rating = (recipe['averageRating'] as int).toDouble();
+        } else if (recipe['averageRating'] is String) {
+          rating = double.tryParse(recipe['averageRating']) ?? 0.0;
         }
       }
-      print('✅ Rating: $rating');
+
+      if (recipe['totalRatings'] != null) {
+        totalRatings = recipe['totalRatings'] is int
+            ? recipe['totalRatings']
+            : int.tryParse(recipe['totalRatings'].toString()) ?? 0;
+      }
 
       // Extract image
       String image = '';
@@ -796,13 +820,23 @@ class _ProfileScreenState extends State<ProfileScreen> {
                               ),
                               const SizedBox(width: 2),
                               Text(
-                                rating.toStringAsFixed(1),
+                                rating > 0 ? rating.toStringAsFixed(1) : 'No rating',
                                 style: const TextStyle(
                                   color: Colors.white,
                                   fontSize: 11,
                                   fontWeight: FontWeight.w600,
                                 ),
                               ),
+                              if (totalRatings > 0) ...[
+                                const SizedBox(width: 4),
+                                Text(
+                                  '(${totalRatings})',
+                                  style: const TextStyle(
+                                    color: Colors.white70,
+                                    fontSize: 10,
+                                  ),
+                                ),
+                              ],
                             ],
                           ),
                         ],

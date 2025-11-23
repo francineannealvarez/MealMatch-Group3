@@ -1548,18 +1548,27 @@ class _HomePageState extends State<HomePage> {
         print('❌ ERROR extracting calories: $e');
       }
 
-      double rating = 4.5;
+      double rating = 0.0;
+      int totalRatings = 0;
+
       try {
-        if (recipe['rating'] != null) {
-          if (recipe['rating'] is double) {
-            rating = recipe['rating'] as double;
-          } else if (recipe['rating'] is int) {
-            rating = (recipe['rating'] as int).toDouble();
-          } else {
-            rating = double.tryParse(recipe['rating'].toString()) ?? 4.5;
+        if (recipe['averageRating'] != null) {
+          if (recipe['averageRating'] is double) {
+            rating = recipe['averageRating'];
+          } else if (recipe['averageRating'] is int) {
+            rating = (recipe['averageRating'] as int).toDouble();
+          } else if (recipe['averageRating'] is String) {
+            rating = double.tryParse(recipe['averageRating']) ?? 0.0;
           }
         }
-        print('✅ Rating extracted: $rating');
+
+        if (recipe['totalRatings'] != null) {
+          totalRatings = recipe['totalRatings'] is int
+              ? recipe['totalRatings']
+              : int.tryParse(recipe['totalRatings'].toString()) ?? 0;
+        }
+        
+        print('✅ Rating extracted: $rating, Total: $totalRatings');
       } catch (e) {
         print('❌ ERROR extracting rating: $e');
       }
@@ -1726,12 +1735,22 @@ class _HomePageState extends State<HomePage> {
                               ),
                               const SizedBox(width: 2),
                               Text(
-                                rating.toStringAsFixed(1),
+                                rating > 0 ? rating.toStringAsFixed(1) : 'No rating',
                                 style: const TextStyle(
                                   fontSize: 11,
                                   color: Colors.grey,
                                 ),
                               ),
+                              if (totalRatings > 0) ...[
+                                const SizedBox(width: 4),
+                                Text(
+                                  '(${totalRatings})',
+                                  style: const TextStyle(
+                                    color: Colors.grey,
+                                    fontSize: 10,
+                                  ),
+                                ),
+                              ],
                             ],
                           ),
                         ],

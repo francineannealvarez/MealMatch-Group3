@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:mealmatch/services/themealdb_service.dart';
 import 'package:mealmatch/services/cooked_recipes_service.dart';
+import 'package:mealmatch/services/rating_service.dart';
 import 'dart:async';
 import '../services/recipe_service.dart';
 import 'package:firebase_auth/firebase_auth.dart';
@@ -56,10 +57,18 @@ class _RecipeDetailsScreenState extends State<RecipeDetailsScreen> {
   final CookedRecipesService _cookedService = CookedRecipesService();
   bool _isMarkingCooked = false;
 
+  final RatingService _ratingService = RatingService();
+
+  double? _userRating; // User's current rating (if exists)
+  double _averageRating = 0.0;
+  int _totalRatings = 0;
+  bool _isSubmittingRating = false;
+
   @override
   void initState() {
     super.initState();
     _loadRecipeDetails();
+    _loadRatingData();
   }
 
   @override
@@ -677,6 +686,61 @@ class _RecipeDetailsScreenState extends State<RecipeDetailsScreen> {
     });
   }
 
+  Future<void> _loadRatingData() async {
+    try {
+      final stats = await _ratingService.getRecipeRatingStats(widget.recipeId);
+      final userRating = await _ratingService.getUserRatingForRecipe(widget.recipeId);
+      
+      setState(() {
+        _averageRating = stats['averageRating'] as double;
+        _totalRatings = stats['totalRatings'] as int;
+        _userRating = userRating;
+      });
+    } catch (e) {
+      print('Error loading ratings: $e');
+    }
+  }
+
+  Future<void> _submitRating(double rating) async {
+    if (_userId == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('You must be logged in to rate')),
+      );
+      return;
+    }
+
+    setState(() => _isSubmittingRating = true);
+    
+    final result = await _ratingService.submitRating(
+      recipeId: widget.recipeId,
+      ratingValue: rating,
+    );
+
+    setState(() => _isSubmittingRating = false);
+
+    if (result['success']) {
+      await _loadRatingData();
+      
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Rating submitted! 🌟'),
+            backgroundColor: primaryGreen,
+          ),
+        );
+      }
+    } else {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(result['message'] ?? 'Failed to submit rating'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    }
+  }
+
   List<Widget> _buildInstructionSteps(dynamic instructions) {
     if (instructions == null) {
       return [
@@ -930,6 +994,162 @@ class _RecipeDetailsScreenState extends State<RecipeDetailsScreen> {
             ),
           ]
         : widgets;
+  }
+
+  Widget _buildRatingWidget() {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(12),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.grey.withOpacity(0.1),
+            blurRadius: 8,
+            offset: const Offset(0, 2),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // Rating Stats Header
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              const Text(
+                'Rating',
+                style: TextStyle(
+                  fontSize: 18,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+              if (_totalRatings > 0)
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                  decoration: BoxDecoration(
+                    color: Colors.amber.withOpacity(0.1),
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: Text(
+                    '${_totalRatings} ${_totalRatings == 1 ? "rating" : "ratings"}',
+                    style: TextStyle(
+                      fontSize: 12,
+                      color: Colors.amber[900],
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ),
+            ],
+          ),
+          const SizedBox(height: 12),
+
+          // Average Rating Display
+          if (_totalRatings > 0)
+            Row(
+              children: [
+                Text(
+                  _averageRating.toStringAsFixed(1),
+                  style: const TextStyle(
+                    fontSize: 32,
+                    fontWeight: FontWeight.bold,
+                    color: Colors.amber,
+                  ),
+                ),
+                const SizedBox(width: 8),
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: List.generate(5, (index) {
+                        return Icon(
+                          index < _averageRating.floor()
+                              ? Icons.star
+                              : index < _averageRating
+                                  ? Icons.star_half
+                                  : Icons.star_outline,
+                          color: Colors.amber,
+                          size: 16,
+                        );
+                      }),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      'Average Rating',
+                      style: TextStyle(
+                        fontSize: 12,
+                        color: Colors.grey[600],
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            )
+          else
+            Center(
+              child: Padding(
+                padding: const EdgeInsets.symmetric(vertical: 12),
+                child: Text(
+                  'No ratings yet. Be the first to rate!',
+                  style: TextStyle(
+                    fontSize: 14,
+                    color: Colors.grey[600],
+                    fontStyle: FontStyle.italic,
+                  ),
+                ),
+              ),
+            ),
+
+          const SizedBox(height: 16),
+
+          // Your Rating
+          const Text(
+            'Your Rating',
+            style: TextStyle(
+              fontSize: 14,
+              fontWeight: FontWeight.w600,
+              color: Colors.grey
+            ),
+          ),
+          const SizedBox(height: 8),
+
+          // Star Rating Input
+          Row(
+            mainAxisAlignment: MainAxisAlignment.start,
+            children: List.generate(5, (index) {
+              final starValue = (index + 1).toDouble();
+              final isActive = _userRating != null && starValue <= _userRating!;
+              
+              return Padding(
+                padding: const EdgeInsets.only(right: 8),
+                child: GestureDetector(
+                  onTap: _isSubmittingRating
+                      ? null
+                      : () => _submitRating(starValue),
+                  child: Icon(
+                    isActive ? Icons.star : Icons.star_outline,
+                    color: isActive ? Colors.amber : Colors.grey[400],
+                    size: 32,
+                  ),
+                ),
+              );
+            }),
+          ),
+
+          if (_userRating != null) ...[
+            const SizedBox(height: 8),
+            Text(
+              'You rated: ${_userRating!.toStringAsFixed(1)} stars',
+              style: TextStyle(
+                fontSize: 12,
+                color: primaryGreen,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ],
+        ],
+      ),
+    );
   }
 
   @override
@@ -1468,7 +1688,8 @@ class _RecipeDetailsScreenState extends State<RecipeDetailsScreen> {
                             ],
                           ),
                         ),
-
+                        const SizedBox(height: 24),
+                          _buildRatingWidget(),
                         const SizedBox(height: 40),
                       ],
                     ),

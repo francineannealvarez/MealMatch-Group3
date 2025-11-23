@@ -8,6 +8,7 @@ class ProfileService {
   // Get current user ID
   String? get currentUserId => _auth.currentUser?.uid;
 
+
   // 📧 Get user email from Firebase Auth
   String getUserEmail() {
     return _auth.currentUser?.email ?? 'No email';
@@ -183,9 +184,11 @@ class ProfileService {
       final userId = currentUserId;
       if (userId == null) return 0;
 
+      // Query user's PRIVATE recipes collection
       final recipesSnapshot = await _firestore
+          .collection('users')
+          .doc(userId)
           .collection('recipes')
-          .where('authorId', isEqualTo: userId)
           .get();
 
       return recipesSnapshot.docs.length;
@@ -195,28 +198,98 @@ class ProfileService {
     }
   }
 
-  // ❤️ Get total likes on user's recipes
-  Future<int> getTotalLikes() async {
+  // 🌟 Get total ratings on user's recipes - FIXED to count from subcollections
+  Future<int> getTotalRatings() async {
     try {
       final userId = currentUserId;
       if (userId == null) return 0;
 
+      print('📊 Calculating total ratings for user: $userId');
+
+      // Get all user's private recipes
       final recipesSnapshot = await _firestore
+          .collection('users')
+          .doc(userId)
           .collection('recipes')
-          .where('authorId', isEqualTo: userId)
           .get();
 
-      int totalLikes = 0;
-      for (var doc in recipesSnapshot.docs) {
-        final data = doc.data();
-        final likes = data['likes'] ?? 0;
-        totalLikes += (likes is int ? likes : 0);
+      if (recipesSnapshot.docs.isEmpty) {
+        print('⚠️ No recipes found for user');
+        return 0;
       }
 
-      return totalLikes;
+      int totalRatings = 0;
+
+      // For each recipe, count ratings from SUBCOLLECTION
+      for (var recipeDoc in recipesSnapshot.docs) {
+        try {
+          // Get ratings subcollection
+          final ratingsSnapshot = await _firestore
+              .collection('users')
+              .doc(userId)
+              .collection('recipes')
+              .doc(recipeDoc.id)
+              .collection('ratings')
+              .get();
+
+          final ratingCount = ratingsSnapshot.docs.length;
+          totalRatings += ratingCount;
+
+          if (ratingCount > 0) {
+            print('  Recipe ${recipeDoc.id}: $ratingCount ratings');
+          }
+        } catch (e) {
+          print('  ⚠️ Error counting ratings for recipe ${recipeDoc.id}: $e');
+          continue;
+        }
+      }
+
+      print('✅ Total ratings across all recipes: $totalRatings');
+      return totalRatings;
     } catch (e) {
-      print('Error getting total likes: $e');
+      print('❌ Error getting total ratings: $e');
       return 0;
+    }
+  }
+
+  // 🌟 Get ratings for a specific recipe (helper for profile cards)
+  Future<Map<String, dynamic>> getRecipeRatings(String recipeId) async {
+    try {
+      final userId = currentUserId;
+      if (userId == null) {
+        return {'averageRating': 0.0, 'totalRatings': 0};
+      }
+
+      // Query the ratings subcollection
+      final ratingsSnapshot = await _firestore
+          .collection('users')
+          .doc(userId)
+          .collection('recipes')
+          .doc(recipeId)
+          .collection('ratings')
+          .get();
+
+      final totalRatings = ratingsSnapshot.docs.length;
+
+      if (totalRatings == 0) {
+        return {'averageRating': 0.0, 'totalRatings': 0};
+      }
+
+      // Calculate average rating
+      double totalRating = 0;
+      for (var doc in ratingsSnapshot.docs) {
+        totalRating += (doc.data()['ratingValue'] as num).toDouble();
+      }
+
+      final averageRating = totalRating / totalRatings;
+
+      return {
+        'averageRating': averageRating,
+        'totalRatings': totalRatings,
+      };
+    } catch (e) {
+      print('❌ Error getting recipe ratings: $e');
+      return {'averageRating': 0.0, 'totalRatings': 0};
     }
   }
 
@@ -286,7 +359,7 @@ class ProfileService {
       final results = await Future.wait([
         getCurrentStreak(),
         getUserRecipeCount(),
-        getTotalLikes(),
+        getTotalRatings(),
         _firestore.collection('users').doc(userId).collection('meal_logs').get(),
         _getUniqueDaysLogged(),
         _hasLoggedAllMealsToday(),
@@ -294,7 +367,7 @@ class ProfileService {
 
       final streak = results[0] as int;
       final recipeCount = results[1] as int;
-      final totalLikes = results[2] as int;
+      final totalRatings = results[2] as int;
       final logsSnapshot = results[3] as QuerySnapshot;
       final uniqueDays = results[4] as int;
       final hasAllMeals = results[5] as bool;
@@ -435,26 +508,26 @@ class ProfileService {
         {
           'id': 'first_fan',
           'title': 'First Fan',
-          'description': 'Got your first like',
+          'description': 'Got your first rate!',
           'icon': '❤️',
           'category': 'social',
-          'requirement': totalLikes >= 1,
+          'requirement': totalRatings >= 1,
         },
         {
           'id': 'popular_creator',
           'title': 'Popular Creator',
-          'description': 'Got 50 total likes',
+          'description': 'Got 50 total rates!',
           'icon': '⭐',
           'category': 'social',
-          'requirement': totalLikes >= 50,
+          'requirement': totalRatings >= 50,
         },
         {
           'id': 'super_star',
           'title': 'Super Star',
-          'description': 'Got 100 total likes',
+          'description': 'Got 100 total rates!',
           'icon': '🌟',
           'category': 'social',
-          'requirement': totalLikes >= 100,
+          'requirement': totalRatings >= 100,
         },
       ];
 
@@ -607,7 +680,7 @@ class ProfileService {
       final avgCalories = await getAvgDailyCalories();
       final weeklyGoal = await getWeeklyGoalProgress();
       final recipeCount = await getUserRecipeCount();
-      final totalLikes = await getTotalLikes();
+      final totalRatings = await getTotalRatings();
       final avatar = await getUserAvatar();
 
       return {
@@ -618,7 +691,7 @@ class ProfileService {
         'weeklyGoalDays': weeklyGoal['daysLogged'],
         'weeklyGoalTotal': weeklyGoal['totalDays'],
         'recipeCount': recipeCount,
-        'totalLikes': totalLikes,
+        'totalRatings': totalRatings,
         'avatar': avatar, // Can be null
       };
     } catch (e) {
@@ -632,7 +705,7 @@ class ProfileService {
         'weeklyGoalDays': 0,
         'weeklyGoalTotal': 7,
         'recipeCount': 0,
-        'totalLikes': 0,
+        'totalRatings': 0,
         'avatar': null,
       };
     }

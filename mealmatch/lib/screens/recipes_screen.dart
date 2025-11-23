@@ -401,15 +401,23 @@ class _RecipesScreenState extends State<RecipesScreen>
       }
     }
     
-    double rating = 4.5;
-    if (recipe['rating'] != null) {
-      if (recipe['rating'] is double) {
-        rating = recipe['rating'];
-      } else if (recipe['rating'] is int) {
-        rating = (recipe['rating'] as int).toDouble();
-      } else if (recipe['rating'] is String) {
-        rating = double.tryParse(recipe['rating']) ?? 4.5;
+    double rating = 0.0;
+    int totalRatings = 0;
+
+    if (recipe['averageRating'] != null) {
+      if (recipe['averageRating'] is double) {
+        rating = recipe['averageRating'];
+      } else if (recipe['averageRating'] is int) {
+        rating = (recipe['averageRating'] as int).toDouble();
+      } else if (recipe['averageRating'] is String) {
+        rating = double.tryParse(recipe['averageRating']) ?? 0.0;
       }
+    }
+
+    if (recipe['totalRatings'] != null) {
+      totalRatings = recipe['totalRatings'] is int
+          ? recipe['totalRatings']
+          : int.tryParse(recipe['totalRatings'].toString()) ?? 0;
     }
 
     // Format cook time (convert to hrs and mins if > 59)
@@ -573,13 +581,23 @@ class _RecipesScreenState extends State<RecipesScreen>
                             ),
                             const SizedBox(width: 2),
                             Text(
-                              rating.toStringAsFixed(1),
+                              rating > 0 ? rating.toStringAsFixed(1) : 'No rating',
                               style: const TextStyle(
                                 color: Colors.white,
                                 fontSize: 11,
                                 fontWeight: FontWeight.w600,
                               ),
                             ),
+                            if (totalRatings > 0) ...[
+                              const SizedBox(width: 4),
+                              Text(
+                                '(${totalRatings})',
+                                style: const TextStyle(
+                                  color: Colors.white70,
+                                  fontSize: 10,
+                                ),
+                              ),
+                            ],
                           ],
                         ),
                       ],

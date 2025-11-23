@@ -265,18 +265,112 @@ class RecipeService {
         return {'success': false, 'message': 'User not logged in'};
       }
 
-      await _firestore
-        .collection('users')
-        .doc(user.uid)
-        .collection('recipes')
-        .doc(recipeId)
-        .delete();
+      print('🗑️ Starting recipe deletion: $recipeId');
 
-      print('✅ Recipe deleted: $recipeId');
-      return {'success': true, 'message': 'Recipe deleted successfully'};
-    } catch (e) {
+      // STEP 1: Get the private recipe to find the public ID
+      final privateRecipeDoc = await _firestore
+          .collection('users')
+          .doc(user.uid)
+          .collection('recipes')
+          .doc(recipeId)
+          .get();
+
+      String? publicRecipeId;
+      
+      if (privateRecipeDoc.exists) {
+        final data = privateRecipeDoc.data();
+        publicRecipeId = data?['publicRecipeId'] as String?;
+        print('📍 Found publicRecipeId: $publicRecipeId');
+      }
+
+      // STEP 2: Delete from PRIVATE collection (users/{userId}/recipes)
+      await _firestore
+          .collection('users')
+          .doc(user.uid)
+          .collection('recipes')
+          .doc(recipeId)
+          .delete();
+      
+      print('✅ Deleted from private collection: users/${user.uid}/recipes/$recipeId');
+
+      // STEP 3: Delete from PUBLIC collection if ID exists
+      if (publicRecipeId != null && publicRecipeId.isNotEmpty) {
+        try {
+          // Delete all ratings in public recipe first
+          final ratingsSnapshot = await _firestore
+              .collection('public_recipes')
+              .doc(publicRecipeId)
+              .collection('ratings')
+              .get();
+          
+          final batch = _firestore.batch();
+          for (var doc in ratingsSnapshot.docs) {
+            batch.delete(doc.reference);
+          }
+          await batch.commit();
+          print('✅ Deleted ${ratingsSnapshot.docs.length} ratings from public recipe');
+
+          // Now delete the public recipe itself
+          await _firestore
+              .collection('public_recipes')
+              .doc(publicRecipeId)
+              .delete();
+          
+          print('✅ Deleted from public collection: public_recipes/$publicRecipeId');
+        } catch (e) {
+          print('⚠️ Error deleting public recipe: $e');
+        }
+      }
+
+      // STEP 4: Also try to delete if recipeId IS the public ID
+      // (fallback in case publicRecipeId wasn't stored correctly)
+      try {
+        final publicDoc = await _firestore
+            .collection('public_recipes')
+            .doc(recipeId)
+            .get();
+        
+        if (publicDoc.exists) {
+          final data = publicDoc.data();
+          if (data?['authorId'] == user.uid) {
+            // Delete ratings first
+            final ratingsSnapshot = await _firestore
+                .collection('public_recipes')
+                .doc(recipeId)
+                .collection('ratings')
+                .get();
+            
+            final batch = _firestore.batch();
+            for (var doc in ratingsSnapshot.docs) {
+              batch.delete(doc.reference);
+            }
+            await batch.commit();
+
+            // Delete recipe
+            await _firestore
+                .collection('public_recipes')
+                .doc(recipeId)
+                .delete();
+            
+            print('✅ Also deleted from public (fallback): public_recipes/$recipeId');
+          }
+        }
+      } catch (e) {
+        print('⚠️ Fallback deletion not needed or failed: $e');
+      }
+
+      print('✅ Recipe deletion complete!');
+      return {
+        'success': true,
+        'message': 'Recipe deleted successfully from all locations'
+      };
+    } catch (e, stackTrace) {
       print('❌ Error deleting recipe: $e');
-      return {'success': false, 'message': 'Failed to delete recipe'};
+      print('❌ Stack trace: $stackTrace');
+      return {
+        'success': false,
+        'message': 'Failed to delete recipe: $e'
+      };
     }
   }
 
