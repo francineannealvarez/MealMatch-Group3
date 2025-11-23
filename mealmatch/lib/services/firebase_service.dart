@@ -540,13 +540,15 @@ class FirebaseService {
     // Apply calorie adjustment based on weight pace
     int targetCalories;
     if (hasLoseWeight) {
+      // User wants to lose weight - apply deficit based on pace
       int adjustment = _getCalorieAdjustmentForPace(weightPace, true);
       targetCalories = (tdee + adjustment).round();
     } else if (hasGainWeight) {
+      // User wants to gain weight - apply surplus based on pace
       int adjustment = _getCalorieAdjustmentForPace(weightPace, false);
       targetCalories = (tdee + adjustment).round();
     } else {
-      // Maintain weight - use TDEE
+      // User wants to maintain weight - use TDEE (no adjustment)
       targetCalories = tdee.round();
     }
 
