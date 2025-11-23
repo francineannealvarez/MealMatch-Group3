@@ -24,7 +24,7 @@ class _HomePageState extends State<HomePage> {
   final LogService _logService = LogService();
   final FirebaseService _firebaseService = FirebaseService();
   final CookedRecipesService _cookedService = CookedRecipesService();
-  
+
   int _selectedIndex = 0;
 
   int userGoalCalories = 2000;
@@ -52,7 +52,7 @@ class _HomePageState extends State<HomePage> {
   void initState() {
     super.initState();
     _loadTodayData();
-    
+
     // Check and show welcome dialog after page loads
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _checkAndShowWelcomeDialog();
@@ -109,18 +109,18 @@ class _HomePageState extends State<HomePage> {
     }
   }
 
-    Future<void> _checkAndShowWelcomeDialog() async {
+  Future<void> _checkAndShowWelcomeDialog() async {
     try {
       final prefs = await SharedPreferences.getInstance();
       final shouldShow = prefs.getBool('show_calorie_welcome') ?? false;
-      
+
       if (shouldShow && mounted) {
         // Mark as shown so it never appears again
         await prefs.setBool('show_calorie_welcome', false);
-        
+
         // Wait a bit for the page to fully load
         await Future.delayed(const Duration(milliseconds: 800));
-        
+
         if (mounted) {
           _showCalorieWelcomeDialog();
         }
@@ -136,9 +136,7 @@ class _HomePageState extends State<HomePage> {
       context: context,
       barrierDismissible: false, // User must tap button to close
       builder: (context) => Dialog(
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(20),
-        ),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
         child: Container(
           padding: const EdgeInsets.all(24),
           decoration: BoxDecoration(
@@ -204,10 +202,7 @@ class _HomePageState extends State<HomePage> {
                   onPressed: () => Navigator.of(context).pop(),
                   child: const Text(
                     'Got it!',
-                    style: TextStyle(
-                      fontSize: 16,
-                      fontWeight: FontWeight.w600,
-                    ),
+                    style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
                   ),
                 ),
               ),
@@ -242,19 +237,15 @@ class _HomePageState extends State<HomePage> {
       final discoverFuture = _getVariedProteinRecipes();
       final tryTheseFuture = TheMealDBService.getRandomMeals(5);
 
-      final results = await Future.wait([
-        userRecipesFuture,
-        cookAgainFuture,
-        discoverFuture,
-        tryTheseFuture,
-      ], eagerError: true).timeout(
-        const Duration(seconds: 30),
-        onTimeout: () => [[], [], [], []],
-      );
+      final results = await Future.wait(
+        [userRecipesFuture, cookAgainFuture, discoverFuture, tryTheseFuture],
+        eagerError: true,
+      ).timeout(const Duration(seconds: 30), onTimeout: () => [[], [], [], []]);
 
       userRecipes = (results[0] as List).cast<Map<String, dynamic>>();
       cookAgainRecipes = (results[1] as List).cast<Map<String, dynamic>>();
-      discoverProteinRecipes = (results[2] as List).cast<Map<String, dynamic>>();
+      discoverProteinRecipes = (results[2] as List)
+          .cast<Map<String, dynamic>>();
       tryTheseRecipes = (results[3] as List).cast<Map<String, dynamic>>();
 
       print('✅ All recipes loaded:');
@@ -262,7 +253,7 @@ class _HomePageState extends State<HomePage> {
       print('   - ${cookAgainRecipes.length} cook again recipes');
       print('   - ${discoverProteinRecipes.length} protein recipes');
       print('   - ${tryTheseRecipes.length} try these recipes');
-      
+
       if (mounted) setState(() {});
     } catch (e) {
       print('❌ Error loading recipes: $e');
@@ -328,14 +319,15 @@ class _HomePageState extends State<HomePage> {
           final recipeId = cookedRecipe['recipeId'] is String
               ? cookedRecipe['recipeId'] as String
               : cookedRecipe['recipeId'].toString();
-              
+
           print('🔍 Loading cooked recipe: $recipeId');
 
           // TRY RECIPE SERVICE FIRST (user recipes)
           final details = await _recipeService.getRecipeById(recipeId);
-          
+
           // If not found in user recipes, try TheMealDB
-          final finalDetails = details ?? await TheMealDBService.getMealDetails(recipeId);
+          final finalDetails =
+              details ?? await TheMealDBService.getMealDetails(recipeId);
 
           if (finalDetails != null) {
             recipes.add(finalDetails);
@@ -892,6 +884,7 @@ class _HomePageState extends State<HomePage> {
           height: 210,
           child: cookAgainRecipes.isEmpty
               ? ListView.builder(
+                  scrollDirection: Axis.horizontal,
                   padding: const EdgeInsets.symmetric(horizontal: 16),
                   physics: const NeverScrollableScrollPhysics(),
                   itemCount: 5,
@@ -1405,10 +1398,10 @@ class _HomePageState extends State<HomePage> {
     String formatCookTime(int minutes) {
       if (minutes <= 0) return '';
       if (minutes < 60) return '$minutes mins';
-      
+
       final hours = minutes ~/ 60;
       final mins = minutes % 60;
-      
+
       if (mins == 0) {
         return hours == 1 ? '$hours hr' : '$hours hrs';
       } else {
@@ -1419,42 +1412,42 @@ class _HomePageState extends State<HomePage> {
     try {
       print('🔍 === DEBUGGING RECIPE CARD ===');
       print('Recipe ID: ${recipe['id']}');
-      
+
       // Debug each field one by one
       print('Checking title...');
       print('  title type: ${recipe['title'].runtimeType}');
       print('  title value: ${recipe['title']}');
-      
+
       print('Checking name...');
       print('  name type: ${recipe['name']?.runtimeType}');
       print('  name value: ${recipe['name']}');
-      
+
       print('Checking author...');
       print('  author type: ${recipe['author']?.runtimeType}');
       print('  author value: ${recipe['author']}');
-      
+
       print('Checking userName...');
       print('  userName type: ${recipe['userName']?.runtimeType}');
       print('  userName value: ${recipe['userName']}');
-      
+
       print('Checking image...');
       print('  image type: ${recipe['image']?.runtimeType}');
       print('  image value: ${recipe['image']}');
-      
+
       print('Checking readyInMinutes...');
       print('  readyInMinutes type: ${recipe['readyInMinutes']?.runtimeType}');
       print('  readyInMinutes value: ${recipe['readyInMinutes']}');
-      
+
       print('Checking calories...');
       print('  calories type: ${recipe['calories']?.runtimeType}');
       print('  calories value: ${recipe['calories']}');
-      
+
       print('Checking rating...');
       print('  rating type: ${recipe['rating']?.runtimeType}');
       print('  rating value: ${recipe['rating']}');
-      
+
       print('✅ All fields checked!');
-      
+
       String title = 'Recipe Name';
       try {
         if (recipe['title'] != null) {
@@ -1463,11 +1456,15 @@ class _HomePageState extends State<HomePage> {
             print('✅ Title extracted as String: $title');
           } else if (recipe['title'] is List) {
             final titleList = recipe['title'] as List;
-            title = titleList.isNotEmpty ? titleList[0].toString() : 'Recipe Name';
+            title = titleList.isNotEmpty
+                ? titleList[0].toString()
+                : 'Recipe Name';
             print('⚠️ Title was List, extracted: $title');
           } else {
             title = recipe['title'].toString();
-            print('⚠️ Title was ${recipe['title'].runtimeType}, converted: $title');
+            print(
+              '⚠️ Title was ${recipe['title'].runtimeType}, converted: $title',
+            );
           }
         } else if (recipe['name'] != null) {
           if (recipe['name'] is String) {
@@ -1475,7 +1472,9 @@ class _HomePageState extends State<HomePage> {
             print('✅ Name extracted as String: $title');
           } else if (recipe['name'] is List) {
             final nameList = recipe['name'] as List;
-            title = nameList.isNotEmpty ? nameList[0].toString() : 'Recipe Name';
+            title = nameList.isNotEmpty
+                ? nameList[0].toString()
+                : 'Recipe Name';
             print('⚠️ Name was List, extracted: $title');
           } else {
             title = recipe['name'].toString();
@@ -1486,7 +1485,7 @@ class _HomePageState extends State<HomePage> {
         print('❌ ERROR extracting title: $e');
         title = 'Error';
       }
-      
+
       String author = 'Author';
       try {
         if (recipe['author'] != null) {
@@ -1494,7 +1493,9 @@ class _HomePageState extends State<HomePage> {
             author = recipe['author'] as String;
           } else if (recipe['author'] is List) {
             final authorList = recipe['author'] as List;
-            author = authorList.isNotEmpty ? authorList[0].toString() : 'Author';
+            author = authorList.isNotEmpty
+                ? authorList[0].toString()
+                : 'Author';
           } else {
             author = recipe['author'].toString();
           }
@@ -1506,7 +1507,7 @@ class _HomePageState extends State<HomePage> {
         print('❌ ERROR extracting author: $e');
         author = 'Error';
       }
-      
+
       int cookTime = 0;
       try {
         if (recipe['readyInMinutes'] != null) {
@@ -1522,7 +1523,7 @@ class _HomePageState extends State<HomePage> {
       } catch (e) {
         print('❌ ERROR extracting cookTime: $e');
       }
-      
+
       int calories = 0;
       try {
         if (recipe['nutrition'] != null && recipe['nutrition'] is Map) {
@@ -1546,7 +1547,7 @@ class _HomePageState extends State<HomePage> {
       } catch (e) {
         print('❌ ERROR extracting calories: $e');
       }
-      
+
       double rating = 4.5;
       try {
         if (recipe['rating'] != null) {
@@ -1562,7 +1563,7 @@ class _HomePageState extends State<HomePage> {
       } catch (e) {
         print('❌ ERROR extracting rating: $e');
       }
-      
+
       String image = '';
       try {
         if (recipe['image'] != null) {
@@ -1581,7 +1582,7 @@ class _HomePageState extends State<HomePage> {
       } catch (e) {
         print('❌ ERROR extracting image: $e');
       }
-      
+
       print('🎉 All extractions complete!');
 
       return GestureDetector(
@@ -1664,7 +1665,10 @@ class _HomePageState extends State<HomePage> {
                       const SizedBox(height: 2),
                       Text(
                         author,
-                        style: const TextStyle(fontSize: 11, color: Colors.grey),
+                        style: const TextStyle(
+                          fontSize: 11,
+                          color: Colors.grey,
+                        ),
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
                       ),
