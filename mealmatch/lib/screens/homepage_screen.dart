@@ -804,7 +804,7 @@ class _HomePageState extends State<HomePage> {
         const Padding(
           padding: EdgeInsets.fromLTRB(16, 16, 16, 8),
           child: Text(
-            'Community Recipes 👥',
+            'Community Recipes',
             style: TextStyle(
               fontSize: 18,
               fontWeight: FontWeight.bold,
@@ -1286,220 +1286,243 @@ class _HomePageState extends State<HomePage> {
     );
   }
 
-//from homepage screen
   Widget _buildRecipeCard(Map<String, dynamic> recipe) {
-  try {
-    print('🔍 === DEBUGGING RECIPE CARD ===');
-    print('Recipe ID: ${recipe['id']}');
-    
-    // Debug each field one by one
-    print('Checking title...');
-    print('  title type: ${recipe['title'].runtimeType}');
-    print('  title value: ${recipe['title']}');
-    
-    print('Checking name...');
-    print('  name type: ${recipe['name']?.runtimeType}');
-    print('  name value: ${recipe['name']}');
-    
-    print('Checking author...');
-    print('  author type: ${recipe['author']?.runtimeType}');
-    print('  author value: ${recipe['author']}');
-    
-    print('Checking userName...');
-    print('  userName type: ${recipe['userName']?.runtimeType}');
-    print('  userName value: ${recipe['userName']}');
-    
-    print('Checking image...');
-    print('  image type: ${recipe['image']?.runtimeType}');
-    print('  image value: ${recipe['image']}');
-    
-    print('Checking readyInMinutes...');
-    print('  readyInMinutes type: ${recipe['readyInMinutes']?.runtimeType}');
-    print('  readyInMinutes value: ${recipe['readyInMinutes']}');
-    
-    print('Checking calories...');
-    print('  calories type: ${recipe['calories']?.runtimeType}');
-    print('  calories value: ${recipe['calories']}');
-    
-    print('Checking rating...');
-    print('  rating type: ${recipe['rating']?.runtimeType}');
-    print('  rating value: ${recipe['rating']}');
-    
-    print('✅ All fields checked!');
-    
-    // NOW try to extract - this will show exactly which line fails
-    String title = 'Recipe Name';
-    try {
-      if (recipe['title'] != null) {
-        if (recipe['title'] is String) {
-          title = recipe['title'] as String;
-          print('✅ Title extracted as String: $title');
-        } else if (recipe['title'] is List) {
-          final titleList = recipe['title'] as List;
-          title = titleList.isNotEmpty ? titleList[0].toString() : 'Recipe Name';
-          print('⚠️ Title was List, extracted: $title');
-        } else {
-          title = recipe['title'].toString();
-          print('⚠️ Title was ${recipe['title'].runtimeType}, converted: $title');
-        }
-      } else if (recipe['name'] != null) {
-        if (recipe['name'] is String) {
-          title = recipe['name'] as String;
-          print('✅ Name extracted as String: $title');
-        } else if (recipe['name'] is List) {
-          final nameList = recipe['name'] as List;
-          title = nameList.isNotEmpty ? nameList[0].toString() : 'Recipe Name';
-          print('⚠️ Name was List, extracted: $title');
-        } else {
-          title = recipe['name'].toString();
-          print('⚠️ Name converted: $title');
-        }
+    // Format cook time (convert to hrs and mins if > 59)
+    String formatCookTime(int minutes) {
+      if (minutes <= 0) return '';
+      if (minutes < 60) return '$minutes mins';
+      
+      final hours = minutes ~/ 60;
+      final mins = minutes % 60;
+      
+      if (mins == 0) {
+        return hours == 1 ? '$hours hr' : '$hours hrs';
+      } else {
+        return '$hours hr${hours > 1 ? 's' : ''} ${mins}m';
       }
-    } catch (e) {
-      print('❌ ERROR extracting title: $e');
-      title = 'Error';
     }
-    
-    String author = 'Author';
+
     try {
-      if (recipe['author'] != null) {
-        if (recipe['author'] is String) {
-          author = recipe['author'] as String;
-        } else if (recipe['author'] is List) {
-          final authorList = recipe['author'] as List;
-          author = authorList.isNotEmpty ? authorList[0].toString() : 'Author';
-        } else {
-          author = recipe['author'].toString();
-        }
-      } else if (recipe['userName'] != null) {
-        author = recipe['userName'].toString();
-      }
-      print('✅ Author extracted: $author');
-    } catch (e) {
-      print('❌ ERROR extracting author: $e');
-      author = 'Error';
-    }
-    
-    int cookTime = 0;
-    try {
-      if (recipe['readyInMinutes'] != null) {
-        if (recipe['readyInMinutes'] is int) {
-          cookTime = recipe['readyInMinutes'] as int;
-        } else if (recipe['readyInMinutes'] is String) {
-          cookTime = int.tryParse(recipe['readyInMinutes'] as String) ?? 0;
-        } else {
-          cookTime = int.tryParse(recipe['readyInMinutes'].toString()) ?? 0;
-        }
-      }
-      print('✅ CookTime extracted: $cookTime');
-    } catch (e) {
-      print('❌ ERROR extracting cookTime: $e');
-    }
-    
-    int calories = 0;
-    try {
-      if (recipe['nutrition'] != null && recipe['nutrition'] is Map) {
-        final nutrition = recipe['nutrition'] as Map;
-        if (nutrition['calories'] != null) {
-          final caloriesVal = nutrition['calories'];
-          if (caloriesVal is int) {
-            calories = caloriesVal;
+      print('🔍 === DEBUGGING RECIPE CARD ===');
+      print('Recipe ID: ${recipe['id']}');
+      
+      // Debug each field one by one
+      print('Checking title...');
+      print('  title type: ${recipe['title'].runtimeType}');
+      print('  title value: ${recipe['title']}');
+      
+      print('Checking name...');
+      print('  name type: ${recipe['name']?.runtimeType}');
+      print('  name value: ${recipe['name']}');
+      
+      print('Checking author...');
+      print('  author type: ${recipe['author']?.runtimeType}');
+      print('  author value: ${recipe['author']}');
+      
+      print('Checking userName...');
+      print('  userName type: ${recipe['userName']?.runtimeType}');
+      print('  userName value: ${recipe['userName']}');
+      
+      print('Checking image...');
+      print('  image type: ${recipe['image']?.runtimeType}');
+      print('  image value: ${recipe['image']}');
+      
+      print('Checking readyInMinutes...');
+      print('  readyInMinutes type: ${recipe['readyInMinutes']?.runtimeType}');
+      print('  readyInMinutes value: ${recipe['readyInMinutes']}');
+      
+      print('Checking calories...');
+      print('  calories type: ${recipe['calories']?.runtimeType}');
+      print('  calories value: ${recipe['calories']}');
+      
+      print('Checking rating...');
+      print('  rating type: ${recipe['rating']?.runtimeType}');
+      print('  rating value: ${recipe['rating']}');
+      
+      print('✅ All fields checked!');
+      
+      // NOW try to extract - this will show exactly which line fails
+      String title = 'Recipe Name';
+      try {
+        if (recipe['title'] != null) {
+          if (recipe['title'] is String) {
+            title = recipe['title'] as String;
+            print('✅ Title extracted as String: $title');
+          } else if (recipe['title'] is List) {
+            final titleList = recipe['title'] as List;
+            title = titleList.isNotEmpty ? titleList[0].toString() : 'Recipe Name';
+            print('⚠️ Title was List, extracted: $title');
           } else {
-            calories = int.tryParse(caloriesVal.toString()) ?? 0;
+            title = recipe['title'].toString();
+            print('⚠️ Title was ${recipe['title'].runtimeType}, converted: $title');
+          }
+        } else if (recipe['name'] != null) {
+          if (recipe['name'] is String) {
+            title = recipe['name'] as String;
+            print('✅ Name extracted as String: $title');
+          } else if (recipe['name'] is List) {
+            final nameList = recipe['name'] as List;
+            title = nameList.isNotEmpty ? nameList[0].toString() : 'Recipe Name';
+            print('⚠️ Name was List, extracted: $title');
+          } else {
+            title = recipe['name'].toString();
+            print('⚠️ Name converted: $title');
           }
         }
-      } else if (recipe['calories'] != null) {
-        if (recipe['calories'] is int) {
-          calories = recipe['calories'] as int;
-        } else {
-          calories = int.tryParse(recipe['calories'].toString()) ?? 0;
-        }
+      } catch (e) {
+        print('❌ ERROR extracting title: $e');
+        title = 'Error';
       }
-      print('✅ Calories extracted: $calories');
-    } catch (e) {
-      print('❌ ERROR extracting calories: $e');
-    }
-    
-    double rating = 4.5;
-    try {
-      if (recipe['rating'] != null) {
-        if (recipe['rating'] is double) {
-          rating = recipe['rating'] as double;
-        } else if (recipe['rating'] is int) {
-          rating = (recipe['rating'] as int).toDouble();
-        } else {
-          rating = double.tryParse(recipe['rating'].toString()) ?? 4.5;
+      
+      String author = 'Author';
+      try {
+        if (recipe['author'] != null) {
+          if (recipe['author'] is String) {
+            author = recipe['author'] as String;
+          } else if (recipe['author'] is List) {
+            final authorList = recipe['author'] as List;
+            author = authorList.isNotEmpty ? authorList[0].toString() : 'Author';
+          } else {
+            author = recipe['author'].toString();
+          }
+        } else if (recipe['userName'] != null) {
+          author = recipe['userName'].toString();
         }
+        print('✅ Author extracted: $author');
+      } catch (e) {
+        print('❌ ERROR extracting author: $e');
+        author = 'Error';
       }
-      print('✅ Rating extracted: $rating');
-    } catch (e) {
-      print('❌ ERROR extracting rating: $e');
-    }
-    
-    String image = '';
-    try {
-      if (recipe['image'] != null) {
-        if (recipe['image'] is String) {
-          image = recipe['image'] as String;
-        } else if (recipe['image'] is List) {
-          final imgList = recipe['image'] as List;
-          image = imgList.isNotEmpty ? imgList[0].toString() : '';
-        } else {
-          image = recipe['image'].toString();
+      
+      int cookTime = 0;
+      try {
+        if (recipe['readyInMinutes'] != null) {
+          if (recipe['readyInMinutes'] is int) {
+            cookTime = recipe['readyInMinutes'] as int;
+          } else if (recipe['readyInMinutes'] is String) {
+            cookTime = int.tryParse(recipe['readyInMinutes'] as String) ?? 0;
+          } else {
+            cookTime = int.tryParse(recipe['readyInMinutes'].toString()) ?? 0;
+          }
         }
-      } else if (recipe['strMealThumb'] != null) {
-        image = recipe['strMealThumb'].toString();
+        print('✅ CookTime extracted: $cookTime');
+      } catch (e) {
+        print('❌ ERROR extracting cookTime: $e');
       }
-      print('✅ Image extracted: $image');
-    } catch (e) {
-      print('❌ ERROR extracting image: $e');
-    }
-    
-    print('🎉 All extractions complete!');
+      
+      int calories = 0;
+      try {
+        if (recipe['nutrition'] != null && recipe['nutrition'] is Map) {
+          final nutrition = recipe['nutrition'] as Map;
+          if (nutrition['calories'] != null) {
+            final caloriesVal = nutrition['calories'];
+            if (caloriesVal is int) {
+              calories = caloriesVal;
+            } else {
+              calories = int.tryParse(caloriesVal.toString()) ?? 0;
+            }
+          }
+        } else if (recipe['calories'] != null) {
+          if (recipe['calories'] is int) {
+            calories = recipe['calories'] as int;
+          } else {
+            calories = int.tryParse(recipe['calories'].toString()) ?? 0;
+          }
+        }
+        print('✅ Calories extracted: $calories');
+      } catch (e) {
+        print('❌ ERROR extracting calories: $e');
+      }
+      
+      double rating = 4.5;
+      try {
+        if (recipe['rating'] != null) {
+          if (recipe['rating'] is double) {
+            rating = recipe['rating'] as double;
+          } else if (recipe['rating'] is int) {
+            rating = (recipe['rating'] as int).toDouble();
+          } else {
+            rating = double.tryParse(recipe['rating'].toString()) ?? 4.5;
+          }
+        }
+        print('✅ Rating extracted: $rating');
+      } catch (e) {
+        print('❌ ERROR extracting rating: $e');
+      }
+      
+      String image = '';
+      try {
+        if (recipe['image'] != null) {
+          if (recipe['image'] is String) {
+            image = recipe['image'] as String;
+          } else if (recipe['image'] is List) {
+            final imgList = recipe['image'] as List;
+            image = imgList.isNotEmpty ? imgList[0].toString() : '';
+          } else {
+            image = recipe['image'].toString();
+          }
+        } else if (recipe['strMealThumb'] != null) {
+          image = recipe['strMealThumb'].toString();
+        }
+        print('✅ Image extracted: $image');
+      } catch (e) {
+        print('❌ ERROR extracting image: $e');
+      }
+      
+      print('🎉 All extractions complete!');
 
-    return GestureDetector(
-      onTap: () {
-        print('📍 Tapping recipe: ${recipe['id']}');
-        Navigator.push(
-          context,
-          MaterialPageRoute(
-            builder: (context) =>
-                RecipeDetailsScreen(recipeId: recipe['id'].toString()),
-          ),
-        ).then((_) {
-          _loadTodayData();
-        });
-      },
-      child: Container(
-        width: 160,
-        margin: const EdgeInsets.only(right: 16),
-        decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(16),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.grey.withOpacity(0.15),
-              spreadRadius: 1,
-              blurRadius: 6,
-              offset: const Offset(0, 2),
+      return GestureDetector(
+        onTap: () {
+          print('📍 Tapping recipe: ${recipe['id']}');
+          Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (context) =>
+                  RecipeDetailsScreen(recipeId: recipe['id'].toString()),
             ),
-          ],
-        ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            ClipRRect(
-              borderRadius: const BorderRadius.only(
-                topLeft: Radius.circular(16),
-                topRight: Radius.circular(16),
+          ).then((_) {
+            _loadTodayData();
+          });
+        },
+        child: Container(
+          width: 160,
+          margin: const EdgeInsets.only(right: 16),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(16),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.grey.withOpacity(0.15),
+                spreadRadius: 1,
+                blurRadius: 6,
+                offset: const Offset(0, 2),
               ),
-              child: image.isNotEmpty
-                  ? Image.network(
-                      image,
-                      height: 90,
-                      width: 160,
-                      fit: BoxFit.cover,
-                      errorBuilder: (_, __, ___) => Container(
+            ],
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              ClipRRect(
+                borderRadius: const BorderRadius.only(
+                  topLeft: Radius.circular(16),
+                  topRight: Radius.circular(16),
+                ),
+                child: image.isNotEmpty
+                    ? Image.network(
+                        image,
+                        height: 90,
+                        width: 160,
+                        fit: BoxFit.cover,
+                        errorBuilder: (_, __, ___) => Container(
+                          height: 90,
+                          width: 160,
+                          color: Colors.grey[200],
+                          child: const Center(
+                            child: Icon(Icons.restaurant, color: Colors.grey),
+                          ),
+                        ),
+                      )
+                    : Container(
                         height: 90,
                         width: 160,
                         color: Colors.grey[200],
@@ -1507,136 +1530,127 @@ class _HomePageState extends State<HomePage> {
                           child: Icon(Icons.restaurant, color: Colors.grey),
                         ),
                       ),
-                    )
-                  : Container(
-                      height: 90,
-                      width: 160,
-                      color: Colors.grey[200],
-                      child: const Center(
-                        child: Icon(Icons.restaurant, color: Colors.grey),
+              ),
+              Expanded(
+                child: Padding(
+                  padding: const EdgeInsets.all(10),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Text(
+                        title,
+                        style: const TextStyle(
+                          fontSize: 14,
+                          fontWeight: FontWeight.bold,
+                          color: Color(0xFF424242),
+                        ),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
                       ),
-                    ),
-            ),
-            Expanded(
-              child: Padding(
-                padding: const EdgeInsets.all(10),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Text(
-                      title,
-                      style: const TextStyle(
-                        fontSize: 14,
-                        fontWeight: FontWeight.bold,
-                        color: Color(0xFF424242),
+                      const SizedBox(height: 2),
+                      Text(
+                        author,
+                        style: const TextStyle(fontSize: 11, color: Colors.grey),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
                       ),
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                    const SizedBox(height: 2),
-                    Text(
-                      author,
-                      style: const TextStyle(fontSize: 11, color: Colors.grey),
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                    const SizedBox(height: 4),
-                    if (cookTime > 0)
-                      Row(
-                        children: [
-                          const Icon(
-                            Icons.access_time,
-                            size: 12,
-                            color: Colors.grey,
-                          ),
-                          const SizedBox(width: 4),
-                          Expanded(
-                            child: Text(
-                              '$cookTime mins',
-                              style: const TextStyle(
-                                fontSize: 10,
-                                color: Colors.grey,
-                              ),
-                              overflow: TextOverflow.ellipsis,
-                            ),
-                          ),
-                        ],
-                      ),
-                    const Spacer(),
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
-                        if (calories > 0)
-                          Row(
-                            children: [
-                              const Icon(
-                                Icons.local_fire_department,
-                                size: 14,
-                                color: Color(0xFFFF9800),
-                              ),
-                              const SizedBox(width: 2),
-                              Text(
-                                '$calories kcal',
-                                style: const TextStyle(
-                                  fontSize: 11,
-                                  color: Color(0xFF424242),
-                                  fontWeight: FontWeight.w500,
-                                ),
-                              ),
-                            ],
-                          ),
+                      const SizedBox(height: 4),
+                      if (cookTime > 0)
                         Row(
                           children: [
                             const Icon(
-                              Icons.star,
-                              color: Colors.amber,
-                              size: 14,
+                              Icons.access_time,
+                              size: 12,
+                              color: Colors.grey,
                             ),
-                            const SizedBox(width: 2),
-                            Text(
-                              rating.toStringAsFixed(1),
-                              style: const TextStyle(
-                                fontSize: 11,
-                                color: Colors.grey,
+                            const SizedBox(width: 4),
+                            Expanded(
+                              child: Text(
+                                formatCookTime(cookTime),
+                                style: const TextStyle(
+                                  fontSize: 10,
+                                  color: Colors.grey,
+                                ),
+                                overflow: TextOverflow.ellipsis,
                               ),
                             ),
                           ],
                         ),
-                      ],
-                    ),
-                  ],
+                      const Spacer(),
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          if (calories > 0)
+                            Row(
+                              children: [
+                                const Icon(
+                                  Icons.local_fire_department,
+                                  size: 14,
+                                  color: Color(0xFFFF9800),
+                                ),
+                                const SizedBox(width: 2),
+                                Text(
+                                  '$calories kcal',
+                                  style: const TextStyle(
+                                    fontSize: 11,
+                                    color: Color(0xFF424242),
+                                    fontWeight: FontWeight.w500,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          Row(
+                            children: [
+                              const Icon(
+                                Icons.star,
+                                color: Colors.amber,
+                                size: 14,
+                              ),
+                              const SizedBox(width: 2),
+                              Text(
+                                rating.toStringAsFixed(1),
+                                style: const TextStyle(
+                                  fontSize: 11,
+                                  color: Colors.grey,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
                 ),
               ),
-            ),
-          ],
-        ),
-      ),
-    );
-  } catch (e, stackTrace) {
-    print('❌ FATAL ERROR building recipe card: $e');
-    print('❌ Stack trace: $stackTrace');
-    print('❌ Full recipe data: $recipe');
-    return Container(
-      width: 160,
-      margin: const EdgeInsets.only(right: 16),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(16),
-      ),
-      child: Center(
-        child: Padding(
-          padding: const EdgeInsets.all(8.0),
-          child: Text(
-            'Error: $e',
-            style: TextStyle(fontSize: 10, color: Colors.red),
-            textAlign: TextAlign.center,
+            ],
           ),
         ),
-      ),
-    );
+      );
+    } catch (e, stackTrace) {
+      print('❌ FATAL ERROR building recipe card: $e');
+      print('❌ Stack trace: $stackTrace');
+      print('❌ Full recipe data: $recipe');
+      return Container(
+        width: 160,
+        margin: const EdgeInsets.only(right: 16),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(16),
+        ),
+        child: Center(
+          child: Padding(
+            padding: const EdgeInsets.all(8.0),
+            child: Text(
+              'Error: $e',
+              style: TextStyle(fontSize: 10, color: Colors.red),
+              textAlign: TextAlign.center,
+            ),
+          ),
+        ),
+      );
+    }
   }
-}
 
   Widget _buildBottomNavigationBar() {
     return Container(

@@ -148,6 +148,9 @@ class _UploadRecipeScreenState extends State<UploadRecipeScreen> {
     int minutes = 0;
     int seconds = 0;
 
+    final minutesController = TextEditingController(text: '00');
+    final secondsController = TextEditingController(text: '00');
+
     showDialog(
       context: context,
       builder: (BuildContext context) {
@@ -196,32 +199,67 @@ class _UploadRecipeScreenState extends State<UploadRecipeScreen> {
                           children: [
                             IconButton(
                               onPressed: () {
-                                setDialogState(() => minutes = (minutes + 1) % 60);
+                                setDialogState(() {
+                                  minutes = (minutes + 1) > 2000 ? 2000 : minutes + 1;
+                                  minutesController.text = minutes.toString().padLeft(2, '0');
+                                });
                               },
                               icon: const Icon(Icons.arrow_drop_up, size: 32),
                             ),
-                            Container(
-                              width: 60,
-                              height: 60,
-                              alignment: Alignment.center,
-                              decoration: BoxDecoration(
-                                color: Colors.white,
-                                borderRadius: BorderRadius.circular(12),
-                                border: Border.all(color: Colors.grey.shade300),
-                              ),
-                              child: Text(
-                                minutes.toString().padLeft(2, '0'),
+                            GestureDetector(
+                              onTap: () {
+                                minutesController.clear();
+                                minutesController.text = minutes.toString().padLeft(2, '0');
+                              },
+                              child: TextField(
+                                controller: minutesController,
+                                keyboardType: TextInputType.number,
+                                textAlign: TextAlign.center,
+                                maxLength: 4,
                                 style: const TextStyle(
                                   fontSize: 24,
                                   fontWeight: FontWeight.bold,
                                 ),
+                                decoration: InputDecoration(
+                                  counterText: '',
+                                  filled: true,
+                                  fillColor: Colors.white,
+                                  border: OutlineInputBorder(
+                                    borderRadius: BorderRadius.circular(12),
+                                    borderSide: BorderSide(color: Colors.grey.shade300),
+                                  ),
+                                  enabledBorder: OutlineInputBorder(
+                                    borderRadius: BorderRadius.circular(12),
+                                    borderSide: BorderSide(color: Colors.grey.shade300),
+                                  ),
+                                  contentPadding: const EdgeInsets.symmetric(vertical: 8),
+                                  constraints: const BoxConstraints(
+                                    minWidth: 60,
+                                    maxWidth: 80,
+                                    minHeight: 60,
+                                  ),
+                                ),
+                                onChanged: (value) {
+                                  if (value.isEmpty) {
+                                    setDialogState(() => minutes = 0);
+                                    return;
+                                  }
+                                  final parsed = int.tryParse(value) ?? 0;
+                                  setDialogState(() {
+                                    minutes = parsed > 2000 ? 2000 : parsed;
+                                    // Update controller if it exceeds limit
+                                    if (parsed > 2000) {
+                                      minutesController.text = '2000';
+                                    }
+                                  });
+                                },
                               ),
                             ),
                             IconButton(
                               onPressed: () {
                                 setDialogState(() {
-                                  minutes = (minutes - 1) % 60;
-                                  if (minutes < 0) minutes = 59;
+                                  minutes = (minutes - 1) < 0 ? 0 : minutes - 1;
+                                  minutesController.text = minutes.toString().padLeft(2, '0');
                                 });
                               },
                               icon: const Icon(Icons.arrow_drop_down, size: 32),
@@ -244,32 +282,67 @@ class _UploadRecipeScreenState extends State<UploadRecipeScreen> {
                           children: [
                             IconButton(
                               onPressed: () {
-                                setDialogState(() => seconds = (seconds + 1) % 60);
+                                setDialogState(() {
+                                  seconds = (seconds + 1) % 60;
+                                  secondsController.text = seconds.toString().padLeft(2, '0');
+                                });
                               },
                               icon: const Icon(Icons.arrow_drop_up, size: 32),
                             ),
-                            Container(
-                              width: 60,
-                              height: 60,
-                              alignment: Alignment.center,
-                              decoration: BoxDecoration(
-                                color: Colors.white,
-                                borderRadius: BorderRadius.circular(12),
-                                border: Border.all(color: Colors.grey.shade300),
-                              ),
-                              child: Text(
-                                seconds.toString().padLeft(2, '0'),
+                            GestureDetector(
+                              onTap: () {
+                                secondsController.clear();
+                                secondsController.text = seconds.toString().padLeft(2, '0');
+                              },
+                              child: TextField(
+                                controller: secondsController,
+                                keyboardType: TextInputType.number,
+                                textAlign: TextAlign.center,
+                                maxLength: 2,
                                 style: const TextStyle(
                                   fontSize: 24,
                                   fontWeight: FontWeight.bold,
                                 ),
+                                decoration: InputDecoration(
+                                  counterText: '',
+                                  filled: true,
+                                  fillColor: Colors.white,
+                                  border: OutlineInputBorder(
+                                    borderRadius: BorderRadius.circular(12),
+                                    borderSide: BorderSide(color: Colors.grey.shade300),
+                                  ),
+                                  enabledBorder: OutlineInputBorder(
+                                    borderRadius: BorderRadius.circular(12),
+                                    borderSide: BorderSide(color: Colors.grey.shade300),
+                                  ),
+                                  contentPadding: const EdgeInsets.symmetric(vertical: 8),
+                                  constraints: const BoxConstraints(
+                                    minWidth: 60,
+                                    maxWidth: 80,
+                                    minHeight: 60,
+                                  ),
+                                ),
+                                onChanged: (value) {
+                                  if (value.isEmpty) {
+                                    setDialogState(() => seconds = 0);
+                                    return;
+                                  }
+                                  final parsed = int.tryParse(value) ?? 0;
+                                  setDialogState(() {
+                                    seconds = parsed > 59 ? 59 : parsed;
+                                    // Update controller if it exceeds limit
+                                    if (parsed > 59) {
+                                      secondsController.text = '59';
+                                    }
+                                  });
+                                },
                               ),
                             ),
                             IconButton(
                               onPressed: () {
                                 setDialogState(() {
-                                  seconds = (seconds - 1) % 60;
-                                  if (seconds < 0) seconds = 59;
+                                  seconds = (seconds - 1) < 0 ? 59 : seconds - 1;
+                                  secondsController.text = seconds.toString().padLeft(2, '0');
                                 });
                               },
                               icon: const Icon(Icons.arrow_drop_down, size: 32),
@@ -1047,7 +1120,7 @@ class NutritionChartPainter extends CustomPainter {
   bool shouldRepaint(NutritionChartPainter oldDelegate) {
     return oldDelegate.protein != protein ||
         oldDelegate.carbs != carbs ||
-        oldDelegate.fat != fat;
+        oldDelegate.fat != fat ||
         oldDelegate.fiber != fiber ||
         oldDelegate.sugar != sugar ||
         oldDelegate.sodium != sodium;

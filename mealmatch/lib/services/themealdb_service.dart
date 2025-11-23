@@ -1,43 +1,59 @@
 import 'dart:convert';
 import 'package:http/http.dart' as http;
-import 'dart:math';
 
 class TheMealDBService {
   static const String baseUrl = 'https://www.themealdb.com/api/json/v1/1';
   
-  static int _generateCookingTime(String mealName, Random random) {
+  /// ✅ Generates consistent cooking time based on meal name and ID
+  /// Same recipe = same cook time always
+  static int _generateCookingTime(String mealName, String mealId) {
     final name = mealName.toLowerCase();
     
-    int rawTime; // store the un-rounded time here
+    // Use meal ID hash to generate a consistent pseudo-random number (0-99)
+    final idHash = mealId.hashCode.abs() % 100;
+    
+    int baseTime;
+    int variation;
 
     if (name.contains('sandwich') || name.contains('salad') || 
         name.contains('toast') || name.contains('smoothie')) {
-      rawTime = 15 + random.nextInt(10);
+      baseTime = 15;
+      variation = 10; // Will be 15-25 minutes
     }
-    
     else if (name.contains('pasta') || name.contains('stir') || 
         name.contains('fried') || name.contains('noodle')) {
-      rawTime = 25 + random.nextInt(20);
+      baseTime = 25;
+      variation = 20; // Will be 25-45 minutes
     }
-    
     else if (name.contains('roast') || name.contains('bake') || 
         name.contains('stew') || name.contains('curry')) {
-      rawTime = 45 + random.nextInt(45);
+      baseTime = 45;
+      variation = 45; // Will be 45-90 minutes
+    }
+    else {
+      baseTime = 30;
+      variation = 20; // Will be 30-50 minutes (default)
     }
     
-    // Default: 30-50 minutes
-    else {
-      rawTime = 30 + random.nextInt(20);
-    }
-    return _roundToNearestFive(rawTime);
+    // Use hash to determine variation (consistent per recipe)
+    final calculatedTime = baseTime + ((idHash * variation) ~/ 100);
+    return _roundToNearestFive(calculatedTime);
   }
 
-  static int _generateServings(Random random) { 
-    return 2 + random.nextInt(5); // <-- Use local 'random'
+  /// ✅ Generates consistent servings (2-6) based on meal ID
+  static int _generateServings(String mealId) {
+    // Use meal ID hash for consistent servings (2-6)
+    final idHash = mealId.hashCode.abs() % 5;
+    return 2 + idHash;
   }
 
-  static Map<String, dynamic> _generateNutrition(String mealName, Random random) { // <-- Added 'random' param
+  /// ✅ Generates consistent nutrition based on meal type and ID
+  /// ⚠️ NOTE: This is estimated data - TheMealDB API doesn't provide nutrition info
+  static Map<String, dynamic> _generateNutrition(String mealName, String mealId) {
     final name = mealName.toLowerCase();
+    
+    // Use meal ID hash for consistent variation
+    final idHash = mealId.hashCode.abs() % 100;
     
     int calories;
     int protein;
@@ -48,41 +64,41 @@ class TheMealDBService {
     if (name.contains('chicken') || name.contains('beef') || 
         name.contains('pork') || name.contains('fish') || 
         name.contains('lamb') || name.contains('steak')) {
-      calories = 450 + random.nextInt(200); // 450-650
-      protein = 35 + random.nextInt(20);   // 35-55g
-      carbs = 20 + random.nextInt(30);     // 20-50g
-      fat = 15 + random.nextInt(15);       // 15-30g
+      calories = 450 + ((idHash * 200) ~/ 100);
+      protein = 35 + ((idHash * 20) ~/ 100);
+      carbs = 20 + ((idHash * 30) ~/ 100);
+      fat = 15 + ((idHash * 15) ~/ 100);
     }
     // Pasta/Carb heavy
     else if (name.contains('pasta') || name.contains('rice') || 
-             name.contains('noodle') || name.contains('pizza')) {
-      calories = 500 + random.nextInt(250); // 500-750
-      protein = 15 + random.nextInt(15);   // 15-30g
-      carbs = 60 + random.nextInt(40);     // 60-100g
-      fat = 12 + random.nextInt(18);       // 12-30g
+            name.contains('noodle') || name.contains('pizza')) {
+      calories = 500 + ((idHash * 250) ~/ 100);
+      protein = 15 + ((idHash * 15) ~/ 100);
+      carbs = 60 + ((idHash * 40) ~/ 100);
+      fat = 12 + ((idHash * 18) ~/ 100);
     }
     // Salads/Light meals
     else if (name.contains('salad') || name.contains('soup') || 
-             name.contains('sandwich')) {
-      calories = 250 + random.nextInt(200); // 250-450
-      protein = 12 + random.nextInt(18);   // 12-30g
-      carbs = 25 + random.nextInt(25);     // 25-50g
-      fat = 8 + random.nextInt(12);        // 8-20g
+            name.contains('sandwich')) {
+      calories = 250 + ((idHash * 200) ~/ 100);
+      protein = 12 + ((idHash * 18) ~/ 100);
+      carbs = 25 + ((idHash * 25) ~/ 100);
+      fat = 8 + ((idHash * 12) ~/ 100);
     }
     // Desserts/Sweets
     else if (name.contains('cake') || name.contains('pie') || 
-             name.contains('pudding') || name.contains('cookie')) {
-      calories = 350 + random.nextInt(300); // 350-650
-      protein = 4 + random.nextInt(6);     // 4-10g
-      carbs = 45 + random.nextInt(40);     // 45-85g
-      fat = 15 + random.nextInt(20);       // 15-35g
+            name.contains('pudding') || name.contains('cookie')) {
+      calories = 350 + ((idHash * 300) ~/ 100);
+      protein = 4 + ((idHash * 6) ~/ 100);
+      carbs = 45 + ((idHash * 40) ~/ 100);
+      fat = 15 + ((idHash * 20) ~/ 100);
     }
     // Default meals
     else {
-      calories = 400 + random.nextInt(250); // 400-650
-      protein = 25 + random.nextInt(20);   // 25-45g
-      carbs = 35 + random.nextInt(30);     // 35-65g
-      fat = 12 + random.nextInt(18);       // 12-30g
+      calories = 400 + ((idHash * 250) ~/ 100);
+      protein = 25 + ((idHash * 20) ~/ 100);
+      carbs = 35 + ((idHash * 30) ~/ 100);
+      fat = 12 + ((idHash * 18) ~/ 100);
     }
 
     return {
@@ -93,11 +109,85 @@ class TheMealDBService {
     };
   }
 
-  static Future<List<Map<String, dynamic>>> findByIngredients(List<String> ingredients, {int number = 10}) async {
+  /// ✅ Intelligently parses instructions into numbered steps
+  /// Handles both pre-numbered steps and long paragraphs
+  static List<Map<String, String>> _parseInstructions(String? rawInstructions) {
+    if (rawInstructions == null || rawInstructions.isEmpty) {
+      return [];
+    }
+
+    // Clean up the text
+    String cleaned = rawInstructions
+        .replaceAll('\r\n', '\n')
+        .replaceAll('\r', '\n')
+        .replaceAll(RegExp(r'<[^>]*>'), '') // Remove HTML tags
+        .trim();
+
+    List<String> steps = [];
+
+    // Method 1: Check if already numbered (STEP 1, Step 1, 1., etc.)
+    final stepPattern = RegExp(
+      r'(?:STEP\s*\d+|Step\s*\d+|\d+\.)\s*[:\-]?\s*',
+      caseSensitive: false,
+    );
+
+    if (stepPattern.hasMatch(cleaned)) {
+      // Split by step numbers
+      final parts = cleaned.split(stepPattern);
+      steps = parts
+          .where((s) => s.trim().isNotEmpty)
+          .map((s) => s.trim())
+          .toList();
+    } else {
+      // Method 2: Split by periods followed by capital letters (sentence detection)
+      final sentences = cleaned.split(RegExp(r'\.\s+(?=[A-Z])'));
+      
+      // Group sentences into logical steps (max 2-3 sentences per step)
+      List<String> currentStep = [];
+      
+      for (var sentence in sentences) {
+        sentence = sentence.trim();
+        if (sentence.isEmpty) continue;
+        
+        currentStep.add(sentence);
+        
+        // Create a new step every 2 sentences, or if sentence is long
+        if (currentStep.length >= 2 || sentence.length > 150) {
+          steps.add(currentStep.join('. ') + '.');
+          currentStep = [];
+        }
+      }
+      
+      // Add remaining sentences
+      if (currentStep.isNotEmpty) {
+        steps.add(currentStep.join('. ') + '.');
+      }
+    }
+
+    // Convert to Map format with step numbers
+    return steps.asMap().entries.map((entry) {
+      return {
+        'text': entry.value,
+        'timer': '00:00', // No timer data available from API
+      };
+    }).toList();
+  }
+
+  /// Rounds an integer to the nearest multiple of 5
+  static int _roundToNearestFive(int number) {
+    return (number / 5).round() * 5;
+  }
+
+  // ========== API METHODS ==========
+
+  /// Find recipes by ingredients
+  static Future<List<Map<String, dynamic>>> findByIngredients(
+    List<String> ingredients, 
+    {int number = 10}
+  ) async {
     if (ingredients.isEmpty) return [];
 
     try {
-      // Use first ingredient for search
       final mainIngredient = ingredients.first.trim();
       final url = Uri.parse('$baseUrl/filter.php?i=${Uri.encodeComponent(mainIngredient)}');
       
@@ -121,20 +211,18 @@ class TheMealDBService {
 
         final results = meals.take(number).map((meal) {
           final mealName = meal['strMeal'] ?? 'Unknown Recipe';
-          print('  - $mealName (ID: ${meal['idMeal']})');
-          
-          final random = Random(meal['idMeal'].hashCode);
+          final mealId = meal['idMeal']?.toString() ?? '';
+          print('  - $mealName (ID: $mealId)');
 
           return {
-            'id': meal['idMeal']?.toString() ?? '',
+            'id': mealId,
             'title': mealName,
             'image': meal['strMealThumb'] ?? '',
             'missedIngredientCount': 0,
             'missedIngredients': [],
-            // FAKE DATA
-            'readyInMinutes': _generateCookingTime(mealName, random), 
-            'servings': _generateServings(random), 
-            'nutrition': _generateNutrition(mealName, random), 
+            'readyInMinutes': _generateCookingTime(mealName, mealId),
+            'servings': _generateServings(mealId),
+            'nutrition': _generateNutrition(mealName, mealId),
           };
         }).toList();
 
@@ -151,6 +239,7 @@ class TheMealDBService {
     }
   }
 
+  /// Get detailed information about a specific meal
   static Future<Map<String, dynamic>?> getMealDetails(String mealId) async {
     try {
       final url = Uri.parse('$baseUrl/lookup.php?i=$mealId');
@@ -181,22 +270,30 @@ class TheMealDBService {
           final mealName = meal['strMeal'] ?? 'Unknown Recipe';
           print('✅ Loaded details for: $mealName');
           
-          final random = Random(mealId.hashCode);
+          // Generate consistent cook time
+          final cookTime = _generateCookingTime(mealName, mealId);
           
+          // Parse instructions into steps
+          final instructions = _parseInstructions(meal['strInstructions']);
+
           return {
             'id': meal['idMeal'],
             'title': mealName,
             'image': meal['strMealThumb'],
-            'instructions': meal['strInstructions'] ?? '',
+            'instructions': instructions, // ✅ Now a List of steps
             'ingredients': ingredients,
             'category': meal['strCategory'] ?? '',
             'area': meal['strArea'] ?? '',
             'youtubeUrl': meal['strYoutube'] ?? '',
             'sourceUrl': meal['strSource'] ?? '',
-            // FAKE DATA
-            'readyInMinutes': _generateCookingTime(mealName, random), 
-            'servings': _generateServings(random), // Pass random
-            'nutrition': _generateNutrition(mealName, random), 
+            
+            // ⚠️ ESTIMATED DATA (API doesn't provide these):
+            'prepTime': '10', // Fixed estimate
+            'cookTime': cookTime.toString(),
+            'readyInMinutes': cookTime,
+            'servings': _generateServings(mealId),
+            'nutrition': _generateNutrition(mealName, mealId),
+            'rating': 4.0 + ((mealId.hashCode.abs() % 100) / 100),
             'author': (meal['strSource'] != null && meal['strSource'].isNotEmpty) 
               ? Uri.tryParse(meal['strSource'])?.host.replaceAll('www.', '') ?? 'TheMealDB'
               : 'TheMealDB Community',
@@ -211,6 +308,7 @@ class TheMealDBService {
     }
   }
 
+  /// Search recipes by name
   static Future<List<Map<String, dynamic>>> searchRecipes(String query) async {
     try {
       final url = Uri.parse('$baseUrl/search.php?s=${Uri.encodeComponent(query)}');
@@ -231,20 +329,19 @@ class TheMealDBService {
         
         return meals.map((meal) {
           final mealName = meal['strMeal'] ?? 'Unknown Recipe';
-          
-          final random = Random(meal['idMeal'].hashCode);
+          final mealId = meal['idMeal'].toString();
 
           return {
-            'id': meal['idMeal'],
+            'id': mealId,
             'title': mealName,
             'category': meal['strCategory'] ?? '',
             'area': meal['strArea'] ?? '',
             'image': meal['strMealThumb'],
-            'readyInMinutes': _generateCookingTime(mealName, random),
-            'servings': _generateServings(random),
-            'rating': 4.0 + random.nextDouble(), // Add missing rating
-            'author': ['Foodista', 'Tasty', 'AllRecipes'][random.nextInt(3)], // Add missing author
-            'nutrition': _generateNutrition(mealName, random), // <-- FIX: ADD NUTRITION
+            'readyInMinutes': _generateCookingTime(mealName, mealId),
+            'servings': _generateServings(mealId),
+            'rating': 4.0 + ((mealId.hashCode.abs() % 100) / 100),
+            'author': ['Foodista', 'Tasty', 'AllRecipes'][mealId.hashCode.abs() % 3],
+            'nutrition': _generateNutrition(mealName, mealId),
           };
         }).toList();
       }
@@ -256,7 +353,7 @@ class TheMealDBService {
     }
   }
 
-  // ✅ FIX: Now loads meals in parallel for faster performance
+  /// Get random meals (loads in parallel for better performance)
   static Future<List<Map<String, dynamic>>> getRandomMeals(int count) async {
     try {
       print('🎲 Loading $count random meals in parallel...');
@@ -271,7 +368,6 @@ class TheMealDBService {
       
       // Wait for all requests to complete together
       final responses = await Future.wait(requests);
-      
       final meals = <Map<String, dynamic>>[];
       
       for (final response in responses) {
@@ -280,19 +376,19 @@ class TheMealDBService {
           if (data['meals'] != null && (data['meals'] as List).isNotEmpty) {
             final meal = data['meals'][0];
             final mealName = meal['strMeal'] ?? 'Unknown Recipe';
-            final random = Random(meal['idMeal'].hashCode);
+            final mealId = meal['idMeal'].toString();
 
             meals.add({
-              'id': meal['idMeal'],
+              'id': mealId,
               'title': mealName,
               'category': meal['strCategory'] ?? '',
               'area': meal['strArea'] ?? '',
               'image': meal['strMealThumb'],
-              'readyInMinutes': _generateCookingTime(mealName, random),
-              'servings': _generateServings(random),
-              'rating': 4.0 + random.nextDouble(),
-              'author': ['Foodista', 'Tasty', 'AllRecipes'][random.nextInt(3)],
-              'nutrition': _generateNutrition(mealName, random),
+              'readyInMinutes': _generateCookingTime(mealName, mealId),
+              'servings': _generateServings(mealId),
+              'rating': 4.0 + ((mealId.hashCode.abs() % 100) / 100),
+              'author': ['Foodista', 'Tasty', 'AllRecipes'][mealId.hashCode.abs() % 3],
+              'nutrition': _generateNutrition(mealName, mealId),
             });
           }
         }
@@ -307,12 +403,7 @@ class TheMealDBService {
     }
   }
 
-  /// Rounds an integer to the nearest multiple of 5
-  static int _roundToNearestFive(int number) {
-    return (number / 5).round() * 5;
-  }
-  
-
+  /// Get meals by category with full details
   static Future<List<Map<String, dynamic>>> getMealsByCategory(
     String category, {
     int number = 6,
@@ -333,7 +424,7 @@ class TheMealDBService {
         final meals = (data['meals'] as List).cast<Map<String, dynamic>>();
         print('✅ Found ${meals.length} meals from API for $category');
 
-        // ✅ FIX: Get details in parallel for faster loading
+        // Fetch details in parallel for faster loading
         final detailRequests = meals
             .take(number)
             .map((meal) => getMealDetails(meal['idMeal']))

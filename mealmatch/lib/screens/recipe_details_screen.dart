@@ -708,6 +708,7 @@ class _RecipeDetailsScreenState extends State<RecipeDetailsScreen> {
     }
 
     List<Widget> widgets = [];
+    int stepCounter = 1; // ✅ NEW: Track actual step number across all instructions
 
     for (int i = 0; i < instructionsList.length; i++) {
       try {
@@ -728,11 +729,11 @@ class _RecipeDetailsScreenState extends State<RecipeDetailsScreen> {
 
         // ✅ INITIALIZE STEP TIMER if it has a timer
         if (timerStr != null && timerStr.isNotEmpty && timerStr != '00:00') {
-          if (!stepTimerSeconds.containsKey(i)) {
+          if (!stepTimerSeconds.containsKey(stepCounter - 1)) {
             final seconds = _timeStringToSeconds(timerStr);
-            stepTimerSeconds[i] = seconds;
-            originalStepTimerSeconds[i] = seconds;
-            stepTimerRunning[i] = false;
+            stepTimerSeconds[stepCounter - 1] = seconds;
+            originalStepTimerSeconds[stepCounter - 1] = seconds;
+            stepTimerRunning[stepCounter - 1] = false;
           }
         }
 
@@ -777,7 +778,7 @@ class _RecipeDetailsScreenState extends State<RecipeDetailsScreen> {
                         ),
                         child: Center(
                           child: Text(
-                            '${i + 1}',
+                            '$stepCounter', // ✅ FIXED: Use stepCounter instead of i+1
                             style: const TextStyle(
                               color: Colors.white,
                               fontWeight: FontWeight.bold,
@@ -813,7 +814,7 @@ class _RecipeDetailsScreenState extends State<RecipeDetailsScreen> {
                                     ),
                                     const SizedBox(width: 6),
                                     Text(
-                                      _formatStepTime(stepTimerSeconds[i] ?? 0),
+                                      _formatStepTime(stepTimerSeconds[stepCounter - 1] ?? 0),
                                       style: const TextStyle(
                                         fontSize: 16,
                                         fontWeight: FontWeight.bold,
@@ -831,14 +832,14 @@ class _RecipeDetailsScreenState extends State<RecipeDetailsScreen> {
                                   children: [
                                     // Start/Pause Button
                                     InkWell(
-                                      onTap: () => _toggleStepTimer(i),
+                                      onTap: () => _toggleStepTimer(stepCounter - 1),
                                       child: Container(
                                         padding: const EdgeInsets.symmetric(
                                           horizontal: 12,
                                           vertical: 4,
                                         ),
                                         decoration: BoxDecoration(
-                                          color: stepTimerRunning[i] == true
+                                          color: stepTimerRunning[stepCounter - 1] == true
                                               ? Colors.red.shade400
                                               : Colors.green.shade400,
                                           borderRadius: BorderRadius.circular(12),
@@ -847,7 +848,7 @@ class _RecipeDetailsScreenState extends State<RecipeDetailsScreen> {
                                           mainAxisSize: MainAxisSize.min,
                                           children: [
                                             Icon(
-                                              stepTimerRunning[i] == true
+                                              stepTimerRunning[stepCounter - 1] == true
                                                   ? Icons.pause
                                                   : Icons.play_arrow,
                                               size: 14,
@@ -855,7 +856,7 @@ class _RecipeDetailsScreenState extends State<RecipeDetailsScreen> {
                                             ),
                                             const SizedBox(width: 4),
                                             Text(
-                                              stepTimerRunning[i] == true
+                                              stepTimerRunning[stepCounter - 1] == true
                                                   ? 'Pause'
                                                   : 'Start',
                                               style: const TextStyle(
@@ -872,7 +873,7 @@ class _RecipeDetailsScreenState extends State<RecipeDetailsScreen> {
                                     
                                     // Reset Button
                                     InkWell(
-                                      onTap: () => _resetStepTimer(i),
+                                      onTap: () => _resetStepTimer(stepCounter - 1),
                                       child: Container(
                                         padding: const EdgeInsets.symmetric(
                                           horizontal: 12,
@@ -924,6 +925,8 @@ class _RecipeDetailsScreenState extends State<RecipeDetailsScreen> {
               ),
             ),
           );
+          
+          stepCounter++; // ✅ FIXED: Increment after adding each step
         }
       } catch (e) {
         print('⚠️ Error processing instruction: $e');

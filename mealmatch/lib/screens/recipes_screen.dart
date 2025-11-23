@@ -199,7 +199,7 @@ class _RecipesScreenState extends State<RecipesScreen>
         _favoriteRecipes = loadedFavs;
         _isLoadingFavorites = false;
       });
-    } catch (e, stackTrace) {
+    } catch (e) {
       print('Error loading favorites: $e');
       setState(() => _isLoadingFavorites = false);
     }
@@ -377,19 +377,67 @@ class _RecipesScreenState extends State<RecipesScreen>
   Widget _buildGridRecipeCard(Map<String, dynamic> recipe, bool isSaved) {
     final String title = recipe['title'] ?? recipe['name'] ?? 'Recipe Name';
     final String author = recipe['author'] ?? recipe['userName'] ?? 'By Author';
-    final int cookTime = recipe['readyInMinutes'] ?? 0;
     
-    int calories = 0;
-    if (recipe['nutrition'] != null) {
-      if (recipe['nutrition'] is Map) {
-        final caloriesVal = recipe['nutrition']['calories'];
-        calories = caloriesVal is int ? caloriesVal : int.tryParse(caloriesVal.toString()) ?? 0;
+    int cookTime = 0;
+    if (recipe['readyInMinutes'] != null) {
+      if (recipe['readyInMinutes'] is int) {
+        cookTime = recipe['readyInMinutes'];
+      } else if (recipe['readyInMinutes'] is String) {
+        cookTime = int.tryParse(recipe['readyInMinutes']) ?? 0;
       }
-    } else {
-      calories = recipe['calories'] ?? 0;
+    } else if (recipe['cookTime'] != null) {
+      if (recipe['cookTime'] is int) {
+        cookTime = recipe['cookTime'];
+      } else if (recipe['cookTime'] is String) {
+        cookTime = int.tryParse(recipe['cookTime']) ?? 0;
+      }
     }
     
-    final double rating = (recipe['rating'] ?? 4.5).toDouble();
+    int calories = 0;
+    if (recipe['nutrition'] != null && recipe['nutrition'] is Map) {
+      final caloriesVal = recipe['nutrition']['calories'];
+      if (caloriesVal is int) {
+        calories = caloriesVal;
+      } else if (caloriesVal is String) {
+        calories = int.tryParse(caloriesVal) ?? 0;
+      } else if (caloriesVal is double) {
+        calories = caloriesVal.round();
+      }
+    } else if (recipe['calories'] != null) {
+      if (recipe['calories'] is int) {
+        calories = recipe['calories'];
+      } else if (recipe['calories'] is String) {
+        calories = int.tryParse(recipe['calories']) ?? 0;
+      } else if (recipe['calories'] is double) {
+        calories = (recipe['calories'] as double).round();
+      }
+    }
+    
+    double rating = 4.5;
+    if (recipe['rating'] != null) {
+      if (recipe['rating'] is double) {
+        rating = recipe['rating'];
+      } else if (recipe['rating'] is int) {
+        rating = (recipe['rating'] as int).toDouble();
+      } else if (recipe['rating'] is String) {
+        rating = double.tryParse(recipe['rating']) ?? 4.5;
+      }
+    }
+
+    // Format cook time (convert to hrs and mins if > 59)
+    String formatCookTime(int minutes) {
+      if (minutes <= 0) return '';
+      if (minutes < 60) return '$minutes mins';
+      
+      final hours = minutes ~/ 60;
+      final mins = minutes % 60;
+      
+      if (mins == 0) {
+        return hours == 1 ? '$hours hr' : '$hours hrs';
+      } else {
+        return '$hours hr${hours > 1 ? 's' : ''} ${mins}m';
+      }
+    }
 
     return GestureDetector(
       onTap: () async {
@@ -519,14 +567,15 @@ class _RecipesScreenState extends State<RecipesScreen>
                               fontWeight: FontWeight.w600,
                             ),
                           ),
-                        Text(
-                          '$cookTime mins',
-                          style: const TextStyle(
-                            color: Colors.white,
-                            fontSize: 11,
-                            fontWeight: FontWeight.w600,
+                        if (cookTime > 0)
+                          Text(
+                            formatCookTime(cookTime),
+                            style: const TextStyle(
+                              color: Colors.white,
+                              fontSize: 11,
+                              fontWeight: FontWeight.w600,
+                            ),
                           ),
-                        ),
                         Row(
                           children: [
                             const Icon(
@@ -715,6 +764,7 @@ class _RecipesScreenState extends State<RecipesScreen>
             padding: const EdgeInsets.fromLTRB(16, 16, 16, 0),
             child: TextField(
               controller: _searchController,
+              textCapitalization: TextCapitalization.none,
               decoration: InputDecoration(
                 hintText: 'Search for recipes...',
                 filled: true,
@@ -733,8 +783,6 @@ class _RecipesScreenState extends State<RecipesScreen>
               onSubmitted: _searchRecipes,
             ),
           ),
-
-          // ✅ FILTER CHIPS REMOVED (No ListView here)
 
           // --- TabBar (Discover/Favorites) ---
           Padding(

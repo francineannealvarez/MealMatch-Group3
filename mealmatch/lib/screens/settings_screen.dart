@@ -1448,7 +1448,6 @@ class _ModifyGoalsScreenState extends State<ModifyGoalsScreen> {
   String _activityLevel = 'Moderately Active';
   double _dailyCalorieGoal = 2000;
   String _weightPace = 'steady'; // NEW: Weight loss/gain pace
-  List<String> _goals = [];
 
   // User profile data for calculation
   String _gender = 'male';
@@ -1492,7 +1491,6 @@ class _ModifyGoalsScreenState extends State<ModifyGoalsScreen> {
           _activityLevel = data['activityLevel'] ?? 'Moderately Active';
           _dailyCalorieGoal = (data['dailyCalorieGoal'] ?? 2000).toDouble();
           _weightPace = data['weightPace'] ?? 'steady';
-          _goals = List<String>.from(data['goals'] ?? []);
 
           // Load user profile data for calculations
           _gender = data['gender'] ?? 'male';

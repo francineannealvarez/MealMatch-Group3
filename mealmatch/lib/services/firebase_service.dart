@@ -563,25 +563,6 @@ class FirebaseService {
   }
 
   // Keep existing _calculateDailyCalorieGoal for backward compatibility
-  int _calculateDailyCalorieGoal({
-    required String gender,
-    required int age,
-    required double height,
-    required double weight,
-    required String activityLevel,
-    required List<String> goals,
-  }) {
-    // Default to 'steady' pace if not specified
-    return _calculateDailyCalorieGoalWithPace(
-      gender: gender,
-      age: age,
-      height: height,
-      weight: weight,
-      activityLevel: activityLevel,
-      goals: goals,
-      weightPace: 'steady',
-    );
-  }
 
   // ✅ Calculate BMR using Mifflin-St Jeor Equation
   double _calculateBMR({

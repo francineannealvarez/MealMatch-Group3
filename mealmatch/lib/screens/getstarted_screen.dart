@@ -497,7 +497,6 @@ class StepContent extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     // Determine actual step content based on whether weight pace is shown
-    int actualStep = step;
     if (showWeightPace && step >= 3) {
       // If weight pace is needed:
       // Step 3 = Weight Pace
