@@ -8,6 +8,7 @@ import 'package:mealmatch/services/themealdb_service.dart';
 import 'package:mealmatch/services/cooked_recipes_service.dart';
 import 'package:mealmatch/screens/recipe_details_screen.dart';
 import 'package:mealmatch/services/recipe_service.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 class HomePage extends StatefulWidget {
   const HomePage({super.key});
@@ -51,6 +52,11 @@ class _HomePageState extends State<HomePage> {
   void initState() {
     super.initState();
     _loadTodayData();
+    
+    // Check and show welcome dialog after page loads
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _checkAndShowWelcomeDialog();
+    });
   }
 
   // Load data more efficiently
@@ -101,6 +107,115 @@ class _HomePageState extends State<HomePage> {
       print('❌ Error loading today\'s data: $e');
       setState(() => isLoading = false);
     }
+  }
+
+    Future<void> _checkAndShowWelcomeDialog() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final shouldShow = prefs.getBool('show_calorie_welcome') ?? false;
+      
+      if (shouldShow && mounted) {
+        // Mark as shown so it never appears again
+        await prefs.setBool('show_calorie_welcome', false);
+        
+        // Wait a bit for the page to fully load
+        await Future.delayed(const Duration(milliseconds: 800));
+        
+        if (mounted) {
+          _showCalorieWelcomeDialog();
+        }
+      }
+    } catch (e) {
+      print('Error checking welcome dialog: $e');
+    }
+  }
+
+  // Show welcome dialog for new users
+  void _showCalorieWelcomeDialog() {
+    showDialog(
+      context: context,
+      barrierDismissible: false, // User must tap button to close
+      builder: (context) => Dialog(
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(20),
+        ),
+        child: Container(
+          padding: const EdgeInsets.all(24),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(20),
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Text(
+                '🎉 Welcome!',
+                textAlign: TextAlign.center,
+                style: TextStyle(
+                  fontSize: 22,
+                  fontWeight: FontWeight.bold,
+                  color: Color(0xFF424242),
+                ),
+              ),
+              const SizedBox(height: 16),
+              Container(
+                padding: const EdgeInsets.all(16),
+                decoration: BoxDecoration(
+                  color: const Color(0xFFFFF5CF),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Column(
+                  children: [
+                    const Text(
+                      'Your starting calorie goal is now set! You can adjust it anytime in Settings.',
+                      textAlign: TextAlign.center,
+                      style: TextStyle(
+                        fontSize: 15,
+                        fontWeight: FontWeight.w600,
+                        color: Color(0xFF424242),
+                        height: 1.5,
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    const Text(
+                      'If you prefer not to track calories, feel free to ignore it.',
+                      textAlign: TextAlign.center,
+                      style: TextStyle(
+                        fontSize: 13,
+                        color: Color(0xFF666666),
+                        height: 1.4,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 20),
+              SizedBox(
+                width: double.infinity,
+                child: ElevatedButton(
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: const Color(0xFF4CAF50),
+                    foregroundColor: Colors.white,
+                    padding: const EdgeInsets.symmetric(vertical: 14),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                  ),
+                  onPressed: () => Navigator.of(context).pop(),
+                  child: const Text(
+                    'Got it!',
+                    style: TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
   }
 
   // Reset lists to empty before loading (shows spinners)

@@ -276,7 +276,7 @@ class ProfileService {
     }
   }
 
-  // Get achievements (with subcollection support)
+  // 🎖️ Get achievements (with subcollection support)
   Future<List<Map<String, dynamic>>> getAchievements() async {
     try {
       final userId = currentUserId;
@@ -540,7 +540,7 @@ class ProfileService {
     }
   }
 
-  // Mark achievements as viewed
+  // 🔄 Mark achievements as viewed
   Future<void> markAchievementsAsViewed(List<String> achievementIds) async {
     try {
       final userId = currentUserId;
@@ -569,7 +569,7 @@ class ProfileService {
     }
   }
 
-  // Check if user has new achievements
+  //  Check if user has new achievements
   Future<bool> hasNewAchievements() async {
     try {
       final achievements = await getAchievements();

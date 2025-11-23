@@ -98,7 +98,7 @@ class _SignUpScreenState extends State<SignUpScreen> {
         _cooldownTimer?.cancel();
       }
     } else {
-      Navigator.pop(context);
+      Navigator.popUntil(context, (route) => route.isFirst);
     }
   }
 
@@ -166,17 +166,23 @@ class _SignUpScreenState extends State<SignUpScreen> {
         width: double.infinity,
         height: double.infinity,
         decoration: BoxDecoration(
-          color: Color(0xFFFFF5CF), 
+          gradient: LinearGradient(
+            begin: Alignment.topCenter,
+            end: Alignment.bottomCenter,
+            colors: [Color(0xFFFFF5CF), Color(0xFFCFEBB7)],
+          ),
         ),
-        child: Column(
-          children: [
-            _buildAppBar(context),
+        child: SafeArea(
+          child: Column(
+            children: [
+              _buildAppBar(context),
             Expanded(
               child: _isVerificationMode
                   ? _buildVerificationScreen(context)
                   : _buildMainContent(context),
-            ),
-          ],
+              ),
+            ],
+          ),
         ),
       ),
     );
@@ -184,24 +190,28 @@ class _SignUpScreenState extends State<SignUpScreen> {
 
   Widget _buildAppBar(BuildContext context) {
     return Container(
-      width: double.infinity,
-      padding: EdgeInsets.only(top: 24, right: 38, bottom: 20, left: 8),
+      padding: const EdgeInsets.symmetric(
+        horizontal: 16,
+        vertical: 0,
+      ),
       child: Stack(
         alignment: Alignment.center,
         children: [
-          Positioned(
-            left: 0,
+          Align(
+            alignment: Alignment.centerLeft,
             child: IconButton(
               icon: Icon(Icons.arrow_back, color: Colors.black),
               onPressed: () => handleBack(context),
             ),
           ),
-          Text(
-            "Sign Up",
-            style: TextStyle(
-              fontSize: 28,
-              fontWeight: FontWeight.bold,
-              color: Colors.green[400],
+          Center(
+            child: Text(
+              'Sign Up',
+              style: TextStyle(
+                fontSize: 28,
+                fontWeight: FontWeight.bold,
+                color: Colors.green[400],
+              ),
             ),
           ),
         ],
@@ -910,27 +920,6 @@ class _SignUpScreenState extends State<SignUpScreen> {
       );
     }
   }
-
-  /*void _onGoogleLoginPressed(BuildContext context) {
-    Navigator.of(context).push(
-      MaterialPageRoute(
-        fullscreenDialog: true,
-        builder: (_) => Scaffold(
-          appBar: AppBar(
-            leading: IconButton(
-              icon: const Icon(Icons.arrow_back),
-              onPressed: () => Navigator.of(context).pop(),
-            ),
-            title: const Text('Choose Google account'),
-            backgroundColor: Colors.white,
-            foregroundColor: Colors.black,
-            elevation: 0,
-          ),
-          body: const Center(child: Text('Google Sign-In UI goes here')),
-        ),
-      ),
-    );
-  }*/
 
   void _onLoginTapped(BuildContext context) {
     Navigator.of(context).pushNamed('/login');

@@ -328,7 +328,7 @@ class _LoginScreenState extends State<LoginScreen> {
   }
 
   void handleBack() {
-    Navigator.pop(context); // Navigate back to greet/welcome screen
+    Navigator.popUntil(context, (route) => route.isFirst);
   }
 
   void handleGoogleLogin(BuildContext context) async {

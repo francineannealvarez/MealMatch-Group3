@@ -188,6 +188,10 @@ class _GetStartedScreenState extends State<GetStartedScreen> {
         if (mounted) {
           final prefs = await SharedPreferences.getInstance();
           await prefs.setString('remembered_email', widget.email);
+          
+          // 🆕 NEW: Mark that this is a new user who should see the welcome dialog
+          await prefs.setBool('show_calorie_welcome', true);
+          
           Navigator.pushReplacementNamed(context, '/home');
         }
       } else {
@@ -650,8 +654,8 @@ class StepContent extends StatelessWidget {
         'value': 'relaxed',
         'title': 'Relaxed',
         'subtitle': isLosingWeight
-            ? 'Lose ½ kg per week'
-            : 'Gain ½ kg per week',
+            ? 'Lose ¼ kg per week'
+            : 'Gain ¼ kg per week',
         'color': const Color(0xFF4CAF50),
         'icon': Icons.spa,
       },
