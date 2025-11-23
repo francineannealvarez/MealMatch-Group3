@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:mealmatch/services/themealdb_service.dart';
-import 'package:mealmatch/screens/recipe_details_screen.dart'; // Adjusted import path based on common structure, verify path
+import 'package:mealmatch/screens/recipe_details_screen.dart'; 
 import 'package:mealmatch/services/recipe_service.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
@@ -16,7 +16,7 @@ class _RecipesScreenState extends State<RecipesScreen>
     with TickerProviderStateMixin {
   final TextEditingController _searchController = TextEditingController();
   final RecipeService _recipeService = RecipeService();
-  List<Map<String, dynamic>> recipes = []; // For search results
+  List<Map<String, dynamic>> recipes = []; 
 
   // Lists for each category
   List<Map<String, dynamic>> popularRecipes = [];
@@ -45,7 +45,7 @@ class _RecipesScreenState extends State<RecipesScreen>
   final Color pageBg = const Color(0xFFFFF6D7);
 
   late TabController _tabController;
-  final int _bottomNavIndex = 1; // 1 = Recipes (for the bottom bar)
+  final int _bottomNavIndex = 1; 
 
   @override
   void initState() {
@@ -56,10 +56,7 @@ class _RecipesScreenState extends State<RecipesScreen>
   }
 
   Future<void> _initializeData() async {
-    // 1. Load the user's saved favorites *first*
     await _loadUserFavorites();
-
-    // 2. Now that we know what's saved, load the recipe categories
     _loadAllRecipes();
   }
 
@@ -75,15 +72,6 @@ class _RecipesScreenState extends State<RecipesScreen>
     if (_tabController.index == 1 && !_tabController.indexIsChanging) {
       _loadFavorites();
     }
-  }
-
-  // ✅ UPDATED: Capitalizes EVERY word (Title Case)
-  String _capitalizeTitle(String text) {
-    if (text.isEmpty) return text;
-    return text.split(' ').map((word) {
-      if (word.isEmpty) return word;
-      return word[0].toUpperCase() + word.substring(1).toLowerCase();
-    }).join(' ');
   }
 
   Future<void> _loadAllRecipes() async {
@@ -681,8 +669,7 @@ class _RecipesScreenState extends State<RecipesScreen>
                 ),
                 child: Center(
                   child: Text(
-                    // ✅ Uses the new helper function for Title Case
-                    '${_capitalizeTitle(_searchController.text)} Recipes',
+                    '${_searchController.text} Recipes',
                     style: const TextStyle(
                       fontSize: 18,
                       fontWeight: FontWeight.bold,
@@ -756,7 +743,6 @@ class _RecipesScreenState extends State<RecipesScreen>
         ),
         centerTitle: true,
       ),
-      // --- 2. BODY ---
       body: Column(
         children: [
           // --- Search Bar ---
@@ -770,7 +756,6 @@ class _RecipesScreenState extends State<RecipesScreen>
                 filled: true,
                 fillColor: Colors.white,
                 prefixIcon: const Icon(Icons.search),
-                // ✅ FILTER ICON REMOVED (SuffixIcon deleted)
                 border: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(12),
                   borderSide: BorderSide(color: Colors.grey[300]!),
@@ -793,7 +778,6 @@ class _RecipesScreenState extends State<RecipesScreen>
               unselectedLabelColor: Colors.grey[600],
               indicatorColor: primaryGreen,
               indicatorWeight: 3,
-              // ✅ FIXED: Green line stretches full width
               indicatorSize: TabBarIndicatorSize.tab, 
               labelStyle: const TextStyle(
                 fontWeight: FontWeight.bold,
@@ -849,9 +833,9 @@ class _RecipesScreenState extends State<RecipesScreen>
           ),
         ],
       ),
-      // --- 3. BOTTOMNAVBAR ---
+      // --- BOTTOMNAVBAR ---
       bottomNavigationBar: BottomNavigationBar(
-        currentIndex: _bottomNavIndex, // This is 1 (Recipes)
+        currentIndex: _bottomNavIndex,
         onTap: (index) {
           if (index == _bottomNavIndex) return;
 

@@ -26,9 +26,9 @@ class RecipeService {
       recipeData['userId'] = user.uid;
       recipeData['userName'] = user.displayName ?? 'Anonymous';
       recipeData['userEmail'] = user.email ?? '';
-      recipeData['authorId'] = user.uid;  // ✅ ADD THIS for consistency
+      recipeData['authorId'] = user.uid;  
 
-      // ✅ IMPORTANT: Ensure ingredients are in correct format BEFORE saving
+      // Ensure ingredients are in correct format BEFORE saving
       if (recipeData['ingredients'] is List) {
         final ingredients = recipeData['ingredients'] as List;
         recipeData['ingredients'] = ingredients.map((ing) {
@@ -60,7 +60,7 @@ class RecipeService {
         recipeData['ingredients'] = [];
       }
 
-      // ✅ Ensure nutrition is in correct format
+      // Ensure nutrition is in correct format
       if (recipeData['nutrients'] != null) {
         recipeData['nutrition'] = recipeData['nutrients'];
       } else {
@@ -70,7 +70,7 @@ class RecipeService {
       recipeData['isPublic'] = true;
       recipeData['source'] = 'user';  // Mark as user-created recipe
 
-      // ✅ NOW normalize the data BEFORE saving
+      // NOW normalize the data BEFORE saving
       _normalizeRecipeData(recipeData);
 
       // Save to private collection (user's own recipes)
@@ -85,14 +85,14 @@ class RecipeService {
       // Also save to PUBLIC collection (all users can see)
       final publicRecipesRef = _firestore.collection('public_recipes');
       
-      // ✅ IMPORTANT: Create a COPY for public collection with same normalized data
+      // Create a COPY for public collection with same normalized data
       final publicData = Map<String, dynamic>.from(recipeData);
       publicData['privateRecipeId'] = privateDocRef.id;
       
       final publicDocRef = await publicRecipesRef.add(publicData);
       print('✅ Recipe saved to public collection: ${publicDocRef.id}');
 
-      // ✅ OPTIONAL: Also update private recipe with public ID for reference
+      // Also update private recipe with public ID for reference
       await privateDocRef.update({
         'publicRecipeId': publicDocRef.id,
       });
@@ -154,7 +154,7 @@ class RecipeService {
           data['calories'] = _calculateCalories(nutrients);
         }
 
-        // ✅ Normalize field names
+        // Normalize field names
         _normalizeRecipeData(data);
 
         return data;
@@ -190,7 +190,7 @@ class RecipeService {
           data['calories'] = _calculateCalories(nutrients);
         }
         
-        // ✅ Normalize field names
+        // Normalize field names
         _normalizeRecipeData(data);
         
         print('✅ Recipe loaded and normalized from public_recipes');
@@ -221,7 +221,7 @@ class RecipeService {
             data['calories'] = _calculateCalories(nutrients);
           }
           
-          // ✅ Normalize field names
+          // Normalize field names
           _normalizeRecipeData(data);
           
           print('✅ Recipe loaded and normalized from private recipes');
@@ -280,7 +280,7 @@ class RecipeService {
     }
   }
 
-  // ✅ ADDED: Update a recipe
+  // Update a recipe
   Future<Map<String, dynamic>> updateRecipe(
     String recipeId,
     UserRecipe recipe,
@@ -328,7 +328,7 @@ class RecipeService {
           data['calories'] = _calculateCalories(nutrients);
         }
         
-        // ✅ Normalize field names
+        // Normalize field names
         _normalizeRecipeData(data);
         
         return data;
@@ -414,12 +414,12 @@ class RecipeService {
     }
   }
 
-  // ✅ NEW: Helper function to normalize recipe data fields
+  // Helper function to normalize recipe data fields
   void _normalizeRecipeData(Map<String, dynamic> data) {
     try {
       print('🔄 Normalizing recipe data...');
       
-      // ✅ FIX: Safely handle title field
+      // Safely handle title field
       if (!data.containsKey('title') || data['title'] == null) {
         if (data.containsKey('name') && data['name'] != null) {
           data['title'] = data['name']?.toString() ?? 'Recipe';
@@ -434,7 +434,7 @@ class RecipeService {
       }
       print('✅ Title: ${data['title']}');
       
-      // ✅ FIX: Safely handle author field
+      // Safely handle author field
       if (!data.containsKey('author') || data['author'] == null) {
         data['author'] = data['userName']?.toString() ?? 'Public Recipe';
       }
@@ -445,7 +445,7 @@ class RecipeService {
       }
       print('✅ Author: ${data['author']}');
       
-      // ✅ NEW: Safely handle prepTime
+      //  Safely handle prepTime
       if (!data.containsKey('prepTime') || data['prepTime'] == null) {
         data['prepTime'] = '0';
       } else {
@@ -453,7 +453,6 @@ class RecipeService {
       }
       print('✅ Prep Time: ${data['prepTime']}m');
       
-      // ✅ FIX: Safely handle readyInMinutes (cook time)
       if (!data.containsKey('readyInMinutes') || data['readyInMinutes'] == null) {
         final cookTime = data['cookTime'];
         if (cookTime is int) {
@@ -488,7 +487,6 @@ class RecipeService {
         data['nutrition'] = data['nutrients'];
       }
       
-      // ✅ CRITICAL FIX: Ensure ingredients is ALWAYS a proper List
       if (data['ingredients'] != null) {
         try {
           final rawIngredients = data['ingredients'];
@@ -566,7 +564,7 @@ class RecipeService {
         data['ingredients'] = [];
       }
       
-      // ✅ NEW: Safely handle instructions (keep format flexible)
+      // Safely handle instructions (keep format flexible)
       if (data['instructions'] != null) {
         // Keep as is - can be String, List, or Map
         print('✅ Instructions format: ${data['instructions'].runtimeType}');

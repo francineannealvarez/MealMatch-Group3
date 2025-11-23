@@ -75,7 +75,7 @@ class _LoginScreenState extends State<LoginScreen> {
         // If still within grace period, show dialog on home screen
       }
 
-      // ✅ NEW: Check email verification
+      // Check email verification
       if (!currentUser.emailVerified) {
         await _firebaseService.signOut();
         await prefs.setBool('remember_me', false);
@@ -102,14 +102,13 @@ class _LoginScreenState extends State<LoginScreen> {
     }
   }
 
-  // ✅ UPDATED: Handle login with verification check
+  // Handle login with verification check
   Future<void> _handleLogin() async {
     if (!_formKey.currentState!.validate()) return;
 
     setState(() => _isLoading = true);
 
     try {
-      // ✅ Use FirebaseService instead of direct Firebase Auth
       final result = await _firebaseService.signInUser(
         email: _emailController.text.trim(),
         password: _passwordController.text.trim(),
@@ -118,7 +117,7 @@ class _LoginScreenState extends State<LoginScreen> {
       if (result['success'] == true) {
         final user = result['user'] as User?;
 
-        // ✅ NEW: Check if email is verified
+        // Check if email is verified
         if (user != null && !user.emailVerified) {
           await _firebaseService.signOut();
           
@@ -128,7 +127,7 @@ class _LoginScreenState extends State<LoginScreen> {
           return;
         }
 
-        // ✅ NEW: Check if user completed onboarding (has data in Firestore)
+        // Check if user completed onboarding (has data in Firestore)
         final userData = await FirebaseFirestore.instance
             .collection('users')
             .doc(user?.uid)
@@ -157,16 +156,16 @@ class _LoginScreenState extends State<LoginScreen> {
           return;
         }
 
-        // ✅ Save remember me preference
+        // Save remember me preference
         final prefs = await SharedPreferences.getInstance();
         await prefs.setBool('remember_me', _rememberMe);
 
-        // ✅ Navigate to home
+        // Navigate to home
         if (mounted) {
           Navigator.pushReplacementNamed(context, '/home');
         }
       } else if (result['accountDeleted'] == true) {
-        // ✅ Account was deleted
+        // Account was deleted
         if (mounted) {
           _showDialog(
             'Account Deleted',
@@ -174,13 +173,13 @@ class _LoginScreenState extends State<LoginScreen> {
           );
         }
       } else if (result['scheduledForDeletion'] == true) {
-        // ✅ Account is scheduled for deletion
+        // Account is scheduled for deletion
         final days = result['daysRemaining'];
         if (mounted) {
           _showCancelDeletionDialog(days);
         }
       } else {
-        // ✅ Show error message
+        // Show error message
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(content: Text(result['message'] ?? 'Login failed')),
@@ -200,7 +199,7 @@ class _LoginScreenState extends State<LoginScreen> {
     }
   }
 
-  // ✅ NEW: Show verification required dialog
+  // Show verification required dialog
   void _showVerificationRequiredDialog(User user) {
     showDialog(
       context: context,
@@ -267,7 +266,7 @@ class _LoginScreenState extends State<LoginScreen> {
     );
   }
 
-  // ✅ Add these helper methods sa login screen
+  // Helper methods
   void _showDialog(String title, String message) {
     showDialog(
       context: context,
@@ -349,7 +348,7 @@ class _LoginScreenState extends State<LoginScreen> {
     if (userCredential != null) {
       final user = userCredential.user;
 
-      // ✅ Google sign-in emails are auto-verified, but check anyway
+      // Google sign-in emails are auto-verified, but check anyway
       if (user != null && !user.emailVerified) {
         await _firebaseService.signOut();
         
@@ -364,7 +363,7 @@ class _LoginScreenState extends State<LoginScreen> {
         return;
       }
 
-      // ✅ Check deletion status
+      // Check deletion status
       final status = await _firebaseService.checkDeletionStatus();
 
       if (status != null && status['isScheduled'] == true) {
@@ -395,7 +394,7 @@ class _LoginScreenState extends State<LoginScreen> {
         }
       }
 
-      // ✅ Check if user data exists (completed onboarding)
+      // Check if user data exists (completed onboarding)
       final userData = await FirebaseFirestore.instance
           .collection('users')
           .doc(user?.uid)
@@ -416,7 +415,7 @@ class _LoginScreenState extends State<LoginScreen> {
         return;
       }
 
-      // ✅ Navigate to home
+      // Navigate to home
       if (mounted) {
         Navigator.of(
           context,

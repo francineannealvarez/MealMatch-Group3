@@ -7,10 +7,10 @@ class AuthService {
 
   static Future<UserCredential?> signInWithGoogle() async {
     try {
-      // ✅ Force logout first so user can choose another account
+      // Force logout first so user can choose another account
       await _googleSignIn.signOut();
 
-      // ✅ Start the Google sign-in process again
+      // Start the Google sign-in process again
       final GoogleSignInAccount? googleUser = await _googleSignIn.signIn();
       if (googleUser == null) return null; // user canceled
 
@@ -31,6 +31,6 @@ class AuthService {
 
   static Future<void> signOut() async {
     await _auth.signOut();
-    await _googleSignIn.signOut(); // ✅ This clears the Google account session
+    await _googleSignIn.signOut(); // This clears the Google account session
   }
 }

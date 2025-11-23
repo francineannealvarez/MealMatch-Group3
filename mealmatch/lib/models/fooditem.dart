@@ -12,8 +12,8 @@ class FoodItem {
   final double fat;
   final String servingsize;
   final List<String> servingOptions;
-  final bool isVerified; // ← NEW: Verified mark
-  final String source; // ← NEW: Track source (USDA, OFF, Local)
+  final bool isVerified; // Verified mark
+  final String source; // Track source (USDA, OFF, Local)
 
   FoodItem({
     required this.id,

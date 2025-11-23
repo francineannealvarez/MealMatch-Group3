@@ -8,7 +8,7 @@ class LogService {
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
   final FirebaseAuth _auth = FirebaseAuth.instance;
 
-  /// 🔹 Get all logs for TODAY (for the logged-in user)
+  // Get all logs for TODAY (for the logged-in user)
   Future<List<MealLog>> getTodayLogs() async {
     final user = _auth.currentUser;
     if (user == null) return [];
@@ -30,7 +30,7 @@ class LogService {
     return logs;
   }
 
-  /// 🔹 Get logs for a specific date
+  // Get logs for a specific date
   Future<List<MealLog>> getLogsByDate(DateTime date) async {
     final user = _auth.currentUser;
     if (user == null) return [];
@@ -51,7 +51,7 @@ class LogService {
     return logs;
   }
 
-  /// 🔹 Get logs by date and category
+  // Get logs by date and category
   Future<List<MealLog>> getLogsByDateAndCategory(
     DateTime date,
     String category,
@@ -76,7 +76,7 @@ class LogService {
     return logs;
   }
 
-  /// 🔹 Get logs within a date range (used for week/month/custom)
+  // Get logs within a date range (used for week/month/custom)
   Future<List<MealLog>> getLogsInRange(DateTime start, DateTime end) async {
     final user = _auth.currentUser;
     if (user == null) return [];
@@ -124,7 +124,7 @@ class LogService {
     return allLogs;
   }
 
-  /// 🔹 Delete a meal log
+  // Delete a meal log
   Future<void> deleteMealLog(String logId) async {
     final user = _auth.currentUser;
     if (user == null) return;
@@ -137,7 +137,7 @@ class LogService {
         .delete();
   }
 
-  /// 🔹 Calculate total calories for a list of MealLogs
+  // Calculate total calories for a list of MealLogs
   double calculateTotalCalories(List<MealLog> logs) {
     double total = 0;
     for (var log in logs) {
@@ -146,7 +146,7 @@ class LogService {
     return total;
   }
 
-  /// 🔹 Calculate total macros for a list of MealLogs
+  // Calculate total macros for a list of MealLogs
   Map<String, double> calculateTotalMacros(List<MealLog> logs) {
     double totalCarbs = 0;
     double totalProteins = 0;
@@ -161,7 +161,7 @@ class LogService {
     return {'carbs': totalCarbs, 'proteins': totalProteins, 'fats': totalFats};
   }
 
-  /// 🔹 Get user's calorie goal (from `users` collection)
+  // Get user's calorie goal (from `users` collection)
   Future<int?> getUserCalorieGoal() async {
     final user = _auth.currentUser;
     if (user == null) return null;
@@ -175,7 +175,7 @@ class LogService {
         : null;
   }
 
-  /// 🔹 Get summary for today (total calories + remaining calories)
+  // Get summary for today (total calories + remaining calories)
   Future<Map<String, dynamic>> getTodaySummary() async {
     final logs = await getTodayLogs();
     final totalCalories = calculateTotalCalories(logs);
@@ -194,7 +194,7 @@ class LogService {
     };
   }
 
-  /// 🔹 Group logs by category for a specific date
+  // Group logs by category for a specific date
   Future<Map<String, List<MealLog>>> getLogsGroupedByCategory(
     DateTime date,
   ) async {

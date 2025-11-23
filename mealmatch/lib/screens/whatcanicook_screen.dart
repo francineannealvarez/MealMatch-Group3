@@ -1,9 +1,10 @@
 // lib/screens/whatcanicook_screen.dart
+
 import 'package:flutter/material.dart';
 import 'package:mealmatch/services/themealdb_service.dart';
 import 'package:mealmatch/screens/recipe_details_screen.dart';
 import 'package:mealmatch/services/recipe_service.dart';
-//import 'dart:math'; // <-- 1. IMPORT ADDED
+
 
 class WhatCanICookScreen extends StatefulWidget {
   const WhatCanICookScreen({super.key});
@@ -132,14 +133,14 @@ class _WhatCanICookScreenState extends State<WhatCanICookScreen> {
         number: 10,
       );
 
-      // ✅ Get user recipes with matching ingredients
+      // Get user recipes with matching ingredients
       final userRecipesMatching = 
           await _recipeService.getPublicRecipesByIngredient(
             selectedIngredients,
             limit: 5,
           );
       
-      // ✅ Combine both lists
+      // Combine both lists
       final allRecipes = [...found, ...userRecipesMatching];
       
       if (allRecipes.isEmpty) {
@@ -373,7 +374,6 @@ class _WhatCanICookScreenState extends State<WhatCanICookScreen> {
     );
   }
 
-  // --- 3. UPDATED _buildRecipeCard METHOD ---
   Widget _buildRecipeCard(Map<String, dynamic> recipe, {bool isPartial = false}) {
     final missing = recipe['missedIngredients'] as List<dynamic>? ?? [];
 

@@ -3,8 +3,6 @@ import 'package:mealmatch/services/themealdb_service.dart';
 import 'package:mealmatch/services/cooked_recipes_service.dart';
 import 'dart:async';
 import '../services/recipe_service.dart';
-
-// --- 1. FIREBASE IMPORTS ADDED ---
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 
@@ -15,7 +13,7 @@ class RecipeDetailsScreen extends StatefulWidget {
   const RecipeDetailsScreen({
     super.key,
     required this.recipeId,
-    this.isOwnRecipe = false, // Default to false
+    this.isOwnRecipe = false, 
   });
 
   @override
@@ -23,8 +21,8 @@ class RecipeDetailsScreen extends StatefulWidget {
 }
 
 class _RecipeDetailsScreenState extends State<RecipeDetailsScreen> {
-  Map<String, dynamic>? data; // Changed from recipeDetails
-  bool loading = true; // Changed from isLoading
+  Map<String, dynamic>? data; 
+  bool loading = true; 
 
   final RecipeService _recipeService = RecipeService();
 
@@ -50,10 +48,8 @@ class _RecipeDetailsScreenState extends State<RecipeDetailsScreen> {
 
   final Color primaryGreen = const Color(0xFF4CAF50);
 
-  // --- 2. NEW STATE VARIABLES FOR FAVORITES ---
   bool _isFavorite = false;
   String? _userId;
-  // ------------------------------------------
 
   // Cooked recipes tracking
   bool _hasCooked = false;
@@ -69,8 +65,6 @@ class _RecipeDetailsScreenState extends State<RecipeDetailsScreen> {
   @override
   void dispose() {
     cookingTimer?.cancel();
-    
-    // ✅ NEW: Cancel all step timers
     stepTimers.forEach((key, timer) {
       timer?.cancel();
     });
@@ -78,7 +72,6 @@ class _RecipeDetailsScreenState extends State<RecipeDetailsScreen> {
     super.dispose();
   }
 
-  // --- 3. NEW HELPER TO CHECK FIREBASE ---
   Future<bool> _checkFavoriteStatus() async {
     _userId = FirebaseAuth.instance.currentUser?.uid;
     if (_userId == null) return false;
@@ -101,12 +94,11 @@ class _RecipeDetailsScreenState extends State<RecipeDetailsScreen> {
     }
   }
 
-  // NEW: Check if user has cooked this recipe
+  //Check if user has cooked this recipe
   Future<bool> _checkCookedStatus() async {
     return await _cookedService.hasUserCookedRecipe(widget.recipeId);
   }
 
-  // --- 4. UPDATED TO LOAD FAVORITE STATUS ---
   Future<void> _loadRecipeDetails() async {
     setState(() => loading = true);
     try {
@@ -116,7 +108,7 @@ class _RecipeDetailsScreenState extends State<RecipeDetailsScreen> {
 
       Map<String, dynamic>? details;
 
-      // ✅ TRY USER RECIPES FIRST (Firestore)
+      // TRY USER RECIPES FIRST (Firestore)
       try {
         details = await _recipeService.getRecipeById(widget.recipeId);
         if (details != null) {
@@ -158,7 +150,7 @@ class _RecipeDetailsScreenState extends State<RecipeDetailsScreen> {
 
         print('📊 Nutrition: Cal=$originalCalories, Pro=$originalProtein, Carb=$originalCarbs, Fat=$originalFat');
 
-        // --- ✅ FIXED: Handle ingredients properly with SAFE type conversion ---
+        // Handle ingredients properly with SAFE type conversion 
         List<Map<String, dynamic>> processedIngredients = [];
         
         try {
@@ -167,7 +159,7 @@ class _RecipeDetailsScreenState extends State<RecipeDetailsScreen> {
             print('🔍 Raw ingredients type: ${rawIngredients.runtimeType}');
             print('🔍 Raw ingredients: $rawIngredients');
             
-            // ✅ SAFE CONVERSION: Convert to List safely
+            // Convert to List safely
             List<dynamic> ingredientsList = [];
             
             if (rawIngredients is List) {
@@ -291,7 +283,7 @@ class _RecipeDetailsScreenState extends State<RecipeDetailsScreen> {
     return defaultValue;
   }
 
-  // ✅ NEW: Helper to safely extract string
+  // Helper to safely extract string
   String _extractString(dynamic value, String defaultValue) {
     if (value == null) return defaultValue;
     if (value is String) return value;
@@ -392,7 +384,6 @@ class _RecipeDetailsScreenState extends State<RecipeDetailsScreen> {
     return formattedSteps.join('\n\n');
   }
 
-  // --- 5. NEW FUNCTION TO SAVE TO FIREBASE ---
   void _toggleFavorite() {
     if (_userId == null) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -485,7 +476,6 @@ class _RecipeDetailsScreenState extends State<RecipeDetailsScreen> {
       }
     }
   }
-  // -------------------------------------------
 
   num _parseIngredientAmount(String original) {
     if (original.isEmpty) return 1.0;
@@ -522,7 +512,7 @@ class _RecipeDetailsScreenState extends State<RecipeDetailsScreen> {
     setState(() => currentServings = newServings);
   }
 
-  // ✅ NEW: Safely extract string value (handles List<dynamic>)
+  // Safely extract string value (handles List<dynamic>)
   String _getStringValue(dynamic value, String defaultValue) {
     if (value == null) return defaultValue;
     
@@ -536,7 +526,7 @@ class _RecipeDetailsScreenState extends State<RecipeDetailsScreen> {
     return value.toString();
   }
 
-  // ✅ ADD: Delete recipe function
+  // Delete recipe function
   Future<void> _deleteRecipe() async {
     // Show confirmation dialog
     final confirmed = await showDialog<bool>(
@@ -591,14 +581,14 @@ class _RecipeDetailsScreenState extends State<RecipeDetailsScreen> {
     }
   }
 
-  // ✅ NEW: Helper to convert minutes string to seconds
+  // Helper to convert minutes string to seconds
   int _minutesToSeconds(String? minutesStr) {
     if (minutesStr == null || minutesStr.isEmpty || minutesStr == '0') return 0;
     final minutes = int.tryParse(minutesStr) ?? 0;
     return minutes * 60;
   }
 
-  // ✅ NEW: Helper to format MM:SS to readable format
+  // Helper to format MM:SS to readable format
   String _formatCookTime(String? minutesStr) {
     if (minutesStr == null || minutesStr.isEmpty) return '0 min';
     final minutes = int.tryParse(minutesStr) ?? 0;
@@ -611,7 +601,7 @@ class _RecipeDetailsScreenState extends State<RecipeDetailsScreen> {
     return '$hours h ${mins}m';
   }
 
-  // ✅ NEW: Convert timer string "MM:SS" to seconds
+  // Convert timer string "MM:SS" to seconds
   int _timeStringToSeconds(String timerStr) {
     try {
       final parts = timerStr.split(':');
@@ -626,14 +616,14 @@ class _RecipeDetailsScreenState extends State<RecipeDetailsScreen> {
     }
   }
 
-  // ✅ NEW: Format step timer seconds to MM:SS
+  // Format step timer seconds to MM:SS
   String _formatStepTime(int seconds) {
     final minutes = seconds ~/ 60;
     final secs = seconds % 60;
     return '${minutes.toString().padLeft(2, '0')}:${secs.toString().padLeft(2, '0')}';
   }
 
-  // ✅ NEW: Toggle step timer (start/pause)
+  // =Toggle step timer (start/pause)
   void _toggleStepTimer(int stepIndex) {
     if (stepTimerRunning[stepIndex] == true) {
       // Pause timer
@@ -678,7 +668,7 @@ class _RecipeDetailsScreenState extends State<RecipeDetailsScreen> {
     }
   }
 
-  // ✅ NEW: Reset step timer
+  // Reset step timer
   void _resetStepTimer(int stepIndex) {
     stepTimers[stepIndex]?.cancel();
     setState(() {
@@ -708,7 +698,7 @@ class _RecipeDetailsScreenState extends State<RecipeDetailsScreen> {
     }
 
     List<Widget> widgets = [];
-    int stepCounter = 1; // ✅ NEW: Track actual step number across all instructions
+    int stepCounter = 1; // Track actual step number across all instructions
 
     for (int i = 0; i < instructionsList.length; i++) {
       try {
@@ -727,7 +717,6 @@ class _RecipeDetailsScreenState extends State<RecipeDetailsScreen> {
 
         if (text.isEmpty) continue;
 
-        // ✅ INITIALIZE STEP TIMER if it has a timer
         if (timerStr != null && timerStr.isNotEmpty && timerStr != '00:00') {
           if (!stepTimerSeconds.containsKey(stepCounter - 1)) {
             final seconds = _timeStringToSeconds(timerStr);
@@ -778,7 +767,7 @@ class _RecipeDetailsScreenState extends State<RecipeDetailsScreen> {
                         ),
                         child: Center(
                           child: Text(
-                            '$stepCounter', // ✅ FIXED: Use stepCounter instead of i+1
+                            '$stepCounter', 
                             style: const TextStyle(
                               color: Colors.white,
                               fontWeight: FontWeight.bold,
@@ -788,8 +777,7 @@ class _RecipeDetailsScreenState extends State<RecipeDetailsScreen> {
                         ),
                       ),
                       const SizedBox(width: 12),
-                      
-                      // ✅ SHOW TIMER IF AVAILABLE
+
                       if (timerStr != null && timerStr.isNotEmpty && timerStr != '00:00')
                         Expanded(
                           child: Container(
@@ -926,7 +914,7 @@ class _RecipeDetailsScreenState extends State<RecipeDetailsScreen> {
             ),
           );
           
-          stepCounter++; // ✅ FIXED: Increment after adding each step
+          stepCounter++; 
         }
       } catch (e) {
         print('⚠️ Error processing instruction: $e');
@@ -962,7 +950,7 @@ class _RecipeDetailsScreenState extends State<RecipeDetailsScreen> {
           style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
         ),
         centerTitle: true,
-        // ✅ ADD: Edit/Delete buttons for own recipes
+        // Edit/Delete buttons for own recipes
         actions: widget.isOwnRecipe
             ? [
                 IconButton(
@@ -1064,7 +1052,6 @@ class _RecipeDetailsScreenState extends State<RecipeDetailsScreen> {
                           ],
                         ),
 
-                        // -------------------------------------
                         const SizedBox(height: 8),
 
                         // Author
@@ -1077,7 +1064,6 @@ class _RecipeDetailsScreenState extends State<RecipeDetailsScreen> {
                         ),
 
                         const SizedBox(height: 16),
-                        // NEW: "I Cooked This" Button
                         if (!_hasCooked)
                           Container(
                             width: double.infinity,

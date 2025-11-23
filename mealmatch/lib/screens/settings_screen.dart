@@ -1533,7 +1533,7 @@ class _ModifyGoalsScreenState extends State<ModifyGoalsScreen> {
     }
   }
 
-  // NEW: Calculate calorie adjustment based on weight pace
+  // Calculate calorie adjustment based on weight pace
   int _getCalorieAdjustment() {
     final isLosingWeight = _currentWeight > _goalWeight;
 
@@ -1551,7 +1551,7 @@ class _ModifyGoalsScreenState extends State<ModifyGoalsScreen> {
     }
   }
 
-  // NEW: Calculate daily calorie goal with pace consideration
+  // Calculate daily calorie goal with pace consideration
   int _calculateDailyCalorieGoal() {
     // Calculate BMR
     double bmr;
@@ -1597,7 +1597,7 @@ class _ModifyGoalsScreenState extends State<ModifyGoalsScreen> {
     return targetCalories;
   }
 
-  // NEW: Recalculate calorie goal when pace changes
+  // Recalculate calorie goal when pace changes
   void _updateCalorieGoalFromPace() {
     setState(() {
       _dailyCalorieGoal = _calculateDailyCalorieGoal().toDouble();
@@ -1615,7 +1615,7 @@ class _ModifyGoalsScreenState extends State<ModifyGoalsScreen> {
         'goalWeight': _goalWeight,
         'activityLevel': _activityLevel,
         'dailyCalorieGoal': _dailyCalorieGoal.round(),
-        'weightPace': _weightPace, // NEW: Save weight pace
+        'weightPace': _weightPace,
         'lastUpdated': FieldValue.serverTimestamp(),
       });
 
@@ -1938,7 +1938,7 @@ class _ModifyGoalsScreenState extends State<ModifyGoalsScreen> {
     );
   }
 
-  // NEW: Weight Pace Card
+  // Weight Pace Card
   Widget _buildWeightPaceCard() {
     final isLosingWeight = _currentWeight > _goalWeight;
     final paceData = _getWeightPaceData(_weightPace, isLosingWeight);
@@ -2258,7 +2258,7 @@ class _ModifyGoalsScreenState extends State<ModifyGoalsScreen> {
     );
   }
 
-  // NEW: Show weight pace selection dialog
+  // Show weight pace selection dialog
   void _showWeightPaceDialog() {
     final isLosingWeight = _currentWeight > _goalWeight;
 

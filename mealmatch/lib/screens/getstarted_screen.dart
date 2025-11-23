@@ -5,8 +5,6 @@ import 'package:shared_preferences/shared_preferences.dart';
 import '../services/firebase_service.dart';
 import '../widgets/avatar_picker.dart';
 
-// Preferences flow UI
-
 String _stepTitle(int step, bool showWeightPace) {
   if (showWeightPace && step == 3) {
     return 'Select Your Pace';
@@ -74,7 +72,7 @@ class _GetStartedScreenState extends State<GetStartedScreen> {
   String? selectedAvatar;
   List<String> goals = [];
   String activityLevel = '';
-  String weightPace = 'steady'; // NEW: Default weight pace
+  String weightPace = 'steady';
   String gender = '';
   String age = '';
   String height = '';
@@ -84,7 +82,7 @@ class _GetStartedScreenState extends State<GetStartedScreen> {
   bool _agreedToTerms = false;
   bool isLoading = false;
 
-  // NEW: Check if user needs weight pace selection
+  // Check if user needs weight pace selection
   bool get _needsWeightPaceSelection {
     return goals.any(
       (g) =>
@@ -645,7 +643,7 @@ class StepContent extends StatelessWidget {
     );
   }
 
-  // NEW: Weight Pace Selection
+  // Weight Pace Selection
   Widget _buildWeightPaceSelection() {
     final paceOptions = [
       {

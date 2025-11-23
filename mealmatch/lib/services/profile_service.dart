@@ -220,7 +220,7 @@ class ProfileService {
     }
   }
 
-  // ✅ NEW: Get unique days logged
+  // Get unique days logged
   Future<int> _getUniqueDaysLogged() async {
     try {
       final userId = currentUserId;
@@ -246,7 +246,7 @@ class ProfileService {
     }
   }
 
-  // ✅ NEW: Check if user logged all meals in a day
+  // Check if user logged all meals in a day
   Future<bool> _hasLoggedAllMealsToday() async {
     try {
       final userId = currentUserId;
@@ -276,7 +276,7 @@ class ProfileService {
     }
   }
 
-  // 🎖️ Get achievements (with subcollection support)
+  // Get achievements (with subcollection support)
   Future<List<Map<String, dynamic>>> getAchievements() async {
     try {
       final userId = currentUserId;
@@ -518,7 +518,7 @@ class ProfileService {
     }
   }
 
-  // ✅ NEW: Unlock achievement (save to subcollection)
+  // Unlock achievement (save to subcollection)
   Future<void> _unlockAchievement(String achievementId) async {
     try {
       final userId = currentUserId;
@@ -540,7 +540,7 @@ class ProfileService {
     }
   }
 
-  // 🔄 Mark achievements as viewed
+  // Mark achievements as viewed
   Future<void> markAchievementsAsViewed(List<String> achievementIds) async {
     try {
       final userId = currentUserId;
@@ -569,7 +569,7 @@ class ProfileService {
     }
   }
 
-  // 🔔 Check if user has new achievements
+  // Check if user has new achievements
   Future<bool> hasNewAchievements() async {
     try {
       final achievements = await getAchievements();
@@ -580,18 +580,7 @@ class ProfileService {
     }
   }
 
-  // SOON: Method to check if user has new achievements (for notification badge)
-  /*Future<bool> hasNewAchievements() async {
-    try {
-      final achievements = await getAchievements();
-      return achievements.any((achievement) => achievement['isNew'] == true);
-    } catch (e) {
-      print('Error checking new achievements: $e');
-      return false;
-    }
-  }*/
-
-  // 🖼️ Get user avatar (placeholder - will be implemented later in settings)
+  // Get user avatar (placeholder - will be implemented later in settings)
   Future<String?> getUserAvatar() async {
     try {
       final userId = currentUserId;
@@ -608,10 +597,10 @@ class ProfileService {
     }
   }
 
-  // 🔄 Get all profile data at once (optimization - single function call)
+  //  Get all profile data at once (optimization - single function call)
   Future<Map<String, dynamic>> getProfileData() async {
     try {
-      // FIXED: Now properly awaiting all async operations
+      // Now properly awaiting all async operations
       final email = getUserEmail();
       final name = await getUserName();
       final streak = await getCurrentStreak();

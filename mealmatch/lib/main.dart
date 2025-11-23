@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:mealmatch/models/fooditem.dart';
 import 'package:mealmatch/screens/recipes_screen.dart';
-//import 'package:mealmatch/services/recipe_services.dart';
 
 import 'screens/splash_screen.dart';
 import 'screens/signup_screen.dart';

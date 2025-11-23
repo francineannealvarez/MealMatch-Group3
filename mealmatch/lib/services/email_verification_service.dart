@@ -1,5 +1,4 @@
 // 📁 lib/services/email_verification_handler.dart
-// Updated version with custom action code settings
 
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';

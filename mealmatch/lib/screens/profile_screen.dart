@@ -154,9 +154,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
     );
   }
 
-  // ==========================================
-  // UI: SKELETON SCREEN (Restored)
-  // ==========================================
   Widget _buildSkeletonProfileScreen() {
     return SingleChildScrollView(
       child: Column(
@@ -215,9 +212,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
     );
   }
 
-  // ==========================================
-  // UI: HEADER
-  // ==========================================
   Widget _buildProfileHeader() {
     return Column(
       children: [
@@ -256,7 +250,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
             _StatItem(label: 'Recipes', value: '$recipeCount'),
             const SizedBox(width: 48),
             _StatItem(label: 'Likes', value: '$totalLikes'),
-            // Optional: Add Followers if backend supports it, otherwise hidden
+            // Optional: Add Followers SOON
             // const SizedBox(width: 48),
             // const _StatItem(label: 'Followers', value: '0'),
           ],
@@ -272,9 +266,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
     );
   }
 
-  // ==========================================
-  // UI: TABS
-  // ==========================================
   Widget _buildTabSelector() {
     return Container(
       margin: const EdgeInsets.symmetric(horizontal: 16),
@@ -335,9 +326,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
     );
   }
 
-  // ==========================================
-  // UI: PROGRESS TAB (Restored)
-  // ==========================================
   Widget _buildProgressTab() {
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 16),
@@ -516,9 +504,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
     );
   }
 
-  // ==========================================
-  // UI: RECIPES TAB (Dynamic Data + Old UI)
-  // ==========================================
   Widget _buildMyRecipesTab() {
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 16),
@@ -861,74 +846,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
     }
   }
 
-  /* ✅ IMPROVED: Recipe card with better data display
-  Widget _buildRecipeCard(String name, String details, String kcal) {
-    return Container(
-      margin: const EdgeInsets.only(bottom: 16),
-      decoration: _cardDecoration(),
-      child: Row(
-        children: [
-          ClipRRect(
-            borderRadius: const BorderRadius.only(
-              topLeft: Radius.circular(16),
-              bottomLeft: Radius.circular(16),
-            ),
-            child: Container(
-              width: 110,
-              height: 100,
-              color: Colors.grey.shade300,
-              child: const Center(
-                child: Icon(Icons.restaurant, size: 40, color: Colors.grey),
-              ),
-            ),
-          ),
-          Expanded(
-            child: Padding(
-              padding: const EdgeInsets.all(12),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    name,
-                    style: const TextStyle(
-                      fontWeight: FontWeight.bold,
-                      fontSize: 16,
-                      color: Colors.black,
-                    ),
-                    maxLines: 1, // ✅ ADDED: Prevent overflow
-                    overflow: TextOverflow.ellipsis, // ✅ ADDED
-                  ),
-                  const SizedBox(height: 6),
-                  Text(
-                    details,
-                    style: const TextStyle(color: Colors.grey, fontSize: 12),
-                    maxLines: 1, // ✅ ADDED
-                    overflow: TextOverflow.ellipsis, // ✅ ADDED
-                  ),
-                  const SizedBox(height: 8),
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      Text(
-                        kcal,
-                        style: const TextStyle(
-                          color: Color(0xFFFF9800),
-                          fontWeight: FontWeight.bold,
-                          fontSize: 14,
-                        ),
-                      ),
-                      const Icon(Icons.favorite_border, color: Colors.red, size: 18),
-                    ],
-                  ),
-                ],
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
-  } */
-
   BoxDecoration _cardDecoration() {
     return BoxDecoration(
       color: Colors.white,
@@ -943,9 +860,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
     );
   }
 
-  // ==========================================
-  // UI: BOTTOM NAVIGATION (Restored Routing)
-  // ==========================================
   Widget _buildBottomNavigationBar() {
     return Container(
       decoration: BoxDecoration(

@@ -37,7 +37,7 @@ class _SignUpScreenState extends State<SignUpScreen> {
     super.dispose();
   }
 
-  // ✅ NEW: Start resend cooldown
+  // Start resend cooldown
   void _startResendCooldown() {
     setState(() {
       _resendCooldown = 60; // 60 seconds cooldown
@@ -58,7 +58,7 @@ class _SignUpScreenState extends State<SignUpScreen> {
   // Navigate back to the previous screen
   void handleBack(BuildContext context) async {
     if (_isVerificationMode) {
-      // ✅ If user goes back from verification, delete the unverified account
+      // If user goes back from verification, delete the unverified account
       final shouldGoBack = await showDialog<bool>(
         context: context,
         builder: (context) => AlertDialog(
@@ -124,7 +124,7 @@ class _SignUpScreenState extends State<SignUpScreen> {
         final user = userCredential.user;
         print("Signed in as ${user?.displayName}, ${user?.email}");
 
-        // ✅ Check if it's a new user
+        // Check if it's a new user
         final isNewUser = userCredential.additionalUserInfo?.isNewUser ?? false;
 
         if (isNewUser) {
@@ -166,7 +166,7 @@ class _SignUpScreenState extends State<SignUpScreen> {
         width: double.infinity,
         height: double.infinity,
         decoration: BoxDecoration(
-          color: Color(0xFFFFF5CF), // ✅ Solid background color
+          color: Color(0xFFFFF5CF), 
         ),
         child: Column(
           children: [
@@ -295,7 +295,7 @@ class _SignUpScreenState extends State<SignUpScreen> {
               width: double.infinity,
               child: OutlinedButton(
                 onPressed: _resendCooldown > 0
-                    ? null // ✅ Disable button during cooldown
+                    ? null 
                     : () => _resendVerificationEmail(context),
                 style: OutlinedButton.styleFrom(
                   side: BorderSide(
@@ -313,7 +313,7 @@ class _SignUpScreenState extends State<SignUpScreen> {
                 ),
                 child: Text(
                   _resendCooldown > 0
-                      ? "Resend in $_resendCooldown seconds" // ✅ Show countdown
+                      ? "Resend in $_resendCooldown seconds" 
                       : "Resend Verification Email",
                   style: TextStyle(
                     fontWeight: FontWeight.w600,
@@ -353,7 +353,7 @@ class _SignUpScreenState extends State<SignUpScreen> {
       Navigator.of(context).pop(); // Close loading dialog
 
       if (user?.emailVerified == true) {
-        // ✅ Email verified! Proceed to GetStarted
+        // Email verified! Proceed to GetStarted
         _cooldownTimer?.cancel(); // Stop countdown
 
         ScaffoldMessenger.of(context).showSnackBar(
@@ -393,7 +393,7 @@ class _SignUpScreenState extends State<SignUpScreen> {
 
   // Resend verification email with cooldown
   Future<void> _resendVerificationEmail(BuildContext context) async {
-    // ✅ Check if still in cooldown
+    // Check if still in cooldown
     if (_resendCooldown > 0) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
@@ -411,7 +411,7 @@ class _SignUpScreenState extends State<SignUpScreen> {
       if (user != null && !user.emailVerified) {
         await user.sendEmailVerification();
 
-        // ✅ Start cooldown after successful send
+        // Start cooldown after successful send
         _startResendCooldown();
 
         ScaffoldMessenger.of(context).showSnackBar(
@@ -426,7 +426,7 @@ class _SignUpScreenState extends State<SignUpScreen> {
 
       if (e.code == 'too-many-requests') {
         message = 'Too many requests. Please wait a few minutes and try again.';
-        // ✅ If Firebase blocks, set longer cooldown
+        // If Firebase blocks, set longer cooldown
         setState(() {
           _resendCooldown = 300; // 5 minutes
         });
@@ -801,7 +801,7 @@ class _SignUpScreenState extends State<SignUpScreen> {
     );
 
     try {
-      // ✅ Check if email is already in use
+      // Check if email is already in use
       try {
         final signInMethods = await FirebaseAuth.instance
             .fetchSignInMethodsForEmail(email);
@@ -816,7 +816,7 @@ class _SignUpScreenState extends State<SignUpScreen> {
                 .signInWithEmailAndPassword(email: email, password: password);
 
             if (userCred.user != null && !userCred.user!.emailVerified) {
-              // ✅ Same unverified account - allow resending verification
+              // Same unverified account - allow resending verification
               setState(() {
                 _isVerificationMode = true;
               });
@@ -834,7 +834,7 @@ class _SignUpScreenState extends State<SignUpScreen> {
               );
               return;
             } else if (userCred.user != null && userCred.user!.emailVerified) {
-              // ✅ Verified account exists
+              // Verified account exists
               ScaffoldMessenger.of(context).showSnackBar(
                 const SnackBar(
                   content: Text(
@@ -865,7 +865,7 @@ class _SignUpScreenState extends State<SignUpScreen> {
         print('Error checking email: $e');
       }
 
-      // ✅ Create NEW Firebase Auth account
+      // Create NEW Firebase Auth account
       final userCredential = await FirebaseAuth.instance
           .createUserWithEmailAndPassword(email: email, password: password);
 

@@ -5,9 +5,9 @@ class FavoritesService {
   static final FirebaseFirestore _firestore = FirebaseFirestore.instance;
   static final FirebaseAuth _auth = FirebaseAuth.instance;
 
-  /// Loads the current user's favorite recipe ids from Firestore.
-  /// Returns an empty list when the user is not logged in or
-  /// when no favorites have been stored yet.
+  /* Loads the current user's favorite recipe ids from Firestore.
+     Returns an empty list when the user is not logged in or
+     when no favorites have been stored yet.*/
   static Future<List<String>> loadFavoriteIds() async {
     final user = _auth.currentUser;
     if (user == null) {

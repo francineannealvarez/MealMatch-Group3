@@ -4,8 +4,8 @@ import 'package:http/http.dart' as http;
 class TheMealDBService {
   static const String baseUrl = 'https://www.themealdb.com/api/json/v1/1';
   
-  /// ✅ Generates consistent cooking time based on meal name and ID
-  /// Same recipe = same cook time always
+  // Generates consistent cooking time based on meal name and ID
+  // Same recipe = same cook time always
   static int _generateCookingTime(String mealName, String mealId) {
     final name = mealName.toLowerCase();
     
@@ -40,15 +40,15 @@ class TheMealDBService {
     return _roundToNearestFive(calculatedTime);
   }
 
-  /// ✅ Generates consistent servings (2-6) based on meal ID
+  // Generates consistent servings (2-6) based on meal ID
   static int _generateServings(String mealId) {
     // Use meal ID hash for consistent servings (2-6)
     final idHash = mealId.hashCode.abs() % 5;
     return 2 + idHash;
   }
 
-  /// ✅ Generates consistent nutrition based on meal type and ID
-  /// ⚠️ NOTE: This is estimated data - TheMealDB API doesn't provide nutrition info
+  // Generates consistent nutrition based on meal type and ID
+  // ⚠️ NOTE: This is estimated data - TheMealDB API doesn't provide nutrition info
   static Map<String, dynamic> _generateNutrition(String mealName, String mealId) {
     final name = mealName.toLowerCase();
     
@@ -109,8 +109,7 @@ class TheMealDBService {
     };
   }
 
-  /// ✅ Intelligently parses instructions into numbered steps
-  /// Handles both pre-numbered steps and long paragraphs
+  // Intelligently parses instructions into numbered steps and handles both pre-numbered steps and long paragraphs
   static List<Map<String, String>> _parseInstructions(String? rawInstructions) {
     if (rawInstructions == null || rawInstructions.isEmpty) {
       return [];
@@ -173,14 +172,12 @@ class TheMealDBService {
     }).toList();
   }
 
-  /// Rounds an integer to the nearest multiple of 5
+  // Rounds an integer to the nearest multiple of 5
   static int _roundToNearestFive(int number) {
     return (number / 5).round() * 5;
   }
 
-  // ========== API METHODS ==========
-
-  /// Find recipes by ingredients
+  // Find recipes by ingredients
   static Future<List<Map<String, dynamic>>> findByIngredients(
     List<String> ingredients, 
     {int number = 10}

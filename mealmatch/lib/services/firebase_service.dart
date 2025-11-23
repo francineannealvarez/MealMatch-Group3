@@ -7,7 +7,7 @@ class FirebaseService {
   final FirebaseAuth _auth = FirebaseAuth.instance;
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
 
-  // ✅ MAIN: Sign in with email & password (with deletion check)
+  // Sign in with email & password (with deletion check)
   Future<Map<String, dynamic>> signInUser({
     required String email,
     required String password,
@@ -173,7 +173,7 @@ class FirebaseService {
     }
   }
 
-  // ✅ UPDATED: Create user with email & password (now includes weightPace)
+  // Create user with email & password 
   Future<bool> saveUserProfile({
     required String name,
     String? avatar,
@@ -222,7 +222,7 @@ class FirebaseService {
         'weight': weight,
         'goalWeight': goalWeight,
         'dailyCalorieGoal': dailyCalorieGoal,
-        'weightPace': defaultWeightPace, // ✅ NEW: Add weight pace
+        'weightPace': defaultWeightPace, 
         'createdAt': FieldValue.serverTimestamp(),
       };
 
@@ -243,7 +243,7 @@ class FirebaseService {
     }
   }
 
-  // ✅ UPDATED: Save user data (for Google sign-ins) with weight pace
+  // Save user data (for Google sign-ins) 
   Future<void> saveUserData({
     required String email,
     required String name,
@@ -285,7 +285,7 @@ class FirebaseService {
       'weight': weight,
       'goalWeight': goalWeight,
       'dailyCalorieGoal': dailyCalorieGoal,
-      'weightPace': defaultWeightPace, // ✅ NEW: Add weight pace
+      'weightPace': defaultWeightPace, 
       'createdAt': FieldValue.serverTimestamp(),
     };
 
@@ -303,7 +303,7 @@ class FirebaseService {
     );
   }
 
-  // ✅ NEW: Change user password
+  // Change user password
   Future<Map<String, dynamic>> changePassword({
     required String currentPassword,
     required String newPassword,
@@ -368,7 +368,7 @@ class FirebaseService {
     }
   }
 
-  // ✅ Sign out user
+  // Sign out user
   Future<void> signOut() async {
     try {
       await _auth.signOut();
@@ -377,12 +377,12 @@ class FirebaseService {
     }
   }
 
-  // ✅ Get current user
+  // Get current user
   User? getCurrentUser() {
     return _auth.currentUser;
   }
 
-  // ✅ Get user's daily calorie goal
+  // Get user's daily calorie goal
   Future<int?> getUserCalorieGoal() async {
     try {
       final user = _auth.currentUser;
@@ -400,7 +400,7 @@ class FirebaseService {
     }
   }
 
-  // ✅ Get complete user data
+  // Get complete user data
   Future<Map<String, dynamic>?> getUserData() async {
     try {
       final user = _auth.currentUser;
@@ -418,7 +418,7 @@ class FirebaseService {
     }
   }
 
-  // ✅ UPDATED: Update user weight (recalculates calorie goal with pace)
+  // Update user weight (recalculates calorie goal with pace)
   Future<void> updateUserWeight(double newWeight) async {
     try {
       final user = _auth.currentUser;
@@ -451,7 +451,7 @@ class FirebaseService {
     }
   }
 
-  // ✅ UPDATED: Update activity level (recalculates calorie goal with pace)
+  // Update activity level (recalculates calorie goal with pace)
   Future<void> updateActivityLevel(String newActivityLevel) async {
     try {
       final user = _auth.currentUser;
@@ -483,14 +483,14 @@ class FirebaseService {
     }
   }
 
-  // ✅ NEW: Determine default weight pace based on current vs goal weight
+  //  Determine default weight pace based on current vs goal weight
   String _determineDefaultWeightPace(double currentWeight, double goalWeight) {
     // If trying to lose or gain weight, default to 'steady' (recommended)
     // If maintaining weight, still default to 'steady'
     return 'steady';
   }
 
-  // ✅ NEW: Get calorie adjustment based on weight pace
+  // Get calorie adjustment based on weight pace
   int _getCalorieAdjustmentForPace(String weightPace, bool isLosingWeight) {
     switch (weightPace.toLowerCase()) {
       case 'relaxed':
@@ -506,7 +506,7 @@ class FirebaseService {
     }
   }
 
-  // ✅ NEW: Calculate daily calorie goal with weight pace consideration
+  // Calculate daily calorie goal with weight pace consideration
   int _calculateDailyCalorieGoalWithPace({
     required String gender,
     required int age,
@@ -564,7 +564,7 @@ class FirebaseService {
 
   // Keep existing _calculateDailyCalorieGoal for backward compatibility
 
-  // ✅ Calculate BMR using Mifflin-St Jeor Equation
+  // Calculate BMR using Mifflin-St Jeor Equation
   double _calculateBMR({
     required String gender,
     required int age,
@@ -582,7 +582,7 @@ class FirebaseService {
     }
   }
 
-  // ✅ Get activity multiplier
+  // Get activity multiplier
   double _getActivityMultiplier(String activityLevel) {
     switch (activityLevel.toLowerCase()) {
       case 'sedentary':
@@ -598,7 +598,7 @@ class FirebaseService {
     }
   }
 
-  // ✅ Calculate TDEE (Total Daily Energy Expenditure)
+  // Calculate TDEE (Total Daily Energy Expenditure)
   double _calculateTDEE({
     required String gender,
     required int age,
@@ -618,13 +618,13 @@ class FirebaseService {
     return bmr * activityMultiplier;
   }
 
-  // ✅ Calculate BMI
+  // Calculate BMI
   double calculateBMI(double weight, double height) {
     double heightInMeters = height / 100;
     return weight / (heightInMeters * heightInMeters);
   }
 
-  // ✅ Get BMI category
+  // Get BMI category
   String getBMICategory(double bmi) {
     if (bmi < 18.5) return 'Underweight';
     if (bmi < 25) return 'Normal';
@@ -725,7 +725,7 @@ class FirebaseService {
     }
   }
 
-  // ✅ COMPLETE: Permanently delete account (Firestore + all collections + Firebase Auth)
+  // Permanently delete account (Firestore + all collections + Firebase Auth)
   Future<Map<String, dynamic>> permanentlyDeleteAccount() async {
     try {
       final user = _auth.currentUser;

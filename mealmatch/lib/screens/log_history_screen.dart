@@ -91,7 +91,6 @@ class _LogHistoryPageState extends State<LogHistoryPage> {
         logsByDate[dateKey]!.add(log);
       }
 
-      // Now group each date's logs by category
       for (var entry in logsByDate.entries) {
         String dateKey = entry.key;
         List<MealLog> dateLogs = entry.value;
@@ -1079,11 +1078,11 @@ class _LogHistoryPageState extends State<LogHistoryPage> {
         ),
       ),
       bottomNavigationBar: _buildBottomNavigationBar(),
-      body: isLoading  // ✅ CHECK isLoading HERE instead!
+      body: isLoading  
           ? const Center(
               child: CircularProgressIndicator(color: Color(0xFF4CAF50)),
             )
-          : Column(  // ✅ Rest of your body content
+          : Column(  
               children: [
                 if (!showSummaryList || expandedDate != null) ...[
                   Container(

@@ -1,5 +1,4 @@
 // lib/models/user_recipe.dart
-// ✅ UPDATED: Added calories field and improved model
 
 class UserRecipe {
   final String? id;
@@ -11,8 +10,8 @@ class UserRecipe {
   final List<String> ingredients;
   final List<InstructionStepModel> instructions;
   final Map<String, double> nutrients;
-  final String? localImagePath; // ⚠️ NOTE: Local paths only work temporarily
-  final int? calories; // ✅ ADDED: Calculated calories field
+  final String? localImagePath; // Local paths only work temporarily
+  final int? calories; // Calculated calories field
   final DateTime createdAt;
 
   UserRecipe({
@@ -30,7 +29,7 @@ class UserRecipe {
     required this.createdAt,
   });
 
-  // ✅ IMPROVED: toMap with calories calculation
+  // toMap with calories calculation
   Map<String, dynamic> toMap() {
     final totalMinutes = _parseTimeToMinutes(prepTime) + _parseTimeToMinutes(cookTime);
 
@@ -47,7 +46,7 @@ class UserRecipe {
       'nutrition': nutrients,
       'localImagePath': localImagePath,
       'image': localImagePath ?? '',
-      'calories': calories ?? _calculateCalories(), // ✅ ADDED: Auto-calculate if null
+      'calories': calories ?? _calculateCalories(), 
       'createdAt': createdAt.toIso8601String(),
     };
   }
@@ -67,7 +66,7 @@ class UserRecipe {
     }
   }
 
-  // ✅ ADDED: Calculate calories from nutrients
+  // Calculate calories from nutrients
   int _calculateCalories() {
     final protein = nutrients['Protein'] ?? 0.0;
     final carbs = nutrients['Carbs'] ?? 0.0;
@@ -75,7 +74,7 @@ class UserRecipe {
     return ((protein * 4) + (carbs * 4) + (fat * 9)).round();
   }
 
-  // ✅ IMPROVED: fromMap with calories handling
+  // fromMap with calories handling
   factory UserRecipe.fromMap(Map<String, dynamic> map, String id) {
     return UserRecipe(
       id: id,
@@ -90,7 +89,7 @@ class UserRecipe {
       ),
       nutrients: Map<String, double>.from(map['nutrients'] ?? {}),
       localImagePath: map['localImagePath'],
-      calories: map['calories']?.toInt(), // ✅ ADDED: Load calories if exists
+      calories: map['calories']?.toInt(), 
       createdAt: map['createdAt'] != null
           ? DateTime.parse(map['createdAt'])
           : DateTime.now(),
@@ -98,7 +97,6 @@ class UserRecipe {
   }
 }
 
-// ✅ NO CHANGES: InstructionStepModel remains the same
 class InstructionStepModel {
   final int stepNumber;
   final String text;

@@ -122,7 +122,6 @@ class _HomePageState extends State<HomePage> {
     try {
       print('🔄 Starting parallel recipe loading...');
 
-      // ✅ FIXED: Now loading community recipes AND cooked recipes
       final userRecipesFuture = _recipeService.getPublicRecipes(limit: 5);
       final cookAgainFuture = _loadCookAgainRecipes();
       final discoverFuture = _getVariedProteinRecipes();
@@ -210,14 +209,14 @@ class _HomePageState extends State<HomePage> {
 
       for (var cookedRecipe in mostCooked) {
         try {
-          // ✅ FIXED: Handle both String and possible other types
+          // HandleS both String and possible other types
           final recipeId = cookedRecipe['recipeId'] is String
               ? cookedRecipe['recipeId'] as String
               : cookedRecipe['recipeId'].toString();
               
           print('🔍 Loading cooked recipe: $recipeId');
 
-          // ✅ TRY RECIPE SERVICE FIRST (user recipes)
+          // TRY RECIPE SERVICE FIRST (user recipes)
           final details = await _recipeService.getRecipeById(recipeId);
           
           // If not found in user recipes, try TheMealDB
@@ -288,7 +287,7 @@ class _HomePageState extends State<HomePage> {
     try {
       final proteinCategories = ['Chicken', 'Beef', 'Seafood', 'Pork'];
 
-      // ✅ Rotate category every 6 hours instead of daily
+      // Rotate category every 6 hours instead of daily
       final hoursSinceEpoch =
           DateTime.now().millisecondsSinceEpoch ~/ (1000 * 60 * 60);
       final categoryIndex = (hoursSinceEpoch ~/ 6) % proteinCategories.length;
@@ -303,7 +302,7 @@ class _HomePageState extends State<HomePage> {
 
       if (meals.isEmpty) return [];
 
-      // ✅ Shuffle differently each time using current timestamp
+      // Shuffle differently each time using current timestamp
       meals.shuffle(Random(DateTime.now().millisecondsSinceEpoch));
 
       return meals.take(5).toList();
@@ -752,14 +751,14 @@ class _HomePageState extends State<HomePage> {
 
   // Smart title based on user history
   Widget _buildCookAgainSection() {
-    // ✅ IMPORTANT: Don't show section at all if user has no history
+    // IMPORTANT: Don't show section at all if user has no history
     if (!hasCookedRecipes && !hasLoggedMeals) {
       return const SizedBox.shrink(); // Completely hidden, no skeletons
     }
 
     String sectionTitle = 'Cook Again';
 
-    // ✅ If section should show but recipes are still loading, show them as loading
+    // If section should show but recipes are still loading, show them as loading
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -1341,7 +1340,6 @@ class _HomePageState extends State<HomePage> {
       
       print('✅ All fields checked!');
       
-      // NOW try to extract - this will show exactly which line fails
       String title = 'Recipe Name';
       try {
         if (recipe['title'] != null) {
