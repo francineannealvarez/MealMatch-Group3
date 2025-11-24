@@ -1498,7 +1498,6 @@ class MyRecipesTab extends StatefulWidget {
 class _MyRecipesTabState extends State<MyRecipesTab> {
   bool _isLoading = true;
   List<Map<String, dynamic>> _recipes = [];
-  String? _errorMessage;
 
   @override
   void initState() {
@@ -1507,27 +1506,36 @@ class _MyRecipesTabState extends State<MyRecipesTab> {
   }
 
   Future<void> _loadRecipes() async {
-    setState(() {
-      _isLoading = true;
-      _errorMessage = null;
-    });
+    setState(() => _isLoading = true);
 
     try {
-      // Try to load recipes with a timeout
+      // Fetch from private collection: users/{userId}/recipes
       final snapshot = await FirebaseFirestore.instance
+          .collection('users')
+          .doc(widget.userId)
           .collection('recipes')
-          .where('userId', isEqualTo: widget.userId)
+          .orderBy('createdAt', descending: true)
           .get()
           .timeout(
             const Duration(seconds: 10),
-            onTimeout: () {
-              throw Exception('Request timed out');
-            },
+            onTimeout: () => throw Exception('Request timed out'),
           );
 
-      final recipes = snapshot.docs
-          .map((doc) => {'id': doc.id, ...doc.data()})
-          .toList();
+      final recipes = snapshot.docs.map((doc) {
+        final data = doc.data();
+        data['id'] = doc.id;
+
+        // Ensure calories exist
+        if (!data.containsKey('calories') && data['nutrients'] != null) {
+          final nutrients = Map<String, double>.from(data['nutrients']);
+          final protein = nutrients['Protein'] ?? 0.0;
+          final carbs = nutrients['Carbs'] ?? 0.0;
+          final fat = nutrients['Fat'] ?? 0.0;
+          data['calories'] = ((protein * 4) + (carbs * 4) + (fat * 9)).round();
+        }
+
+        return data;
+      }).toList();
 
       if (mounted) {
         setState(() {
@@ -1538,10 +1546,7 @@ class _MyRecipesTabState extends State<MyRecipesTab> {
     } catch (e) {
       print('Error loading recipes: $e');
       if (mounted) {
-        setState(() {
-          _isLoading = false;
-          _errorMessage = e.toString();
-        });
+        setState(() => _isLoading = false);
       }
     }
   }
@@ -1639,71 +1644,7 @@ class _MyRecipesTabState extends State<MyRecipesTab> {
     // Loading state
     if (_isLoading) {
       return const Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            CircularProgressIndicator(color: Colors.orange),
-            SizedBox(height: 16),
-            Text(
-              'Loading your recipes...',
-              style: TextStyle(color: Colors.grey),
-            ),
-          ],
-        ),
-      );
-    }
-
-    // Error state
-    if (_errorMessage != null) {
-      return Center(
-        child: Padding(
-          padding: const EdgeInsets.all(32.0),
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Icon(
-                Icons.error_outline,
-                size: 80,
-                color: Colors.orange.shade300,
-              ),
-              const SizedBox(height: 24),
-              const Text(
-                'Failed to Load Recipes',
-                style: TextStyle(
-                  fontSize: 20,
-                  fontWeight: FontWeight.bold,
-                  color: Colors.black87,
-                ),
-              ),
-              const SizedBox(height: 12),
-              Text(
-                'Please check your internet connection',
-                textAlign: TextAlign.center,
-                style: TextStyle(fontSize: 16, color: Colors.grey[600]),
-              ),
-              const SizedBox(height: 32),
-              ElevatedButton.icon(
-                onPressed: _loadRecipes,
-                icon: const Icon(Icons.refresh, size: 22),
-                label: const Text(
-                  'Try Again',
-                  style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
-                ),
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: Colors.orange,
-                  foregroundColor: Colors.white,
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 32,
-                    vertical: 16,
-                  ),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(30),
-                  ),
-                ),
-              ),
-            ],
-          ),
-        ),
+        child: CircularProgressIndicator(color: Colors.orange),
       );
     }
 
@@ -1765,7 +1706,7 @@ class _MyRecipesTabState extends State<MyRecipesTab> {
       );
     }
 
-    // List of recipes
+    // List of recipes (matching Favorites tab style)
     return RefreshIndicator(
       onRefresh: _loadRecipes,
       color: Colors.orange,
@@ -1808,8 +1749,12 @@ class _MyRecipesTabState extends State<MyRecipesTab> {
                         errorBuilder: (_, __, ___) => Container(
                           width: 60,
                           height: 60,
-                          color: Colors.grey[200],
-                          child: const Icon(Icons.restaurant, size: 30),
+                          color: Colors.orange.shade100,
+                          child: Icon(
+                            Icons.restaurant,
+                            size: 30,
+                            color: Colors.orange.shade700,
+                          ),
                         ),
                       )
                     : Container(
