@@ -21,6 +21,7 @@ import 'screens/about_us_screen.dart';
 import 'screens/user_manual_screen.dart';
 import 'screens/upload_recipe.dart ';
 import 'screens/notifications_screen.dart';
+import 'helpers/notification_trigger_helper.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -28,8 +29,54 @@ void main() async {
   runApp(const MyApp());
 }
 
-class MyApp extends StatelessWidget {
+// 🆕 CHANGED: MyApp is now StatefulWidget to handle app lifecycle
+class MyApp extends StatefulWidget {
   const MyApp({super.key});
+
+  @override
+  State<MyApp> createState() => _MyAppState();
+}
+
+// 🆕 NEW: State class with WidgetsBindingObserver to detect app state changes
+class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
+  
+  @override
+  void initState() {
+    super.initState();
+    // 🆕 Register this widget as an observer of app lifecycle events
+    WidgetsBinding.instance.addObserver(this);
+    
+    // 🆕 Trigger notification checks when app first opens
+    _checkNotifications();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    super.didChangeAppLifecycleState(state);
+    
+    // 🆕 Trigger notification checks when app comes to foreground (resumed)
+    // This runs when user switches back to the app from background
+    if (state == AppLifecycleState.resumed) {
+      _checkNotifications();
+    }
+  }
+
+  @override
+  void dispose() {
+    // 🆕 Unregister observer when widget is disposed
+    WidgetsBinding.instance.removeObserver(this);
+    super.dispose();
+  }
+
+  // 🆕 NEW: Helper method to trigger all notification checks
+  Future<void> _checkNotifications() async {
+    try {
+      await NotificationTriggerHelper.onAppOpen();
+      print('✅ Notification checks completed successfully');
+    } catch (e) {
+      print('❌ Error running notification checks: $e');
+    }
+  }
 
   @override
   Widget build(BuildContext context) {

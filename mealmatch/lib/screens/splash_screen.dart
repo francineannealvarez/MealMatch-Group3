@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:mealmatch/helpers/notification_trigger_helper.dart';
 import 'package:video_player/video_player.dart';
 
 class SplashScreen extends StatefulWidget {
@@ -15,6 +16,7 @@ class _SplashScreenState extends State<SplashScreen> {
   @override
   void initState() {
     super.initState();
+    NotificationTriggerHelper.onAppOpen();
     _initializeVideo();
   }
 

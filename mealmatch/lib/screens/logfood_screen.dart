@@ -3,6 +3,7 @@
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:mealmatch/helpers/notification_trigger_helper.dart';
 import '../services/food_api_service.dart';
 import '../models/fooditem.dart';
 import 'modifyfood_screen.dart';
@@ -719,6 +720,8 @@ class _SelectMealScreenState extends State<SelectMealScreen> {
             'source': food.source,
           });
 
+      await NotificationTriggerHelper.afterMealLogged();
+
       setState(() {
         _todayConsumedCalories += food.calories.toInt();
       });
@@ -1281,6 +1284,8 @@ class _FavoritesTabState extends State<FavoritesTab> {
             'recipeId': recipeId,
           });
 
+      await NotificationTriggerHelper.afterMealLogged();
+
       if (mounted) {
         ScaffoldMessenger.of(context)
           ..hideCurrentSnackBar()
@@ -1600,6 +1605,8 @@ class _MyRecipesTabState extends State<MyRecipesTab> {
             'timestamp': FieldValue.serverTimestamp(),
             'date': dateStr,
           });
+
+      await NotificationTriggerHelper.afterMealLogged();
 
       if (mounted) {
         ScaffoldMessenger.of(context)
