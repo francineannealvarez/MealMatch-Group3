@@ -160,7 +160,7 @@ List available devices with `flutter devices`.
 |---|---|
 | Alvarez, Francine Anne V. | [@francineannealvarez](https://github.com/francineannealvarez) |
 | Bandola, Jobelyn G. | — |
-| Cantos, Iloiza Jhane C. | — |
+| Cantos, Iloiza Jhane C. | [@cantos-iloiza](https://github.com/cantos-iloiza) |
 | Castillo, Cloyd Robin C. | — |
 | Mercado, Andrea Sophia D. | — |
  
