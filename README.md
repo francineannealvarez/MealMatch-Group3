@@ -162,7 +162,7 @@ List available devices with `flutter devices`.
 | Bandola, Jobelyn G. | — |
 | Cantos, Iloiza Jhane C. | [@cantos-iloiza](https://github.com/cantos-iloiza) |
 | Castillo, Cloyd Robin C. | — |
-| Mercado, Andrea Sophia D. | — |
+| Mercado, Andrea Sophia D. | [@andengsome](https://github.com/andengsome) |
  
 ---
  
